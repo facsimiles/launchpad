@@ -739,6 +739,9 @@ class BaseBinaryUploadFile(PackageUploadFile):
         Also check if it is a valid architecture in LP context.
         """
         control_arch = six.ensure_text(self.control.get("Architecture", b""))
+        control_arch_variant = six.ensure_text(
+            self.control.get("Architecture-Variant", control_arch)
+        )
         valid_archs = [
             a.architecturetag for a in self.policy.distroseries.architectures
         ]
@@ -755,7 +758,7 @@ class BaseBinaryUploadFile(PackageUploadFile):
                 "in the changes file." % (self.filename, control_arch)
             )
 
-        if control_arch != self.architecture:
+        if control_arch_variant != self.architecture:
             yield UploadError(
                 "%s: control file lists arch as '%s' which doesn't "
                 "agree with version '%s' in the filename."

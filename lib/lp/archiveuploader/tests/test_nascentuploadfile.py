@@ -874,6 +874,34 @@ class DebBinaryUploadFileTests(PackageUploadFileTestCase):
         self.assertEqual(BuildStatus.FULLYBUILT, build.status)
         self.assertIs(None, build.upload_log)
 
+    def test_checkBuild_variant(self):
+        # checkBuild() verifies consistency with a build.
+        das = self.factory.makeDistroArchSeries(
+            distroseries=self.policy.distroseries, architecturetag="i386"
+        )
+        build = self.factory.makeBinaryPackageBuild(
+            distroarchseries=das, archive=self.policy.archive
+        )
+        control = self.getBaseControl()
+        control["Architecture"] = b"amd64"
+        control["Architecture-Variant"] = b"amd64v3"
+        uploadfile = self.createDebBinaryUploadFile(
+            "foo_0.42_amd64v3.deb",
+            "main/python",
+            "unknown",
+            "mypkg",
+            "0.42",
+            None,
+            control=control,
+            data_format="gz",
+            control_format="gz",
+        )
+        uploadfile.checkBuild(build)
+        # checkBuild() sets the build status to FULLYBUILT and
+        # removes the upload log.
+        self.assertEqual(BuildStatus.FULLYBUILT, build.status)
+        self.assertIs(None, build.upload_log)
+
     def test_checkBuild_inconsistent(self):
         # checkBuild() raises UploadError if inconsistencies between build
         # and upload file are found.
