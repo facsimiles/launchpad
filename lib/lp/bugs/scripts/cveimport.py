@@ -12,6 +12,7 @@ import time
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable
 from urllib.parse import urljoin
 
 import defusedxml.ElementTree as ElementTree
@@ -24,6 +25,7 @@ from zope.lifecycleevent import ObjectModifiedEvent
 
 from lp.bugs.interfaces.cve import CveStatus, ICveSet
 from lp.services.config import config
+from lp.services.log.logger import LaunchpadLogger
 from lp.services.looptuner import ITunableLoop, LoopTuner
 from lp.services.scripts.base import (
     LaunchpadCronScript,
@@ -149,6 +151,34 @@ def update_one_cve(cve_node, log):
     return
 
 
+def retry_on_failure(
+    func: Callable, max_retries: int, delay: int, logger: LaunchpadLogger
+):
+    """
+    Retry a function on failure with a fixed delay between retries.
+
+    :param func: The function to call.
+    :param max_retries: Maximum number of retries.
+    :param delay: The fixed delay (in seconds) between retries.
+    :param logger: LaunchpadLogger used to print retry messages.
+    :return: The result of the function if successful.
+    """
+    attempt = 0
+    while attempt < max_retries:
+        try:
+            return func()
+        except LaunchpadScriptFailure as e:
+            attempt += 1
+            if attempt < max_retries:
+                logger.info(
+                    f"Retrying... ({attempt}/{max_retries}) - "
+                    f"waiting for {delay} seconds..."
+                )
+                time.sleep(delay)
+            else:
+                raise e
+
+
 @implementer(ITunableLoop)
 class CveUpdaterTunableLoop:
     """An `ITunableLoop` for updating CVEs."""
@@ -193,6 +223,8 @@ class CveUpdaterTunableLoop:
 
 
 class CVEUpdater(LaunchpadCronScript):
+    max_retries = 6
+
     def add_my_options(self):
         """Parse command line arguments."""
         self.parser.add_option(
@@ -455,7 +487,14 @@ class CVEUpdater(LaunchpadCronScript):
                 )
 
                 # download the ZIP file
-                response = self.fetchCVEURL(url)
+                # We need to retry as we don't know the exact time the github
+                # release will be published
+                response = retry_on_failure(
+                    lambda: self.fetchCVEURL(url),
+                    max_retries=self.max_retries,
+                    delay=10 * 60,
+                    logger=self.logger,
+                )
 
                 # extract to temporary directory
                 temp_dir = self.extract_github_zip(response, delta=True)
