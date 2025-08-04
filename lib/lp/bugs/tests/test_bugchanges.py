@@ -865,8 +865,7 @@ class TestBugChanges(TestCaseWithFactory):
 
         cve_linked_notification = {
             "text": (
-                "** CVE added: https://cve.mitre.org/"
-                "cgi-bin/cvename.cgi?name=1999-8979"
+                "** CVE added: https://cve.org/" "CVERecord?id=CVE-1999-8979"
             ),
             "person": self.user,
         }
@@ -898,8 +897,7 @@ class TestBugChanges(TestCaseWithFactory):
 
         cve_unlinked_notification = {
             "text": (
-                "** CVE removed: https://cve.mitre.org/"
-                "cgi-bin/cvename.cgi?name=1999-8979"
+                "** CVE removed: https://cve.org/" "CVERecord?id=CVE-1999-8979"
             ),
             "person": self.user,
         }
