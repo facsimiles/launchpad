@@ -369,7 +369,7 @@ this document:
     >>> latest_notification.is_comment
     False
     >>> print(latest_notification.message.text_contents)
-    ** CVE added: https://cve.mitre.org/cgi-bin/cvename.cgi?name=2004-0276
+    ** CVE added: https://cve.org/CVERecord?id=CVE-2004-0276
 
 
 Expiring notifications
