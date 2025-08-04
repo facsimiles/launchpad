@@ -170,7 +170,7 @@ class IGitHostingClient(Interface):
         :param logger: An optional logger.
         """
 
-    def request_merge(
+    def requestMerge(
         repo,
         target_branch,
         target_commit_sha1,
@@ -206,7 +206,7 @@ class IGitHostingClient(Interface):
         source_repo=None,
         logger=None,
     ):
-        """To be deprecated in favour of request_merge
+        """To be deprecated in favour of requestMerge
 
         :param repo: name of the target repository on the hosting service.
         :param target_branch: name of target branch.

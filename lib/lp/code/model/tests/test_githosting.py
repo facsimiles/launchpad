@@ -859,14 +859,14 @@ class TestGitHostingClientRequestMerge(TestCaseWithFactory):
                 set_default_timeout_function(original_timeout_function)
             self.requests = [call.request for call in requests_mock.calls]
 
-    def test_request_merge_success(self):
-        """Test successful request_merge"""
+    def test_requestMerge_success(self):
+        """Test successful requestMerge"""
         person = self.factory.makePerson()
 
         with self.mockRequests(
             "POST", json={"queued": True, "already_merged": False}
         ):
-            response = self.client.request_merge(
+            response = self.client.requestMerge(
                 1,  # repository id
                 "target-branch",
                 "target_commit_sha1",
@@ -884,13 +884,13 @@ class TestGitHostingClientRequestMerge(TestCaseWithFactory):
         )
 
     def test_request_cross_repo_merge_success(self):
-        """Test successful request_merge for cross repo branches"""
+        """Test successful requestMerge for cross repo branches"""
         person = self.factory.makePerson()
 
         with self.mockRequests(
             "POST", json={"queued": True, "already_merged": False}
         ):
-            response = self.client.request_merge(
+            response = self.client.requestMerge(
                 1,  # repository id
                 "target-branch",
                 "target_commit_sha1",
@@ -908,14 +908,14 @@ class TestGitHostingClientRequestMerge(TestCaseWithFactory):
             self.requests[0].url,
         )
 
-    def test_request_merge_not_found(self):
-        """Test request_merge with non-existent repository"""
+    def test_requestMerge_not_found(self):
+        """Test requestMerge with non-existent repository"""
 
         person = self.factory.makePerson()
         with self.mockRequests("POST", status=404):
             self.assertRaises(
                 GitRepositoryScanFault,
-                self.client.request_merge,
+                self.client.requestMerge,
                 "non-existent",
                 "target-branch",
                 "target_commit_sha1",
@@ -925,10 +925,10 @@ class TestGitHostingClientRequestMerge(TestCaseWithFactory):
                 "Test commit message",
             )
 
-    def test_request_merge_network_error(self):
-        """Test request_merge with network error"""
+    def test_requestMerge_network_error(self):
+        """Test requestMerge with network error"""
         self.hosting_fixture = self.useFixture(GitHostingFixture())
-        self.hosting_fixture.request_merge.failure = GitRepositoryScanFault(
+        self.hosting_fixture.requestMerge.failure = GitRepositoryScanFault(
             "Network error"
         )
         self.client = getUtility(IGitHostingClient)
@@ -938,7 +938,7 @@ class TestGitHostingClientRequestMerge(TestCaseWithFactory):
 
         self.assertRaises(
             GitRepositoryScanFault,
-            self.client.request_merge,
+            self.client.requestMerge,
             repository.id,
             "target-branch",
             "target_commit_sha1",
