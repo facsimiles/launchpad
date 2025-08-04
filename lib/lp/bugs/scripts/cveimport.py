@@ -12,6 +12,7 @@ import time
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable
 from urllib.parse import urljoin
 
 import defusedxml.ElementTree as ElementTree
@@ -24,6 +25,7 @@ from zope.lifecycleevent import ObjectModifiedEvent
 
 from lp.bugs.interfaces.cve import CveStatus, ICveSet
 from lp.services.config import config
+from lp.services.log.logger import LaunchpadLogger
 from lp.services.looptuner import ITunableLoop, LoopTuner
 from lp.services.scripts.base import (
     LaunchpadCronScript,
@@ -149,6 +151,34 @@ def update_one_cve(cve_node, log):
     return
 
 
+def retry_on_failure(
+    func: Callable, max_retries: int, delay: int, logger: LaunchpadLogger
+):
+    """
+    Retry a function on failure with a fixed delay between retries.
+
+    :param func: The function to call.
+    :param max_retries: Maximum number of retries.
+    :param delay: The fixed delay (in seconds) between retries.
+    :param logger: LaunchpadLogger used to print retry messages.
+    :return: The result of the function if successful.
+    """
+    attempt = 0
+    while attempt < max_retries:
+        try:
+            return func()
+        except LaunchpadScriptFailure as e:
+            attempt += 1
+            if attempt < max_retries:
+                logger.info(
+                    f"Retrying... ({attempt}/{max_retries}) - "
+                    f"waiting for {delay} seconds..."
+                )
+                time.sleep(delay)
+            else:
+                raise e
+
+
 @implementer(ITunableLoop)
 class CveUpdaterTunableLoop:
     """An `ITunableLoop` for updating CVEs."""
@@ -193,6 +223,8 @@ class CveUpdaterTunableLoop:
 
 
 class CVEUpdater(LaunchpadCronScript):
+    max_retries = 6
+
     def add_my_options(self):
         """Parse command line arguments."""
         self.parser.add_option(
@@ -242,6 +274,10 @@ class CVEUpdater(LaunchpadCronScript):
         date_str = f"{year}-{date_str}"
         hour = now.hour
 
+        # Go back 24 hours to get yesterday's date
+        yesterday = now - timedelta(days=1)
+        yesterday_str = yesterday.strftime("%Y-%m-%d")
+
         base_url = config.cveupdater.github_cve_url
 
         if delta:
@@ -250,11 +286,8 @@ class CVEUpdater(LaunchpadCronScript):
             # A "real" delta update at midnight is empty since we just formed
             # a new baseline for the day.
             if hour == 0:
-                # Go back 24 hours to get yesterday's date
-                yesterday = now - timedelta(days=1)
-                date_str = yesterday.strftime("%Y-%m-%d")
-                release_tag = f"cve_{date_str}_at_end_of_day"
-                filename = f"{date_str}_delta_CVEs_at_end_of_day.zip"
+                release_tag = f"cve_{yesterday_str}_at_end_of_day"
+                filename = f"{yesterday_str}_delta_CVEs_at_end_of_day.zip"
             else:
                 # For all hours, use the standard hourly format
                 hour_str = f"{hour:02d}00"
@@ -262,7 +295,7 @@ class CVEUpdater(LaunchpadCronScript):
                 filename = f"{date_str}_delta_CVEs_at_{hour_str}Z.zip"
         else:
             release_tag = f"cve_{date_str}_0000Z"
-            filename = f"{date_str}_all_CVEs_at_midnight.zip.zip"
+            filename = f"{yesterday_str}_all_CVEs_at_midnight.zip.zip"
 
         # Construct the full URL
         url = urljoin(base_url, f"{release_tag}/{filename}")
@@ -454,7 +487,14 @@ class CVEUpdater(LaunchpadCronScript):
                 )
 
                 # download the ZIP file
-                response = self.fetchCVEURL(url)
+                # We need to retry as we don't know the exact time the github
+                # release will be published
+                response = retry_on_failure(
+                    lambda: self.fetchCVEURL(url),
+                    max_retries=self.max_retries,
+                    delay=10 * 60,
+                    logger=self.logger,
+                )
 
                 # extract to temporary directory
                 temp_dir = self.extract_github_zip(response, delta=True)
