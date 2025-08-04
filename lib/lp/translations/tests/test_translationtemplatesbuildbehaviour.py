@@ -109,6 +109,8 @@ class TestTranslationTemplatesBuildBehaviour(
                 {},
                 {
                     "arch_tag": das.architecturetag,
+                    "isa_tag": das.architecturetag,
+                    "abi_tag": das.architecturetag,
                     "archive_private": False,
                     "branch_url": behaviour.build.branch.composePublicURL(),
                     "build_url": canonical_url(behaviour.build),
