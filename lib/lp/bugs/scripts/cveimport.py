@@ -242,6 +242,10 @@ class CVEUpdater(LaunchpadCronScript):
         date_str = f"{year}-{date_str}"
         hour = now.hour
 
+        # Go back 24 hours to get yesterday's date
+        yesterday = now - timedelta(days=1)
+        yesterday_str = yesterday.strftime("%Y-%m-%d")
+
         base_url = config.cveupdater.github_cve_url
 
         if delta:
@@ -250,11 +254,8 @@ class CVEUpdater(LaunchpadCronScript):
             # A "real" delta update at midnight is empty since we just formed
             # a new baseline for the day.
             if hour == 0:
-                # Go back 24 hours to get yesterday's date
-                yesterday = now - timedelta(days=1)
-                date_str = yesterday.strftime("%Y-%m-%d")
-                release_tag = f"cve_{date_str}_at_end_of_day"
-                filename = f"{date_str}_delta_CVEs_at_end_of_day.zip"
+                release_tag = f"cve_{yesterday_str}_at_end_of_day"
+                filename = f"{yesterday_str}_delta_CVEs_at_end_of_day.zip"
             else:
                 # For all hours, use the standard hourly format
                 hour_str = f"{hour:02d}00"
@@ -262,7 +263,7 @@ class CVEUpdater(LaunchpadCronScript):
                 filename = f"{date_str}_delta_CVEs_at_{hour_str}Z.zip"
         else:
             release_tag = f"cve_{date_str}_0000Z"
-            filename = f"{date_str}_all_CVEs_at_midnight.zip.zip"
+            filename = f"{yesterday_str}_all_CVEs_at_midnight.zip.zip"
 
         # Construct the full URL
         url = urljoin(base_url, f"{release_tag}/{filename}")
