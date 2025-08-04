@@ -1022,7 +1022,7 @@ class BranchMergeProposal(StormBase, BugLinkTargetMixin):
         )
         return GitPermissionType.CAN_PUSH in permissions[self.target_git_path]
 
-    def request_merge(self, person, commit_message=None, force=False):
+    def requestMerge(self, person, commit_message=None, force=False):
         """See `IBranchMergeProposal`."""
 
         if not getFeatureFlag(PROPOSAL_MERGE_ENABLED_FEATURE_FLAG):
@@ -1056,7 +1056,7 @@ class BranchMergeProposal(StormBase, BugLinkTargetMixin):
             commit_message = self.commit_message
 
         hosting_client = getUtility(IGitHostingClient)
-        response = hosting_client.request_merge(
+        response = hosting_client.requestMerge(
             self.target_git_repository_id,
             self.target_git_ref.name,
             self.target_git_commit_sha1,
@@ -1094,7 +1094,7 @@ class BranchMergeProposal(StormBase, BugLinkTargetMixin):
     def merge(self, person, commit_message=None, force=False):
         """See `IBranchMergeProposal`.
         TODO ines-almeida 2025-07-11: we want to remove this method in favor
-        of the request_merge() one. Keeping it for now while we migrate.
+        of the requestMerge() one. Keeping it for now while we migrate.
         """
 
         if not getFeatureFlag(PROPOSAL_MERGE_ENABLED_FEATURE_FLAG):

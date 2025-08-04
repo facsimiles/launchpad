@@ -262,7 +262,7 @@ class GitHostingClient:
                 "Failed to get merge diff from Git repository: %s" % str(e)
             )
 
-    def request_merge(
+    def requestMerge(
         self,
         repo,
         target_branch,
