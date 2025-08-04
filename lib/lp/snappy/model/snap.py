@@ -125,7 +125,6 @@ from lp.services.database.stormexpr import (
     IsDistinctFrom,
     NullsLast,
 )
-from lp.services.features import getFeatureFlag
 from lp.services.job.interfaces.job import JobStatus
 from lp.services.job.model.job import Job
 from lp.services.librarian.model import LibraryFileAlias, LibraryFileContent
@@ -138,7 +137,6 @@ from lp.services.webhooks.interfaces import IWebhookSet
 from lp.services.webhooks.model import WebhookTargetMixin
 from lp.snappy.adapters.buildarch import determine_architectures_to_build
 from lp.snappy.interfaces.snap import (
-    SNAP_USE_FETCH_SERVICE_FEATURE_FLAG,
     BadMacaroon,
     BadSnapSearchContext,
     BadSnapSource,
@@ -396,7 +394,7 @@ class Snap(StormBase, WebhookTargetMixin):
 
     pro_enable = Bool(name="pro_enable", allow_none=False)
 
-    _use_fetch_service = Bool(name="use_fetch_service", allow_none=False)
+    use_fetch_service = Bool(name="use_fetch_service", allow_none=False)
 
     fetch_service_policy = DBEnum(
         enum=FetchServicePolicy,
@@ -695,17 +693,6 @@ class Snap(StormBase, WebhookTargetMixin):
     @store_channels.setter
     def store_channels(self, value):
         self._store_channels = value or None
-
-    @property
-    def use_fetch_service(self):
-        if getFeatureFlag(SNAP_USE_FETCH_SERVICE_FEATURE_FLAG):
-            return self._use_fetch_service
-        return None
-
-    @use_fetch_service.setter
-    def use_fetch_service(self, value):
-        if getFeatureFlag(SNAP_USE_FETCH_SERVICE_FEATURE_FLAG):
-            self._use_fetch_service = value
 
     def getAllowedInformationTypes(self, user):
         """See `ISnap`."""
