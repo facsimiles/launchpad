@@ -61,7 +61,6 @@ from lp.snappy.browser.snap import (
 )
 from lp.snappy.interfaces.snap import (
     SNAP_SNAPCRAFT_CHANNEL_FEATURE_FLAG,
-    SNAP_USE_FETCH_SERVICE_FEATURE_FLAG,
     CannotModifySnapProcessor,
     ISnapSet,
     SnapBuildRequestStatus,
@@ -821,10 +820,6 @@ class TestSnapAdminView(BaseTestSnapView):
     def test_admin_snap(self):
         # Admins can change require_virtualized, privacy, and allow_internet.
 
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: True})
-        )
-
         login("admin@canonical.com")
         admin = self.factory.makePerson(
             member_of=[getUtility(ILaunchpadCelebrities).admin]
@@ -839,7 +834,6 @@ class TestSnapAdminView(BaseTestSnapView):
         self.assertFalse(snap.private)
         self.assertTrue(snap.allow_internet)
         self.assertFalse(snap.pro_enable)
-        self.assertFalse(snap.use_fetch_service)
 
         self.factory.makeAccessPolicy(
             pillar=project, type=InformationType.PRIVATESECURITY
@@ -852,39 +846,13 @@ class TestSnapAdminView(BaseTestSnapView):
         browser.getControl(name="field.information_type").value = private
         browser.getControl("Allow external network access").selected = False
         browser.getControl("Enable Ubuntu Pro").selected = True
-        browser.getControl("Use fetch service").selected = True
         browser.getControl("Update snap package").click()
-
-        # XXX ines-almeida 2024-03-11: Browser tests work oddly with fixtures.
-        # This ensures that the feature flag is ON during the rest of the test.
-        # Further investigation on this issue is required.
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: True})
-        )
         login_admin()
         self.assertEqual(project, snap.project)
         self.assertFalse(snap.require_virtualized)
         self.assertTrue(snap.private)
         self.assertFalse(snap.allow_internet)
         self.assertTrue(snap.pro_enable)
-        self.assertTrue(snap.use_fetch_service)
-
-    def test_admin_use_fetch_service_feature_flag(self):
-        admin = self.factory.makePerson(
-            member_of=[getUtility(ILaunchpadCelebrities).admin]
-        )
-        snap = self.factory.makeSnap(registrant=admin)
-        browser = self.getViewBrowser(snap, user=admin)
-
-        browser.getLink("Administer snap package").click()
-        self.assertFalse("Use fetch service" in browser.contents)
-
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: True})
-        )
-
-        browser.reload()
-        self.assertTrue("Use fetch service" in browser.contents)
 
     def test_admin_snap_private_without_project(self):
         # Cannot make snap private if it doesn't have a project associated.
@@ -1457,6 +1425,32 @@ class TestSnapEditView(BaseTestSnapView):
             "Source:\n%s\nEdit snap package" % new_ref.display_name,
             MatchesTagText(content, "source"),
         )
+
+    def test_edit_use_fetch_service(self):
+        series = self.factory.makeUbuntuDistroSeries()
+        with admin_logged_in():
+            snappy_series = self.factory.makeSnappySeries(
+                usable_distro_series=[series]
+            )
+        login_person(self.person)
+        snap = self.factory.makeSnap(
+            registrant=self.person,
+            owner=self.person,
+            distroseries=series,
+            branch=self.factory.makeAnyBranch(),
+            store_series=snappy_series,
+        )
+        browser = self.getViewBrowser(snap, user=self.person)
+        browser.getLink("Edit snap package").click()
+        self.assertTrue("Use fetch service" in browser.contents)
+        with person_logged_in(self.person):
+            self.assertFalse(snap.use_fetch_service)
+        browser.getControl("Use fetch service").selected = True
+        browser.getControl("Update snap package").click()
+        browser = self.getViewBrowser(snap, user=self.person)
+        browser.getLink("Edit snap package").click()
+        with person_logged_in(self.person):
+            self.assertTrue(snap.use_fetch_service)
 
     def setUpSeries(self):
         """Set up {distro,snappy}series with some available processors."""
