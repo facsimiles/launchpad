@@ -479,9 +479,8 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         )
 
         if result.returncode != 0:
-            raise Exception(
-                f"Failed to publish Maven artifact: {result.stderr}"
-            )
+            log.error(f"[+] Maven publish stdout:\n{result.stdout}")
+            raise Exception("Failed to publish Maven artifact")
 
         self._publish_properties(maven_publish_url, artifact_name)
 
