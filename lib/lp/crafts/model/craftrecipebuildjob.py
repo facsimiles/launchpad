@@ -462,6 +462,12 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
             f.write(settings_xml)
 
         # Run mvn deploy using the pom file
+        env = os.environ.copy()
+        env["MAVEN_OPTS"] = (
+            "-Xmx128m -Xms128m "
+            "-XX:CompressedClassSpaceSize=128m "
+            "-XX:MaxMetaspaceSize=64m"
+        )
         result = subprocess.run(
             [
                 "mvn",
@@ -479,10 +485,59 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         )
 
         if result.returncode != 0:
-            log.error(f"[+] Maven publish stdout:\n{result.stdout}")
+            stdout_clean = self._clean_maven_output(result.stdout)
+            stderr_clean = self._clean_maven_output(result.stderr)
+
+            log.error(
+                f"[+] Maven publish failed (return code: {result.returncode})"
+            )
+            if stdout_clean:
+                log.error(f"[+] Maven stdout:\n{stdout_clean}")
+            if stderr_clean:
+                log.error(f"[+] Maven stderr:\n{stderr_clean}")
+
             raise Exception("Failed to publish Maven artifact")
 
         self._publish_properties(maven_publish_url, artifact_name)
+
+    def _clean_maven_output(self, output):
+        """Clean up Maven output by removing progress bars and formatting
+        properly.
+
+        Maven outputs progress bars with carriage returns that create messy
+        logs when captured. This function removes those and formats the output
+        nicely.
+
+        :param output: Raw Maven output string
+        :return: Cleaned and formatted output string
+        """
+        if not output:
+            return ""
+
+        lines = output.decode("utf-8") if isinstance(output, bytes) else output
+
+        # Split into lines and filter out progress bar lines
+        cleaned_lines = []
+        for line in lines.split("\n"):
+            # Skip lines that are just progress indicators
+            if line.strip().startswith("Progress (") and "\\r" in line:
+                continue
+            # Skip lines that are just carriage returns or whitespace
+            if line.strip() == "" or line.strip() == "\\r":
+                continue
+            # Clean up lines that have carriage returns in them
+            if "\\r" in line:
+                # Take the last part after the last carriage return
+                parts = line.split("\\r")
+                if parts:
+                    last_part = parts[-1].strip()
+                    if last_part:
+                        cleaned_lines.append(last_part)
+            else:
+                cleaned_lines.append(line.strip())
+
+        # Remove empty lines and join
+        return "\n".join(line for line in cleaned_lines if line)
 
     def _get_maven_settings_xml(self, username, password, repository_url):
         """Generate Maven settings.xml content.
