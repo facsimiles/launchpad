@@ -1948,6 +1948,20 @@ class TestSnap(TestCaseWithFactory):
             snap.use_fetch_service = True
             self.assertTrue(snap.use_fetch_service)
 
+    def test_snap_fetch_service_policy(self):
+        person = self.factory.makePerson()
+        with person_logged_in(person):
+            snap = self.factory.makeSnap(registrant=person, owner=person)
+
+            snap.use_fetch_service = True
+            self.assertEqual(
+                snap.fetch_service_policy, FetchServicePolicy.STRICT
+            )
+            snap.fetch_service_policy = FetchServicePolicy.PERMISSIVE
+            self.assertEqual(
+                snap.fetch_service_policy, FetchServicePolicy.PERMISSIVE
+            )
+
 
 class TestSnapDeleteWithBuilds(TestCaseWithFactory):
     layer = LaunchpadFunctionalLayer
