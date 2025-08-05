@@ -27,7 +27,8 @@ class BuildArgs(TypedDict, total=False):
     # True if this build should build architecture-independent packages
     # as well as architecture-dependent packages [binarypackage].
     arch_indep: bool
-    # The architecture tag to build for. (deprecated)
+    # The architecture tag to build for. (deprecated in favor of
+    # abi_tag and isa_tag)
     arch_tag: str
     # The architecture (i.e. ABI) tag to build for.
     abi_tag: str
