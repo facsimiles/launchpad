@@ -104,6 +104,7 @@ class CreateBugParams:
         description=None,
         msg=None,
         status=None,
+        status_explanation=None,
         datecreated=None,
         information_type=None,
         subscribers=(),
@@ -124,6 +125,7 @@ class CreateBugParams:
         self.description = description
         self.msg = msg
         self.status = status
+        self.status_explanation = status_explanation
         self.datecreated = datecreated
         self.information_type = information_type
         self.subscribers = subscribers

@@ -3322,7 +3322,11 @@ class BugSet:
         # Create the initial task on the specified target.  This also
         # reconciles access policies for this bug based on that target.
         getUtility(IBugTaskSet).createTask(
-            bug, params.owner, params.target, status=params.status
+            bug,
+            params.owner,
+            params.target,
+            status=params.status,
+            metadata=params.metadata,
         )
 
         if params.subscribe_owner:

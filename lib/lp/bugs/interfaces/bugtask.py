@@ -1208,6 +1208,7 @@ class IBugTaskSet(Interface):
         importance=None,
         assignee=None,
         milestone=None,
+        metadata=None,
     ):
         """Create a bug task on a bug and return it.
 
