@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 import apt_pkg
+from zope.security.proxy import removeSecurityProxy
 
 from lp.archivepublisher.indices import (
     IndexStanzaFields,
@@ -204,6 +205,22 @@ class TestNativeArchiveIndexes(TestNativePublishingBase):
             ],
             build_bpph_stanza(pub_binary).makeOutput().splitlines(),
         )
+
+    def testBinaryStanzaArchSpecific(self):
+        das = self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries, architecturetag="mips"
+        )
+        procs = list(self.distroseries.main_archive.processors)
+        procs.append(das.processor)
+        removeSecurityProxy(self.distroseries.main_archive).processors = procs
+        pub_binaries = self.getPubBinaries(
+            architecturespecific=True,
+        )
+        index_architectures = {
+            get_field(build_bpph_stanza(pub_binary), "Architecture")
+            for pub_binary in pub_binaries
+        }
+        self.assertIn("mips", index_architectures)
 
     def testBinaryStanzaWithCustomFields(self):
         """Check just-created binary publication Index stanza with
