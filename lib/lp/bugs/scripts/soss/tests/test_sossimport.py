@@ -1,0 +1,440 @@
+from datetime import datetime
+from pathlib import Path
+
+import transaction
+from zope.component import getUtility
+
+from lp.app.enums import InformationType
+from lp.app.interfaces.launchpad import ILaunchpadCelebrities
+from lp.bugs.interfaces.bugtask import BugTaskImportance, BugTaskStatus
+from lp.bugs.scripts.soss import SOSSRecord
+from lp.bugs.scripts.soss.sossimport import SOSSImporter
+from lp.registry.interfaces.externalpackage import ExternalPackageType
+from lp.registry.interfaces.sourcepackagename import ISourcePackageNameSet
+from lp.testing import TestCaseWithFactory, person_logged_in
+from lp.testing.layers import LaunchpadZopelessLayer
+
+
+class TestSOSSImporter(TestCaseWithFactory):
+
+    layer = LaunchpadZopelessLayer
+
+    def setUp(self):
+        super().setUp()
+        self.sampledata = Path(__file__).parent / "sampledata"
+        self.file = self.sampledata / "CVE-2025-1979"
+
+        with open(self.file, encoding="utf-8") as file:
+            self.soss_record = SOSSRecord.from_yaml(file)
+
+        self.cve = self.factory.makeCVE(sequence="2025-1979")
+        self.soss = self.factory.makeDistribution(
+            name="soss", displayname="SOSS"
+        )
+        transaction.commit()
+
+        self.bug_importer = getUtility(ILaunchpadCelebrities).bug_importer
+        self.janitor = getUtility(ILaunchpadCelebrities).janitor
+        self.source_package_name_set = getUtility(ISourcePackageNameSet)
+
+        # Set up references
+        self.description = (
+            "Versions of the package ray before 2.43.0 are vulnerable to "
+            "Insertion of Sensitive Information into Log File where the redis "
+            "password is being logged in the standard logging. If the redis "
+            "password is passed as an argument, it will be logged and could "
+            "potentially leak the password.\r\rThis is only exploitable if:"
+            "\r\r1) Logging is enabled;\r\r2) Redis is using password "
+            "authentication;\r\r3) Those logs are accessible to an attacker, "
+            "who can reach that redis instance.\r\r**Note:**\r\rIt is "
+            "recommended that anyone who is running in this configuration "
+            "should update to the latest version of Ray, then rotate their "
+            "redis password.\n\n"
+            "References:\n"
+            "https://github.com/ray-project/ray/commit/"
+            "64a2e4010522d60b90c389634f24df77b603d85d\n"
+            "https://github.com/ray-project/ray/issues/50266\n"
+            "https://github.com/ray-project/ray/pull/50409\n"
+            "https://security.snyk.io/vuln/SNYK-PYTHON-RAY-8745212\n"
+            "https://ubuntu.com/security/notices/SSN-148-1.json"
+            "?show_hidden=true"
+        )
+
+        # Set up reference for bugtasks
+        pyyaml = self.source_package_name_set.getOrCreateByName("pyyaml")
+        ray = self.source_package_name_set.getOrCreateByName("ray")
+        vllm = self.source_package_name_set.getOrCreateByName("vllm")
+
+        self.bugtask_reference = [
+            (
+                self.soss.getExternalPackage(
+                    name=pyyaml,
+                    packagetype=ExternalPackageType.PYTHON,
+                    channel=("jammy:2.22.0", "stable"),
+                ),
+                BugTaskStatus.INVALID,
+                {"repositories": ["nvidia-pb3-python-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=ray,
+                    packagetype=ExternalPackageType.PYTHON,
+                    channel=("jammy:2.22.0", "stable"),
+                ),
+                BugTaskStatus.FIXRELEASED,
+                {"repositories": ["nvidia-pb3-python-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=ray,
+                    packagetype=ExternalPackageType.CONDA,
+                    channel=("jammy:1.17.0", "stable"),
+                ),
+                BugTaskStatus.INVALID,
+                {"repositories": ["nvidia-pb3-python-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=ray,
+                    packagetype=ExternalPackageType.CARGO,
+                    channel=("focal:0.27.0", "stable"),
+                ),
+                BugTaskStatus.DEFERRED,
+                {"repositories": ["nvidia-pb3-python-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=vllm,
+                    packagetype=ExternalPackageType.GENERIC,
+                    channel=("noble:0.7.3", "stable"),
+                ),
+                BugTaskStatus.NEW,
+                {"repositories": ["soss-src-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=vllm,
+                    packagetype=ExternalPackageType.MAVEN,
+                    channel=("noble:0.7.3", "stable"),
+                ),
+                BugTaskStatus.UNKNOWN,
+                {"repositories": ["soss-src-stable-local"]},
+            ),
+        ]
+
+        self.cvss = {
+            "report@snyk.io": [
+                {
+                    "source": "report@snyk.io",
+                    "vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:C/C:H/I:L/A:N",
+                    "baseScore": 6.4,
+                    "baseSeverity": "MEDIUM",
+                }
+            ],
+            "security-advisories@github.com": [
+                {
+                    "source": "security-advisories@github.com",
+                    "vector": "CVSS:3.1/AV:A/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H",
+                    "baseScore": 9.0,
+                    "baseSeverity": "CRITICAL",
+                }
+            ],
+        }
+
+        self.importance_explanation = (
+            "Unrealistic exploitation scenario. Logs are stored locally "
+            "and not transferred between agents, so local log access is "
+            "the only conceivable method to view the password for the "
+            "redis instance (i.e., no possibility of MitM to access the "
+            "logs). Given the requirement for priviledged system access "
+            'to access log files the real "danger" posed by the '
+            "vulnerability is quite low, and that is reflected in this "
+            "priority assignment. "
+        )
+
+        self.notes = (
+            "This is a sample soss cve with all the fields filled for "
+            "testing\nsample note 2"
+        )
+
+    def _check_bugtasks(
+        self, bugtasks, bugtask_reference, importance, assignee
+    ):
+        self.assertEqual(len(bugtasks), len(bugtask_reference))
+
+        for i, (target, status, metadata) in enumerate(bugtask_reference):
+            self.assertEqual(bugtasks[i].target, target)
+            self.assertEqual(bugtasks[i].status, status)
+            self.assertEqual(bugtasks[i].importance, importance)
+            self.assertEqual(bugtasks[i].assignee, assignee)
+            self.assertEqual(bugtasks[i].metadata, metadata)
+
+    def _check_bug_fields(self, bug, bugtask_reference):
+        """Helper function to check the imported bug"""
+        self.assertEqual(bug.description, self.description)
+        self.assertEqual(bug.title, self.cve.sequence)
+        self.assertEqual(bug.information_type, InformationType.PRIVATESECURITY)
+        self.assertEqual(bug.owner, self.bug_importer)
+
+        self._check_bugtasks(
+            bug.bugtasks,
+            self.bugtask_reference,
+            BugTaskImportance.LOW,
+            self.janitor,
+        )
+
+    def _check_vulnerability_fields(self, vulnerability, bug):
+        """Helper function to check the imported vulnerability"""
+        self.assertEqual(vulnerability.distribution, self.soss)
+        self.assertEqual(
+            vulnerability.date_created.date(), datetime.now().date()
+        )
+        self.assertEqual(
+            vulnerability.date_made_public,
+            datetime.fromisoformat("2025-03-06T05:15:16.213+00:00"),
+        )
+        self.assertEqual(vulnerability.date_notice_issued, None)
+        self.assertEqual(vulnerability.date_coordinated_release, None)
+        self.assertEqual(
+            vulnerability.information_type, InformationType.PRIVATESECURITY
+        )
+        self.assertEqual(vulnerability.importance, BugTaskImportance.LOW)
+        self.assertEqual(
+            vulnerability.importance_explanation,
+            self.importance_explanation,
+        )
+        self.assertEqual(vulnerability.creator, self.bug_importer)
+        self.assertEqual(
+            vulnerability.notes,
+            self.notes,
+        )
+        self.assertEqual(vulnerability.mitigation, None)
+        self.assertEqual(vulnerability.cve, self.cve)
+
+        self.assertEqual(vulnerability.cvss, self.cvss)
+
+        self.assertEqual(len(vulnerability.bugs), 1)
+        self.assertEqual(vulnerability.bugs[0], bug)
+
+    def test_import_cve_from_file(self):
+        """Test import a SOSS cve from file"""
+        file = self.sampledata / "CVE-2025-1979"
+
+        soss_importer = SOSSImporter(
+            information_type=InformationType.PRIVATESECURITY
+        )
+        bug, vulnerability = soss_importer.import_cve_from_file(file)
+
+        # Check bug fields
+        self._check_bug_fields(bug, self.bugtask_reference)
+
+        # Check vulnerability
+        self._check_vulnerability_fields(vulnerability, bug)
+
+    def test_create_update_bug(self):
+        """Test create and update a bug from a SOSS cve file"""
+        with person_logged_in(self.bug_importer):
+            bug = SOSSImporter()._create_bug(self.soss_record, self.cve)
+
+        self._check_bug_fields(bug, self.bugtask_reference)
+
+        # Modify the soss_record and check that the bug changed
+        new_cve = self.factory.makeCVE("2025-1234")
+
+        self.soss_record.description = "New sample description"
+        new_description = (
+            f"{self.soss_record.description}\n\n"
+            "References:\n"
+            "https://github.com/ray-project/ray/commit/"
+            "64a2e4010522d60b90c389634f24df77b603d85d\n"
+            "https://github.com/ray-project/ray/issues/50266\n"
+            "https://github.com/ray-project/ray/pull/50409\n"
+            "https://security.snyk.io/vuln/SNYK-PYTHON-RAY-8745212\n"
+            "https://ubuntu.com/security/notices/SSN-148-1.json"
+            "?show_hidden=true"
+        )
+
+        self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.UNPACKAGED)
+        self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.MAVEN)
+        self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.RUST)
+
+        bug = SOSSImporter(
+            information_type=InformationType.PUBLICSECURITY
+        )._update_bug(bug, self.soss_record, new_cve)
+        transaction.commit()
+
+        # Check bug fields
+        self.assertEqual(bug.description, new_description)
+        self.assertEqual(bug.title, new_cve.sequence)
+        self.assertEqual(bug.information_type, InformationType.PUBLICSECURITY)
+
+        # Check bugtasks
+        bugtasks = bug.bugtasks
+        bugtask_reference = self.bugtask_reference[:3]
+        self._check_bugtasks(
+            bugtasks, bugtask_reference, BugTaskImportance.LOW, self.janitor
+        )
+
+    def test_create_update_vulnerability(self):
+        """Test create and update a vulnerability from a SOSS cve file"""
+        soss_importer = SOSSImporter()
+        with person_logged_in(self.bug_importer):
+            bug = soss_importer._create_bug(self.soss_record, self.cve)
+            vulnerability = soss_importer._create_vulnerability(
+                bug, self.soss_record, self.cve, self.soss
+            )
+
+        self.assertEqual(vulnerability.distribution, self.soss)
+        self.assertEqual(
+            vulnerability.date_created.date(), datetime.now().date()
+        )
+        self.assertEqual(
+            vulnerability.date_made_public,
+            datetime.fromisoformat("2025-03-06T05:15:16.213+00:00"),
+        )
+        self.assertEqual(vulnerability.date_notice_issued, None)
+        self.assertEqual(vulnerability.date_coordinated_release, None)
+        self.assertEqual(
+            vulnerability.information_type, InformationType.PRIVATESECURITY
+        )
+        self.assertEqual(vulnerability.importance, BugTaskImportance.LOW)
+        self.assertEqual(
+            vulnerability.importance_explanation,
+            self.importance_explanation,
+        )
+        self.assertEqual(vulnerability.creator, self.bug_importer)
+        self.assertEqual(
+            vulnerability.notes,
+            self.notes,
+        )
+        self.assertEqual(vulnerability.mitigation, None)
+        self.assertEqual(vulnerability.cve, self.cve)
+
+        self.assertEqual(vulnerability.cvss, self.cvss)
+
+        self.assertEqual(len(vulnerability.bugs), 1)
+        self.assertEqual(vulnerability.bugs[0], bug)
+
+    def test_create_or_update_bugtasks(self):
+        """Test update bugtasks"""
+        soss_importer = SOSSImporter()
+        with person_logged_in(self.bug_importer):
+            bug = soss_importer._create_bug(self.soss_record, self.cve)
+
+        self._check_bugtasks(
+            bug.bugtasks,
+            self.bugtask_reference,
+            BugTaskImportance.LOW,
+            self.janitor,
+        )
+
+        # Update soss_record and check that the bugtasks change
+        self.soss_record.assigned_to = "bug-importer"
+        self.soss_record.priority = SOSSRecord.PriorityEnum.HIGH
+
+        # Remove 2 packages from the soss_record
+        self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.PYTHON)
+
+        # Modify a package
+        self.soss_record.packages[SOSSRecord.PackageTypeEnum.CONDA] = (
+            SOSSRecord.Package(
+                name="aaa",
+                channel=SOSSRecord.Channel(value="noble:4.23.1/stable"),
+                repositories=["test-repo"],
+                status=SOSSRecord.PackageStatusEnum.DEFERRED,
+                note="test note",
+            ),
+        )
+        # Modify its bugtask_reference
+        self.bugtask_reference[2] = (
+            self.soss.getExternalPackage(
+                name=self.source_package_name_set.getOrCreateByName("aaa"),
+                packagetype=ExternalPackageType.CONDA,
+                channel=("noble:4.23.1", "stable"),
+            ),
+            BugTaskStatus.DEFERRED,
+            {"repositories": ["test-repo"]},
+        )
+
+        soss_importer._create_or_update_bugtasks(bug, self.soss_record)
+        transaction.commit()
+
+        self._check_bugtasks(
+            bug.bugtasks,
+            self.bugtask_reference[2:],
+            BugTaskImportance.HIGH,
+            self.bug_importer,
+        )
+
+    def test_get_launchpad_cve(self):
+        """Test get a cve from Launchpad"""
+        soss_importer = SOSSImporter()
+        self.assertEqual(
+            soss_importer._get_launchpad_cve("2025-1979"), self.cve
+        )
+        self.assertEqual(soss_importer._get_launchpad_cve("2000-1111"), None)
+
+    def test_make_bug_description(self):
+        """Test make a bug description from a SOSSRecord"""
+        description = SOSSImporter()._make_bug_description(self.soss_record)
+        self.assertEqual(description, self.description)
+
+    def test_get_assignee(self):
+        """Test get an assignee person from Launchpad"""
+        soss_importer = SOSSImporter()
+
+        janitor = soss_importer._get_assignee("janitor")
+        self.assertEqual(janitor, self.janitor)
+        nonexistent = soss_importer._get_assignee("nonexistent")
+        self.assertEqual(nonexistent, None)
+
+    def test_get_or_create_external_package(self):
+        """Test create an ExternalPackage from SOSSRecord"""
+        soss_importer = SOSSImporter()
+
+        cargo_pkg = soss_importer._get_or_create_external_package(
+            self.soss_record.packages[SOSSRecord.PackageTypeEnum.RUST][0],
+            SOSSRecord.PackageTypeEnum.RUST,
+        )
+        self.assertEqual(cargo_pkg, self.bugtask_reference[3][0])
+
+        generic_pkg = soss_importer._get_or_create_external_package(
+            self.soss_record.packages[SOSSRecord.PackageTypeEnum.UNPACKAGED][
+                0
+            ],
+            SOSSRecord.PackageTypeEnum.UNPACKAGED,
+        )
+        self.assertEqual(generic_pkg, self.bugtask_reference[4][0])
+
+        maven_pkg = soss_importer._get_or_create_external_package(
+            self.soss_record.packages[SOSSRecord.PackageTypeEnum.MAVEN][0],
+            SOSSRecord.PackageTypeEnum.MAVEN,
+        )
+        self.assertEqual(maven_pkg, self.bugtask_reference[5][0])
+
+    def test_prepare_cvss_data(self):
+        """Test prepare the cvss json"""
+        cvss = SOSSImporter()._prepare_cvss_data(self.soss_record)
+        self.assertEqual(cvss, self.cvss)
+
+    def test_validate_soss_record(self):
+        """Test validate the SOSSRecord"""
+        soss_importer = SOSSImporter()
+        valid = soss_importer._validate_soss_record(
+            self.soss_record, f"CVE-{self.cve.sequence}"
+        )
+        self.assertEqual(valid, True)
+
+        # SOSSRecord without packages is not valid
+        self.soss_record.packages = {}
+        valid = soss_importer._validate_soss_record(
+            self.soss_record, f"CVE-{self.cve.sequence}"
+        )
+        self.assertEqual(valid, False)
+
+        # SOSSRecord with candidate != sequence is not valid
+        self.soss_record.candidate = "nonvalid"
+        valid = soss_importer._validate_soss_record(
+            self.soss_record, f"CVE-{self.cve.sequence}"
+        )
+        self.assertEqual(valid, False)

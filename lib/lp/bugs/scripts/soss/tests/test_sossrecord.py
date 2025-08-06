@@ -45,7 +45,7 @@ class TestSOSSRecord(TestCase):
                 "vulnerability is quite low, and that is reflected in this "
                 "priority assignment. "
             ),
-            assigned_to="octagalland",
+            assigned_to="janitor",
             packages={
                 SOSSRecord.PackageTypeEnum.UNPACKAGED: [
                     SOSSRecord.Package(
@@ -157,7 +157,7 @@ class TestSOSSRecord(TestCase):
                 "vulnerability is quite low, and that is reflected in this "
                 "priority assignment. "
             ),
-            "Assigned-To": "octagalland",
+            "Assigned-To": "janitor",
             "Packages": {
                 "unpackaged": [
                     {
@@ -271,7 +271,7 @@ class TestSOSSRecord(TestCase):
         )
 
     def test_from_yaml(self):
-        load_from = Path(__file__).parent / "sampledata" / "CVE-2025-1979-full"
+        load_from = Path(__file__).parent / "sampledata" / "CVE-2025-1979"
 
         soss_record = None
         with open(load_from) as f:
@@ -286,7 +286,7 @@ class TestSOSSRecord(TestCase):
         )
 
     def test_to_yaml(self):
-        load_from = Path(__file__).parent / "sampledata" / "CVE-2025-1979-full"
+        load_from = Path(__file__).parent / "sampledata" / "CVE-2025-1979"
         with open(load_from) as f:
             sample_data = f.read()
 
