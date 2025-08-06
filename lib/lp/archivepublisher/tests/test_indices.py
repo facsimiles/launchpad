@@ -222,6 +222,45 @@ class TestNativeArchiveIndexes(TestNativePublishingBase):
         }
         self.assertIn("mips", index_architectures)
 
+    def testBinaryStanzaVariant(self):
+        for das in self.distroseries.architectures:
+            das.enabled = False
+        das_amd64 = self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries, architecturetag="amd64"
+        )
+        das_amd64v3 = self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries,
+            architecturetag="amd64v3",
+            underlying_architecturetag="amd64",
+        )
+        procs = list(self.distroseries.main_archive.processors)
+        procs.append(das_amd64.processor)
+        procs.append(das_amd64v3.processor)
+        removeSecurityProxy(self.distroseries.main_archive).processors = procs
+        pub_binaries = self.getPubBinaries(
+            architecturespecific=True,
+        )
+        architecture_fields = {
+            pub_binary.distroarchseries.architecturetag: get_field(
+                build_bpph_stanza(pub_binary), "Architecture"
+            )
+            for pub_binary in pub_binaries
+        }
+        architecture_variant_fields = {
+            pub_binary.distroarchseries.architecturetag: get_field(
+                build_bpph_stanza(pub_binary), "Architecture-Variant"
+            )
+            for pub_binary in pub_binaries
+        }
+        self.assertEqual(
+            {"amd64": "amd64", "amd64v3": "amd64"},
+            architecture_fields,
+        )
+        self.assertEqual(
+            {"amd64": None, "amd64v3": "amd64v3"},
+            architecture_variant_fields,
+        )
+
     def testBinaryStanzaWithCustomFields(self):
         """Check just-created binary publication Index stanza with
         custom fields (Python-Version).
