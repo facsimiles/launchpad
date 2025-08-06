@@ -465,7 +465,7 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         env = os.environ.copy()
         env["MAVEN_OPTS"] = (
             "-Xmx128m -Xms128m "
-            "-XX:CompressedClassSpaceSize=128m "
+            "-XX:CompressedClassSpaceSize=32m "
             "-XX:MaxMetaspaceSize=64m"
         )
         result = subprocess.run(
@@ -482,62 +482,20 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
             ],
             capture_output=True,
             cwd=work_dir,
+            env=env,
         )
 
         if result.returncode != 0:
-            stdout_clean = self._clean_maven_output(result.stdout)
-            stderr_clean = self._clean_maven_output(result.stderr)
-
             log.error(
                 f"[+] Maven publish failed (return code: {result.returncode})"
             )
-            if stdout_clean:
-                log.error(f"[+] Maven stdout:\n{stdout_clean}")
-            if stderr_clean:
-                log.error(f"[+] Maven stderr:\n{stderr_clean}")
+            log.error(f"[+] Maven stdout:\n{result.stdout}")
 
             raise Exception("Failed to publish Maven artifact")
 
-        self._publish_properties(maven_publish_url, artifact_name)
-
-    def _clean_maven_output(self, output):
-        """Clean up Maven output by removing progress bars and formatting
-        properly.
-
-        Maven outputs progress bars with carriage returns that create messy
-        logs when captured. This function removes those and formats the output
-        nicely.
-
-        :param output: Raw Maven output string
-        :return: Cleaned and formatted output string
-        """
-        if not output:
-            return ""
-
-        lines = output.decode("utf-8") if isinstance(output, bytes) else output
-
-        # Split into lines and filter out progress bar lines
-        cleaned_lines = []
-        for line in lines.split("\n"):
-            # Skip lines that are just progress indicators
-            if line.strip().startswith("Progress (") and "\\r" in line:
-                continue
-            # Skip lines that are just carriage returns or whitespace
-            if line.strip() == "" or line.strip() == "\\r":
-                continue
-            # Clean up lines that have carriage returns in them
-            if "\\r" in line:
-                # Take the last part after the last carriage return
-                parts = line.split("\\r")
-                if parts:
-                    last_part = parts[-1].strip()
-                    if last_part:
-                        cleaned_lines.append(last_part)
-            else:
-                cleaned_lines.append(line.strip())
-
-        # Remove empty lines and join
-        return "\n".join(line for line in cleaned_lines if line)
+        # Skip publishing properties for SNAPSHOT artifacts
+        if "SNAPSHOT" not in artifact_name:
+            self._publish_properties(maven_publish_url, artifact_name)
 
     def _get_maven_settings_xml(self, username, password, repository_url):
         """Generate Maven settings.xml content.
@@ -694,10 +652,15 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         new_properties["soss.license"] = [self._get_license_metadata()]
 
         # Repo name is derived from the URL
-        # We assume the URL ends with "index" as both Cargo and Maven use such
-        # indexes to publish artifacts. Thus, we also assume that the
-        # repository name is the second last part of the URL.
-        repo_name = publish_url.rstrip("/").split("/")[-2]
+        # refer to schema-lazr.conf for more details about the URL structure
+        url_parts = publish_url.rstrip("/").split("/")
+
+        if publish_url.endswith("/index") or publish_url.endswith("/index/"):
+            # Cargo URL - repository name is second to last part
+            repo_name = url_parts[-2]
+        else:
+            # Maven URL - repository name is the last part
+            repo_name = url_parts[-1]
 
         root_path_str = self._extract_root_path(publish_url)
         if not root_path_str:
