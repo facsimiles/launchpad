@@ -228,29 +228,40 @@ class TestNativeArchiveIndexes(TestNativePublishingBase):
         das_amd64 = self.factory.makeBuildableDistroArchSeries(
             distroseries=self.distroseries, architecturetag="amd64"
         )
+        procs = list(self.distroseries.main_archive.processors)
+        procs.append(das_amd64.processor)
+        self.distroseries.main_archive.setProcessors(procs)
+
+        pub_source = self.getPubSource(architecturehintlist="any")
+
+        [amd64_binary] = self.getPubBinaries(
+            pub_source=pub_source,
+        )
+
         das_amd64v3 = self.factory.makeBuildableDistroArchSeries(
             distroseries=self.distroseries,
             architecturetag="amd64v3",
             underlying_architecturetag="amd64",
         )
-        procs = list(self.distroseries.main_archive.processors)
-        procs.append(das_amd64.processor)
         procs.append(das_amd64v3.processor)
-        removeSecurityProxy(self.distroseries.main_archive).processors = procs
-        pub_binaries = self.getPubBinaries(
-            architecturespecific=True,
+        self.distroseries.main_archive.setProcessors(procs)
+
+        [amd64v3_binary] = self.getPubBinaries(
+            pub_source=pub_source,
+            user_defined_fields=[("Architecture-Variant", "amd64v3")],
         )
+
         architecture_fields = {
             pub_binary.distroarchseries.architecturetag: get_field(
                 build_bpph_stanza(pub_binary), "Architecture"
             )
-            for pub_binary in pub_binaries
+            for pub_binary in [amd64_binary, amd64v3_binary]
         }
         architecture_variant_fields = {
             pub_binary.distroarchseries.architecturetag: get_field(
                 build_bpph_stanza(pub_binary), "Architecture-Variant"
             )
-            for pub_binary in pub_binaries
+            for pub_binary in [amd64_binary, amd64v3_binary]
         }
         self.assertEqual(
             {"amd64": "amd64", "amd64v3": "amd64"},
