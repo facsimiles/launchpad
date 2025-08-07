@@ -160,6 +160,25 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
     task_queue = "native_publisher_job"
     config = config.ICraftPublishingJobSource
 
+    @property
+    def memory_limit(self):
+        """Dynamically determine memory limit based on job type.
+
+        Maven jobs need more memory for JVM operations, while Rust/Cargo jobs
+        can work with the default limit.
+
+        There is some duplication here with checking the file type in the run
+        method, but it's not worth refactoring atm.
+        """
+        # Check if this job will be processing Maven artifacts
+        for _, lfa, _ in self.build.getFiles():
+            if lfa.filename.endswith(".jar") or lfa.filename == "pom.xml":
+                # Maven job - needs more memory for JVM
+                return 8 * (1024**3)  # 8GB
+
+        # Non-Maven job (Rust/Cargo) - use default limit
+        return 2 * (1024**3)  # 2GB
+
     @classmethod
     def create(cls, build):
         """See `ICraftPublishingJobSource`."""

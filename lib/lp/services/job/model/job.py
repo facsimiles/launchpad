@@ -287,7 +287,7 @@ class UniversalJobSource:
     than older job types.
     """
 
-    memory_limit = 8 * (1024**3)
+    memory_limit = 2 * (1024**3)
 
     @staticmethod
     def get(ujob_id):
