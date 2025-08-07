@@ -280,9 +280,14 @@ Job.ready_jobs = Select(
 
 
 class UniversalJobSource:
-    """Returns the RunnableJob associated with a Job.id."""
+    """Returns the RunnableJob associated with a Job.id.
 
-    memory_limit = 2 * (1024**3)
+    The memory_limit is set to 8GB to accommodate modern workflows,
+    such as Maven publishing, which require significantly more memory
+    than older job types.
+    """
+
+    memory_limit = 8 * (1024**3)
 
     @staticmethod
     def get(ujob_id):
