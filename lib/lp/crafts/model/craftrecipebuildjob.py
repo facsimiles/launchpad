@@ -464,9 +464,9 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         # Run mvn deploy using the pom file
         env = os.environ.copy()
         env["MAVEN_OPTS"] = (
-            "-Xmx128m -Xms128m "
-            "-XX:CompressedClassSpaceSize=32m "
-            "-XX:MaxMetaspaceSize=64m"
+            "-Xmx4G -Xms4G "
+            "-XX:CompressedClassSpaceSize=1G "
+            "-XX:MaxMetaspaceSize=1G"
         )
         result = subprocess.run(
             [
