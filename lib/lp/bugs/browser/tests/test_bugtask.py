@@ -44,6 +44,7 @@ from lp.registry.enums import (
     BugSharingPolicy,
     DistributionDefaultTraversalPolicy,
 )
+from lp.registry.interfaces.externalpackage import ExternalPackageType
 from lp.registry.interfaces.person import IPersonSet, PersonVisibility
 from lp.services.beautifulsoup import BeautifulSoup
 from lp.services.config import config
@@ -692,6 +693,20 @@ class TestBugTasksTableView(TestCaseWithFactory):
         self.view.initialize()
         self.assertIs(None, self.view.getTargetLinkTitle(bug_task.target))
 
+    def test_getTargetLinkTitle_externalpackage(self):
+        # The target link title is always none for external packages.
+        target = self.factory.makeExternalPackage()
+        bug_task = self.factory.makeBugTask(bug=self.bug, target=target)
+        self.view.initialize()
+        self.assertIs(None, self.view.getTargetLinkTitle(bug_task.target))
+
+    def test_getTargetLinkTitle_externalpackageseries(self):
+        # The target link title is always none for external packages.
+        target = self.factory.makeExternalPackageSeries()
+        bug_task = self.factory.makeBugTask(bug=self.bug, target=target)
+        self.view.initialize()
+        self.assertIs(None, self.view.getTargetLinkTitle(bug_task.target))
+
     def test_getTargetLinkTitle_unpublished_distributionsourcepackage(self):
         # The target link title states that the package is not published
         # in the current release.
@@ -848,6 +863,7 @@ class TestBugTasksTableView(TestCaseWithFactory):
         # Distro tasks follow, sorted by package, distribution, then
         # series (by version in the case of distribution series).
         # OCI projects comes after their pillars.
+        # ExternalPackages comes last, ordered by packagetype and channel
         foo = self.factory.makeProduct(displayname="Foo")
         self.factory.makeProductSeries(product=foo, name="2.0")
         self.factory.makeProductSeries(product=foo, name="1.0")
@@ -867,11 +883,42 @@ class TestBugTasksTableView(TestCaseWithFactory):
         fooix = self.factory.makeDistribution(displayname="Fooix")
         self.factory.makeDistroSeries(distribution=fooix, name="beta")
 
-        foo_spn = self.factory.makeSourcePackageName("foo")
-        bar_spn = self.factory.makeSourcePackageName("bar")
+        foo_spn = self.factory.makeSourcePackageName(name="foo")
+        bar_spn = self.factory.makeSourcePackageName(name="bar")
 
         foo_ociproject = self.factory.makeOCIProject(pillar=foo)
         barix_ociproject = self.factory.makeOCIProject(pillar=barix)
+
+        foo_ep_snap = self.factory.makeExternalPackage(
+            sourcepackagename=foo_spn
+        )
+        foo_ep_charm = self.factory.makeExternalPackage(
+            sourcepackagename=foo_spn, packagetype=ExternalPackageType.CHARM
+        )
+        foo_ep_charm_candidate = self.factory.makeExternalPackage(
+            sourcepackagename=foo_spn,
+            packagetype=ExternalPackageType.CHARM,
+            channel=("12.1", "candidate"),
+        )
+
+        bar_ep_snap = self.factory.makeExternalPackage(
+            sourcepackagename=bar_spn, distribution=barix
+        )
+        bar_ep_snap_series_1 = self.factory.makeExternalPackageSeries(
+            sourcepackagename=bar_spn, distroseries=barix.getSeries("alpha")
+        )
+        bar_ep_snap_series_2 = self.factory.makeExternalPackageSeries(
+            sourcepackagename=bar_spn, distroseries=barix.getSeries("beta")
+        )
+
+        bar_ep_rock = self.factory.makeExternalPackage(
+            sourcepackagename=bar_spn, packagetype=ExternalPackageType.ROCK
+        )
+        bar_ep_rock_candidate = self.factory.makeExternalPackage(
+            sourcepackagename=bar_spn,
+            packagetype=ExternalPackageType.ROCK,
+            channel=("12.1", "candidate"),
+        )
 
         expected_targets = [
             bar,
@@ -884,10 +931,18 @@ class TestBugTasksTableView(TestCaseWithFactory):
             barix.getSourcePackage(bar_spn),
             barix.getSeries("beta").getSourcePackage(bar_spn),
             barix.getSeries("aaa-release").getSourcePackage(bar_spn),
+            bar_ep_snap,
+            bar_ep_snap_series_1,
+            bar_ep_snap_series_2,
+            bar_ep_rock,
+            bar_ep_rock_candidate,
             fooix.getSourcePackage(bar_spn),
             fooix.getSeries("beta").getSourcePackage(bar_spn),
             barix.getSourcePackage(foo_spn),
             barix.getSeries("alpha").getSourcePackage(foo_spn),
+            foo_ep_snap,
+            foo_ep_charm,
+            foo_ep_charm_candidate,
         ]
 
         bug = self.factory.makeBug(target=expected_targets[0])
@@ -1141,6 +1196,36 @@ class TestBugTaskDeleteView(TestCaseWithFactory):
         target_name = bugtask.bugtargetdisplayname
         bugtask_url = canonical_url(bugtask, rootsite="bugs")
         return bug, bugtask, target_name, bugtask_url
+
+    def test_delete_current_default_bugtask(self):
+        # Test that the deleting the default bugtask results redirects to the
+        # new default one.
+        (
+            bug,
+            bugtask,
+            target_name,
+            bugtask_url,
+        ) = self._create_bugtask_to_delete()
+        default_bugtask = bug.default_bugtask
+
+        login_person(bug.owner)
+        form = {"field.actions.delete_bugtask": "Delete"}
+        view = create_initialized_view(
+            bug.default_bugtask, name="+delete", form=form, principal=bug.owner
+        )
+        self.assertEqual([bug.default_bugtask], bug.bugtasks)
+        notifications = view.request.response.notifications
+        self.assertEqual(1, len(notifications))
+        expected = (
+            "This bug no longer affects %s."
+            % default_bugtask.target.bugtargetdisplayname
+        )
+        self.assertEqual(expected, notifications[0].message)
+
+        # The view redirects to the new default bugtask
+        new_default_url = canonical_url(bug.default_bugtask, rootsite="bugs")
+        self.assertEqual(new_default_url, view._next_url)
+        self.assertEqual(bugtask_url, view._next_url)
 
     def test_ajax_delete_current_bugtask(self):
         # Test that deleting the current bugtask returns a JSON dict

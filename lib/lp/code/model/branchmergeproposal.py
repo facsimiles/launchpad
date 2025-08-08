@@ -934,14 +934,17 @@ class BranchMergeProposal(StormBase, BugLinkTargetMixin):
 
     def getMergeCriteria(self):
         """See `IBranchMergeProposal`."""
-        can_be_merged, criteria = self.checkMergeCriteria()
+        can_be_merged, can_be_force_merged, criteria = (
+            self.checkMergeCriteria()
+        )
 
         return {
             "can_be_merged": can_be_merged,
+            "can_be_force_merged": can_be_force_merged,
             "criteria": criteria,
         }
 
-    def checkMergeCriteria(self, force=False):
+    def checkMergeCriteria(self):
         """See `IBranchMergeProposal`."""
 
         # TODO ines-almeida 2025-05-05: the mergeability criteria should be
@@ -954,61 +957,53 @@ class BranchMergeProposal(StormBase, BugLinkTargetMixin):
             MergeProposalCriteria.IS_IN_PROGRESS: (
                 self.isInProgress,
                 "Invalid status for merging",
+                False,
             ),
             MergeProposalCriteria.HAS_NO_CONFLICTS: (
                 self.hasNoConflicts,
                 "Diff contains conflicts",
+                True,
             ),
             MergeProposalCriteria.DIFF_IS_UP_TO_DATE: (
                 self.diffIsUpToDate,
                 "New changes were pushed too recently",
+                False,
             ),
             MergeProposalCriteria.HAS_NO_PENDING_PREREQUISITE: (
                 self.hasNoPendingPrerequisite,
                 "Prerequisite branch not merged",
+                False,
             ),
             MergeProposalCriteria.IS_APPROVED: (
                 self.isApproved,
                 "Proposal has not been approved",
+                False,
             ),
             MergeProposalCriteria.CI_CHECKS_PASSED: (
                 self.CIChecksPassed,
                 "CI checks failed",
+                False,
             ),
         }
 
-        criteria_to_run = [
-            MergeProposalCriteria.IS_IN_PROGRESS,
-            MergeProposalCriteria.HAS_NO_CONFLICTS,
-            MergeProposalCriteria.DIFF_IS_UP_TO_DATE,
-        ]
-
-        # This is only a criteria if there is a prerequisit branch
-        if self.merge_prerequisite is not None:
-            criteria_to_run.append(
-                MergeProposalCriteria.HAS_NO_PENDING_PREREQUISITE
-            )
-
-        # Criteria defined by project owners (skipped if 'force' merge)
-        if not force:
-            criteria_to_run.append(MergeProposalCriteria.IS_APPROVED)
-            criteria_to_run.append(MergeProposalCriteria.CI_CHECKS_PASSED)
-
-        result = True
+        can_be_merged = True
+        can_be_force_merged = True
         status = {}
-        for criteria in criteria_to_run:
-            check, error = MERGE_CRITERIA[criteria]
+        for key, criteria in MERGE_CRITERIA.items():
+            check, error, is_required = criteria
             passed = check()
 
-            key = str(criteria)
-            status[key] = {"passed": passed}
+            key = str(key)
+            status[key] = {"passed": passed, "is_required": is_required}
             if passed is None:
                 status[key]["error"] = "Not implemented"
             elif not passed:
                 status[key]["error"] = error
-                result = False
+                can_be_merged = False
+                if is_required:
+                    can_be_force_merged = False
 
-        return result, status
+        return can_be_merged, can_be_force_merged, status
 
     def canIMerge(self, person):
         """See `IBranchMergeProposal`."""
@@ -1027,7 +1022,7 @@ class BranchMergeProposal(StormBase, BugLinkTargetMixin):
         )
         return GitPermissionType.CAN_PUSH in permissions[self.target_git_path]
 
-    def merge(self, person, commit_message=None, force=False):
+    def requestMerge(self, person, commit_message=None, force=False):
         """See `IBranchMergeProposal`."""
 
         if not getFeatureFlag(PROPOSAL_MERGE_ENABLED_FEATURE_FLAG):
@@ -1043,8 +1038,82 @@ class BranchMergeProposal(StormBase, BugLinkTargetMixin):
         if not self.personCanMerge(person):
             raise Unauthorized()
 
-        can_be_merged, criteria = self.checkMergeCriteria(force)
-        if not can_be_merged:
+        can_be_merged, can_be_force_merged, criteria = (
+            self.checkMergeCriteria()
+        )
+        if not can_be_merged and not (force and can_be_force_merged):
+            failed_checks = [
+                item["error"]
+                for item in criteria.values()
+                if item["passed"] is False
+            ]
+            raise BranchMergeProposalNotMergeable(
+                "Merge proposal cannot be merged in its current state: %s"
+                % ", ".join(failed_checks)
+            )
+
+        if commit_message is None:
+            commit_message = self.commit_message
+
+        hosting_client = getUtility(IGitHostingClient)
+        response = hosting_client.requestMerge(
+            self.target_git_repository_id,
+            self.target_git_ref.name,
+            self.target_git_commit_sha1,
+            self.source_git_ref.name,
+            self.source_git_commit_sha1,
+            person,
+            commit_message,
+            source_repo=self.source_git_repository_id,
+        )
+
+        # Expected response when merge is queued:
+        #    {"queued": True, "already_merged": False}
+        # If the merge had previously been merged, then expected response is:
+        #    {"queued": False, "already_merged": True}
+
+        if "queued" not in response:
+            raise BranchMergeProposalMergeFailed(
+                "Request to merge this proposal failed."
+            )
+
+        if response["queued"]:
+            return "Merge successfully queued"
+
+        if not response["already_merged"]:
+            raise BranchMergeProposalMergeFailed(
+                "Merge proposal could not be queued for merging."
+            )
+
+        # If we reach here, then the merge had already been previously merged
+        # successfully, but Launchpad didn't mark the proposal as merged.
+        # Force a rescan in that case.
+        self.target_git_repository.rescan()
+        return "Proposal already merged, waiting for rescan"
+
+    def merge(self, person, commit_message=None, force=False):
+        """See `IBranchMergeProposal`.
+        TODO ines-almeida 2025-07-11: we want to remove this method in favor
+        of the requestMerge() one. Keeping it for now while we migrate.
+        """
+
+        if not getFeatureFlag(PROPOSAL_MERGE_ENABLED_FEATURE_FLAG):
+            raise BranchMergeProposalFeatureDisabled(
+                "Merge API is currently disabled"
+            )
+
+        if self.source_branch is not None:
+            raise NotImplementedError(
+                "Merging Bazaar branches is not supported"
+            )
+
+        if not self.personCanMerge(person):
+            raise Unauthorized()
+
+        can_be_merged, can_be_force_merged, criteria = (
+            self.checkMergeCriteria()
+        )
+        if not can_be_merged and not (force and can_be_force_merged):
             failed_checks = [
                 item["error"]
                 for item in criteria.values()

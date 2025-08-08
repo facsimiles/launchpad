@@ -2110,7 +2110,7 @@ The collection of all CVEs is available at the top level.
     sequence: '2005-2737'
     status: 'Candidate'
     title: 'CVE-2005-2737 (Candidate)'
-    url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-2737'
+    url: 'https://cve.org/CVERecord?id=CVE-2005-2737'
     web_link: 'http://bugs.launchpad.test/bugs/cve/2005-2737'
     ---
     ...
@@ -2148,7 +2148,7 @@ And for every bug we can look at the CVEs linked to it.
     sequence: '1999-8979'
     status: 'Entry'
     title: 'CVE-1999-8979 (Entry)'
-    url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=1999-8979'
+    url: 'https://cve.org/CVERecord?id=CVE-1999-8979'
     web_link: 'http://bugs.launchpad.test/bugs/cve/1999-8979'
     ---
 

@@ -46,8 +46,5 @@ echo "$(date): Updating bugtask target name caches" >> "$LOGFILE"
 echo "$(date): Updating personal standings" >> "$LOGFILE"
 ./update-standing.py -q --log-file=DEBUG:"$LOGDIR/update-standing.log"
 
-echo "$(date): Updating CVE database" >> "$LOGFILE"
-./update-cve.py -q --log-file=DEBUG:"$LOGDIR/update-cve.log"
-
 echo "$(date): Removing lock" >> "$LOGFILE"
 rm -f $LOCK

@@ -78,7 +78,6 @@ from lp.services.statsd.tests import StatsMixin
 from lp.services.webapp import canonical_url
 from lp.snappy.interfaces.snap import (
     SNAP_SNAPCRAFT_CHANNEL_FEATURE_FLAG,
-    SNAP_USE_FETCH_SERVICE_FEATURE_FLAG,
     SnapBuildArchiveOwnerMismatch,
 )
 from lp.snappy.model.snapbuildbehaviour import (
@@ -293,9 +292,6 @@ class TestAsyncSnapBuildBehaviourFetchService(
         without populating `proxy_url` and `revocation_endpoint`.
         """
         self.pushConfig("builddmaster", fetch_service_host=None)
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
         snap = self.factory.makeSnap(use_fetch_service=True)
         request = self.factory.makeSnapBuildRequest(snap=snap)
         job = self.makeJob(snap=snap, build_request=request)
@@ -314,9 +310,6 @@ class TestAsyncSnapBuildBehaviourFetchService(
         the function raises a `CannotBuild` error.
         """
         self.pushConfig("builddmaster", fetch_service_mitm_certificate=None)
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
 
         snap = self.factory.makeSnap(use_fetch_service=True)
         request = self.factory.makeSnapBuildRequest(snap=snap)
@@ -338,9 +331,6 @@ class TestAsyncSnapBuildBehaviourFetchService(
         self.pushConfig(
             "builddmaster", fetch_service_control_admin_secret=None
         )
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
         snap = self.factory.makeSnap(use_fetch_service=True)
         request = self.factory.makeSnapBuildRequest(snap=snap)
         job = self.makeJob(snap=snap, build_request=request)
@@ -357,9 +347,6 @@ class TestAsyncSnapBuildBehaviourFetchService(
 
         `proxy_url` and `revocation_endpoint` are correctly populated.
         """
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
         snap = self.factory.makeSnap(use_fetch_service=True)
         request = self.factory.makeSnapBuildRequest(snap=snap)
         job = self.makeJob(snap=snap, build_request=request)
@@ -414,9 +401,6 @@ class TestAsyncSnapBuildBehaviourFetchService(
 
         `proxy_url` and `revocation_endpoint` are correctly populated.
         """
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
         snap = self.factory.makeSnap(
             use_fetch_service=True,
             fetch_service_policy=FetchServicePolicy.PERMISSIVE,
@@ -468,25 +452,9 @@ class TestAsyncSnapBuildBehaviourFetchService(
         )
 
     @defer.inlineCallbacks
-    def test_requestFetchServiceSession_flag_off(self):
-        """Create a snap build request turning off the feature flag."""
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: None})
-        )
-        snap = self.factory.makeSnap(use_fetch_service=True)
-        request = self.factory.makeSnapBuildRequest(snap=snap)
-        job = self.makeJob(snap=snap, build_request=request)
-        yield job.extraBuildArgs()
-        self.assertEqual([], self.fetch_service_api.sessions.requests)
-
-    @defer.inlineCallbacks
     def test_requestFetchServiceSession_mitm_certficate_redacted(self):
         """The `fetch_service_mitm_certificate` field in the build arguments
         is redacted in the build logs."""
-
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
         snap = self.factory.makeSnap(use_fetch_service=True)
         request = self.factory.makeSnapBuildRequest(snap=snap)
         job = self.makeJob(snap=snap, build_request=request)
@@ -524,9 +492,6 @@ class TestAsyncSnapBuildBehaviourFetchService(
         fetch service and saved to a file; and call to end the session and
         removing resources are made.
         """
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
         tem_upload_path = self.useFixture(fixtures.TempDir()).path
 
         snap = self.factory.makeSnap(use_fetch_service=True)
@@ -594,9 +559,6 @@ class TestAsyncSnapBuildBehaviourFetchService(
     def test_endProxySession_fetch_Service_false(self):
         """When `use_fetch_service` is False, we don't make any calls to the
         fetch service API."""
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
         snap = self.factory.makeSnap(use_fetch_service=False)
         request = self.factory.makeSnapBuildRequest(snap=snap)
         job = self.makeJob(snap=snap, build_request=request)
@@ -619,9 +581,6 @@ class TestAsyncSnapBuildBehaviourFetchService(
         """When `allow_internet` is False, we don't send proxy variables to the
         buildd, and ending the session does not make calls to the fetch
         service."""
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
         snap = self.factory.makeSnap(allow_internet=False)
         request = self.factory.makeSnapBuildRequest(snap=snap)
         job = self.makeJob(snap=snap, build_request=request)
@@ -631,7 +590,7 @@ class TestAsyncSnapBuildBehaviourFetchService(
         job._worker.proxy_info = MagicMock(
             return_value={
                 "revocation_endpoint": None,
-                "use_fetch_service": None,
+                "use_fetch_service": False,
             }
         )
 
@@ -803,10 +762,6 @@ class TestAsyncSnapBuildBehaviourBuilderProxy(
         with dbuser(config.builddmaster.dbuser):
             args = yield job.extraBuildArgs()
 
-        # XXX ines-almeida 2024-04-26: use_fetch_service is `None` because we
-        # are not setting the fetch-service feature flag 'ON' for these tests
-        # (since that's not the point of these test). Once we remove the
-        # feature flag, this will either be True or False - not None.
         self.assertThat(
             args,
             MatchesDict(
@@ -828,7 +783,7 @@ class TestAsyncSnapBuildBehaviourBuilderProxy(
                     "series": Equals("unstable"),
                     "trusted_keys": Equals(expected_trusted_keys),
                     "target_architectures": Equals(["i386"]),
-                    "use_fetch_service": Is(None),
+                    "use_fetch_service": Is(False),
                     "launchpad_instance": Equals("devel"),
                     "launchpad_server_url": Equals("launchpad.test"),
                 }
@@ -884,7 +839,7 @@ class TestAsyncSnapBuildBehaviourBuilderProxy(
                     "series": Equals("unstable"),
                     "trusted_keys": Equals(expected_trusted_keys),
                     "target_architectures": Equals(["i386"]),
-                    "use_fetch_service": Is(None),
+                    "use_fetch_service": Is(False),
                     "launchpad_instance": Equals("devel"),
                     "launchpad_server_url": Equals("launchpad.test"),
                 }
@@ -929,7 +884,7 @@ class TestAsyncSnapBuildBehaviourBuilderProxy(
                     "series": Equals("unstable"),
                     "trusted_keys": Equals(expected_trusted_keys),
                     "target_architectures": Equals(["i386"]),
-                    "use_fetch_service": Is(None),
+                    "use_fetch_service": Is(False),
                     "launchpad_instance": Equals("devel"),
                     "launchpad_server_url": Equals("launchpad.test"),
                 }
@@ -1005,7 +960,7 @@ class TestAsyncSnapBuildBehaviourBuilderProxy(
                     "series": Equals("unstable"),
                     "trusted_keys": Equals(expected_trusted_keys),
                     "target_architectures": Equals(["i386"]),
-                    "use_fetch_service": Is(None),
+                    "use_fetch_service": Is(False),
                     "launchpad_instance": Equals("devel"),
                     "launchpad_server_url": Equals("launchpad.test"),
                 }
@@ -1053,7 +1008,7 @@ class TestAsyncSnapBuildBehaviourBuilderProxy(
                     "series": Equals("unstable"),
                     "trusted_keys": Equals(expected_trusted_keys),
                     "target_architectures": Equals(["i386"]),
-                    "use_fetch_service": Is(None),
+                    "use_fetch_service": Is(False),
                     "launchpad_instance": Equals("devel"),
                     "launchpad_server_url": Equals("launchpad.test"),
                 }
@@ -1098,7 +1053,7 @@ class TestAsyncSnapBuildBehaviourBuilderProxy(
                     "series": Equals("unstable"),
                     "trusted_keys": Equals(expected_trusted_keys),
                     "target_architectures": Equals(["i386"]),
-                    "use_fetch_service": Is(None),
+                    "use_fetch_service": Is(False),
                     "launchpad_instance": Equals("devel"),
                     "launchpad_server_url": Equals("launchpad.test"),
                 }

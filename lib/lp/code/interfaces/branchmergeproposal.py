@@ -636,7 +636,7 @@ class IBranchMergeProposalView(Interface):
             'criteria' key contains details about each check."
         """
 
-    def checkMergeCriteria(force=False):
+    def checkMergeCriteria():
         """Check if the merge proposal meets all criteria for merging.
 
         The hard criteria are:
@@ -648,8 +648,6 @@ class IBranchMergeProposalView(Interface):
         The criteria skipped by using force=True tag:
         - Has at least one approval from a trusted reviewer
         - CI checks have passed
-
-        :param force: Whether to skip approval and CI checks
 
         :return: A tuple of (bool, list) where the bool indicates if all
             criteria are met, and the list contains failed criteria.
@@ -906,8 +904,34 @@ class IBranchMergeProposalEdit(Interface):
     @call_with(person=REQUEST_USER)
     @export_write_operation()
     @operation_for_version("devel")
-    def merge(person, commit_message=None, force=False):
+    def requestMerge(person, commit_message=None, force=False):
         """Request to merge this proposal.
+
+        This will make a request to the git hosting client to trigger a merge.
+        A successfull response to this endpoint does not necessarily mean the
+        merge was successfull, but rather that it was successfully requested.
+
+        :param person: The person requesting the merge.
+        :param commit_message: Allows overriding the commit message. If empty,
+            the existing commit_message is used (if any).
+        :param force: Whether to skip acceptance criteria.
+
+        :raises NotImplementedError: If using Bazaar branches.
+        :raises Unauthorized: If the person doesn't have permission to merge.
+        :raises BranchMergeProposalNotMergeable: If the proposal doesn't meet
+            all merge criteria.
+        :raises BranchMergeProposalMergeFailed: If the merge fails to be queued
+        """
+
+    @operation_parameters(
+        commit_message=Text(title="Override commit message"),
+        force=Bool(title="Whether to skip checks"),
+    )
+    @call_with(person=REQUEST_USER)
+    @export_write_operation()
+    @operation_for_version("devel")
+    def merge(person, commit_message=None, force=False):
+        """To be deprecated in favour of `requestMerge`.
 
         :param person: The person requesting the merge.
         :param commit_message: Allows overriding the commit message. If empty,

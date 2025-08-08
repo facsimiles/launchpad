@@ -77,7 +77,6 @@ from lp.snappy.browser.widgets.snaparchive import SnapArchiveWidget
 from lp.snappy.browser.widgets.storechannels import StoreChannelsWidget
 from lp.snappy.interfaces.snap import (
     SNAP_SNAPCRAFT_CHANNEL_FEATURE_FLAG,
-    SNAP_USE_FETCH_SERVICE_FEATURE_FLAG,
     CannotAuthorizeStoreUploads,
     CannotFetchSnapcraftYaml,
     CannotParseSnapcraftYaml,
@@ -550,6 +549,8 @@ class ISnapEditSchema(Interface):
     store_name = copy_field(ISnap["store_name"], required=True)
     store_channels = copy_field(ISnap["store_channels"], required=True)
 
+    use_fetch_service = copy_field(ISnap["use_fetch_service"], required=True)
+
 
 def log_oops(error, request):
     """Log an oops report without raising an error."""
@@ -941,9 +942,6 @@ class SnapAdminView(BaseSnapEditView):
             "pro_enable",
         ]
 
-        if getFeatureFlag(SNAP_USE_FETCH_SERVICE_FEATURE_FLAG):
-            fields.append("use_fetch_service")
-
         return fields
 
     @property
@@ -988,6 +986,7 @@ class SnapEditView(BaseSnapEditView, EnableProcessorsMixin):
         "store_upload",
         "store_name",
         "store_channels",
+        "use_fetch_service",
     ]
     custom_widget_store_distro_series = LaunchpadRadioWidget
     custom_widget_vcs = LaunchpadRadioWidget

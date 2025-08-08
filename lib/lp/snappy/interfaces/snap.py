@@ -19,11 +19,11 @@ __all__ = [
     "ISnapDelete",
     "ISnapSet",
     "ISnapView",
+    "ISnapEditableAttributes",
     "MissingSnapcraftYaml",
     "NoSourceForSnap",
     "NoSuchSnap",
     "SNAP_SNAPCRAFT_CHANNEL_FEATURE_FLAG",
-    "SNAP_USE_FETCH_SERVICE_FEATURE_FLAG",
     "SnapAuthorizationBadGeneratedMacaroon",
     "SnapBuildAlreadyPending",
     "SnapBuildArchiveOwnerMismatch",
@@ -1140,6 +1140,32 @@ class ISnapEditableAttributes(IHasOwner):
         )
     )
 
+    use_fetch_service = exported(
+        Bool(
+            title=_("Use fetch service"),
+            required=True,
+            readonly=False,
+            description=_(
+                "If set, Snap builds will use the fetch-service instead "
+                "of the builder-proxy to access external resources."
+            ),
+        )
+    )
+
+    fetch_service_policy = exported(
+        Choice(
+            title=_("Fetch service policy"),
+            vocabulary=FetchServicePolicy,
+            required=False,
+            readonly=False,
+            default=FetchServicePolicy.STRICT,
+            description=_(
+                "Which policy to use when using the fetch service. Ignored if "
+                "`use_fetch_service` flag is False."
+            ),
+        )
+    )
+
     def setProject(project):
         """Set the pillar project of this snap recipe."""
 
@@ -1194,32 +1220,6 @@ class ISnapAdminAttributes(Interface):
         )
     )
 
-    use_fetch_service = exported(
-        Bool(
-            title=_("Use fetch service"),
-            required=True,
-            readonly=False,
-            description=_(
-                "If set, Snap builds will use the fetch-service instead "
-                "of the builder-proxy to access external resources."
-            ),
-        )
-    )
-
-    fetch_service_policy = exported(
-        Choice(
-            title=_("Fetch service policy"),
-            vocabulary=FetchServicePolicy,
-            required=False,
-            readonly=False,
-            default=FetchServicePolicy.STRICT,
-            description=_(
-                "Which policy to use when using the fetch service. Ignored if "
-                "`use_fetch_service` flag is False."
-            ),
-        )
-    )
-
     def subscribe(person, subscribed_by):
         """Subscribe a person to this snap recipe."""
 
@@ -1270,6 +1270,8 @@ class ISnapSet(Interface):
             "store_name",
             "store_channels",
             "project",
+            "use_fetch_service",
+            "fetch_service_policy",
         ],
     )
     @operation_for_version("devel")

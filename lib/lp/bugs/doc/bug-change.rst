@@ -424,7 +424,7 @@ when a CVE is linked to a bug.
      'whatchanged': 'cve linked'}
 
     >>> print(bug_cve_linked.getBugNotification()["text"])
-    ** CVE added: https://cve.mitre.org/cgi-bin/cvename.cgi?name=1999-8979
+    ** CVE added: https://cve.org/CVERecord?id=CVE-1999-8979
 
 And when a CVE is unlinked from a bug.
 
@@ -437,7 +437,7 @@ And when a CVE is unlinked from a bug.
      'whatchanged': 'cve unlinked'}
 
     >>> print(bug_cve_unlinked.getBugNotification()["text"])
-    ** CVE removed: https://cve.mitre.org/cgi-bin/cvename.cgi?name=1999-8979
+    ** CVE removed: https://cve.org/CVERecord?id=CVE-1999-8979
 
 
 BugAttachmentChange

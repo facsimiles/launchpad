@@ -19,6 +19,7 @@ __all__ = [
     "BugTaskTableRowView",
     "BugTaskTextView",
     "BugTaskView",
+    "BugTaskURL",
     "can_add_package_task_to_bug",
     "can_add_project_task_to_bug",
     "get_comments_for_bugtask",
@@ -126,6 +127,11 @@ from lp.registry.interfaces.distributionsourcepackage import (
     IDistributionSourcePackage,
 )
 from lp.registry.interfaces.distroseries import IDistroSeries, IDistroSeriesSet
+from lp.registry.interfaces.externalpackage import (
+    IExternalPackage,
+    IExternalURL,
+)
+from lp.registry.interfaces.externalpackageseries import IExternalPackageSeries
 from lp.registry.interfaces.ociproject import IOCIProject
 from lp.registry.interfaces.person import IPersonSet
 from lp.registry.interfaces.product import IProduct
@@ -152,7 +158,7 @@ from lp.services.webapp.authorization import (
 )
 from lp.services.webapp.breadcrumb import Breadcrumb
 from lp.services.webapp.escaping import html_escape, structured
-from lp.services.webapp.interfaces import ILaunchBag
+from lp.services.webapp.interfaces import ICanonicalUrlData, ILaunchBag
 
 vocabulary_registry = getVocabularyRegistry()
 
@@ -286,6 +292,27 @@ def get_visible_comments(comments, user=None):
     return visible_comments
 
 
+@implementer(ICanonicalUrlData)
+class BugTaskURL:
+    """BugTask URL creation rules."""
+
+    rootsite = "bugs"
+
+    def __init__(self, context):
+        self.context = context
+
+    @property
+    def inside(self):
+        return self.context.target
+
+    @property
+    def path(self):
+        if IExternalURL.providedBy(self.context.target):
+            return f"+bug/{self.context.bug.id}/+bugtask/{self.context.id}"
+
+        return "+bug/%s" % self.context.bug.id
+
+
 class BugTargetTraversalMixin:
     """Mix-in in class that provides .../+bug/NNN traversal."""
 
@@ -319,9 +346,18 @@ class BugTargetTraversalMixin:
         # anonymous user is presented with a login screen at the correct URL,
         # rather than making it look as though this task was "not found",
         # because it was filtered out by privacy-aware code.
+
+        # Check if it uses +external url
+        is_external = IExternalURL.providedBy(context)
+
         for bugtask in bug.bugtasks:
-            if bugtask.target == context:
-                # Security proxy this object on the way out.
+            target = bugtask.target
+
+            if is_external:
+                if context.isMatching(target):
+                    # Security proxy the object on the way out
+                    return getUtility(IBugTaskSet).get(bugtask.id)
+            elif target == context:
                 return getUtility(IBugTaskSet).get(bugtask.id)
 
         # If we've come this far, there's no task for the requested context.
@@ -346,6 +382,19 @@ class BugTaskNavigation(Navigation):
     """Navigation for the `IBugTask`."""
 
     usedfor = IBugTask
+
+    @stepthrough("+bugtask")
+    def traverse_bugtask(self, id):
+        bugtask = getUtility(IBugTaskSet).get(int(id))
+        # Jumping to a not matching bugtask is not allowed
+        if bugtask.bug.id != self.context.bug.id:
+            return
+        if bugtask.sourcepackagename != self.context.sourcepackagename:
+            return
+        if bugtask.distribution != self.context.distribution:
+            return
+
+        return bugtask
 
     @stepthrough("attachments")
     def traverse_attachments(self, name):
@@ -1758,9 +1807,6 @@ class BugTaskDeletionView(ReturnToReferrerMixin, LaunchpadFormView):
             "This bug no longer affects %s." % bugtask.bugtargetdisplayname
         )
         error_message = None
-        # We set the next_url here before the bugtask is deleted since later
-        # the bugtask will not be available if required to construct the url.
-        self._next_url = self._return_url
 
         try:
             bugtask.delete()
@@ -1768,6 +1814,12 @@ class BugTaskDeletionView(ReturnToReferrerMixin, LaunchpadFormView):
         except CannotDeleteBugtask as e:
             error_message = str(e)
             self.request.response.addErrorNotification(error_message)
+
+        self._next_url = self._return_url
+        next_url = canonical_url(bug.default_bugtask, rootsite="bugs")
+        if self._return_url == deleted_bugtask_url:
+            self._next_url = next_url
+
         if self.request.is_ajax:
             if error_message:
                 self.request.response.setHeader(
@@ -1782,7 +1834,6 @@ class BugTaskDeletionView(ReturnToReferrerMixin, LaunchpadFormView):
             # We can't do the redirect here since the XHR caller won't see it
             # so we return the URL to go to and let the caller do it.
             if self._return_url == deleted_bugtask_url:
-                next_url = canonical_url(bug.default_bugtask, rootsite="bugs")
                 self.request.response.setHeader(
                     "Content-type", "application/json"
                 )
@@ -1800,6 +1851,11 @@ def bugtask_sort_key(bugtask):
 
     Designed to make sense when bugtargetdisplayname is shown.
     """
+    # The key is structured so that comparisons between elements are consistent
+    # across different types of bug targets.
+    # Elements from different sort keys should have the same typing so we can
+    # compare them. That's why the fourth element is a channel or None
+    # and the fifth element is a Version object or None,
     if IDistribution.providedBy(bugtask.target):
         key = (None, bugtask.target.displayname, None, None, None, None)
     elif IDistroSeries.providedBy(bugtask.target):
@@ -1820,19 +1876,52 @@ def bugtask_sort_key(bugtask):
             None,
             None,
         )
+    elif IExternalPackage.providedBy(bugtask.target):
+        key = (
+            bugtask.target.sourcepackagename.name,
+            bugtask.target.distribution.displayname,
+            bugtask.target.packagetype,
+            bugtask.target.channel,
+            None,
+            None,
+            None,
+        )
+    # Version should only be compared to items with same object type
     elif ISourcePackage.providedBy(bugtask.target):
         key = (
             bugtask.target.sourcepackagename.name,
             bugtask.target.distribution.displayname,
+            None,
+            None,
+            Version(bugtask.target.distroseries.version),
+            None,
+        )
+    elif IExternalPackageSeries.providedBy(bugtask.target):
+        key = (
+            bugtask.target.sourcepackagename.name,
+            bugtask.target.distribution.displayname,
+            bugtask.target.packagetype,
+            bugtask.target.channel,
             Version(bugtask.target.distroseries.version),
             None,
             None,
             None,
         )
     elif IProduct.providedBy(bugtask.target):
-        key = (None, None, None, bugtask.target.displayname, None, None)
+        key = (
+            None,
+            None,
+            None,
+            None,
+            None,
+            bugtask.target.displayname,
+            None,
+            None,
+        )
     elif IProductSeries.providedBy(bugtask.target):
         key = (
+            None,
+            None,
             None,
             None,
             None,
@@ -1843,11 +1932,20 @@ def bugtask_sort_key(bugtask):
     elif IOCIProject.providedBy(bugtask.target):
         ociproject = bugtask.target
         pillar = ociproject.pillar
-        key = [None, None, None, None, None, ociproject.displayname]
+        key = [
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            ociproject.displayname,
+        ]
         if IDistribution.providedBy(pillar):
-            key[1] = pillar.displayname
-        elif IProduct.providedBy(pillar):
             key[3] = pillar.displayname
+        elif IProduct.providedBy(pillar):
+            key[5] = pillar.displayname
         key = tuple(key)
     else:
         raise AssertionError("No sort key for %r" % bugtask.target)

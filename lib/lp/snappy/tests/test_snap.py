@@ -69,7 +69,7 @@ from lp.services.database.sqlbase import (
     flush_database_caches,
     get_transaction_timestamp,
 )
-from lp.services.features.testing import FeatureFixture, MemoryFeatureFixture
+from lp.services.features.testing import MemoryFeatureFixture
 from lp.services.job.interfaces.job import JobStatus
 from lp.services.job.runner import JobRunner
 from lp.services.log.logger import BufferLogger
@@ -80,7 +80,6 @@ from lp.services.webapp.publisher import canonical_url
 from lp.services.webapp.snapshot import notify_modified
 from lp.services.webhooks.testing import LogsScheduledWebhooks
 from lp.snappy.interfaces.snap import (
-    SNAP_USE_FETCH_SERVICE_FEATURE_FLAG,
     BadSnapSearchContext,
     CannotFetchSnapcraftYaml,
     CannotModifySnapProcessor,
@@ -1940,6 +1939,15 @@ class TestSnap(TestCaseWithFactory):
         )
         self.assertThat(recorder2, HasQueryCount.byEquality(recorder1))
 
+    def test_snap_use_fetch_service(self):
+        person = self.factory.makePerson()
+        with person_logged_in(person):
+            snap = self.factory.makeSnap(registrant=person, owner=person)
+
+            self.assertFalse(snap.use_fetch_service)
+            snap.use_fetch_service = True
+            self.assertTrue(snap.use_fetch_service)
+
 
 class TestSnapDeleteWithBuilds(TestCaseWithFactory):
     layer = LaunchpadFunctionalLayer
@@ -2353,8 +2361,6 @@ class TestSnapSet(TestCaseWithFactory):
             "allow_internet": True,
             "pro_enable": True,
             "require_virtualized": True,
-            "use_fetch_service": True,
-            "fetch_service_policy": FetchServicePolicy.PERMISSIVE,
         }
 
         for field_name, field_value in admin_fields.items():
@@ -2366,10 +2372,6 @@ class TestSnapSet(TestCaseWithFactory):
 
     def test_admins_can_update_admin_only_fields(self):
         # The admin fields can be updated by an admin
-        self.useFixture(
-            FeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"})
-        )
-
         [ref] = self.factory.makeGitRefs()
         components = self.makeSnapComponents(git_ref=ref)
         snap = getUtility(ISnapSet).new(**components)
@@ -2378,8 +2380,6 @@ class TestSnapSet(TestCaseWithFactory):
             "allow_internet": True,
             "pro_enable": True,
             "require_virtualized": True,
-            "use_fetch_service": True,
-            "fetch_service_policy": FetchServicePolicy.PERMISSIVE,
         }
 
         for field_name, field_value in admin_fields.items():
@@ -2387,26 +2387,6 @@ class TestSnapSet(TestCaseWithFactory):
             with admin_logged_in():
                 setattr(snap, field_name, field_value)
                 self.assertEqual(field_value, getattr(snap, field_name))
-
-    def test_snap_use_fetch_service_feature_flag(self):
-        # The snap.use_fetch_service API only works when feature flag is set
-        [ref] = self.factory.makeGitRefs()
-        components = self.makeSnapComponents(git_ref=ref)
-        snap = getUtility(ISnapSet).new(**components)
-
-        # admin cannot get the actual value or set a new value to the
-        # use_fetch_service field when the feature flag is OFF
-        login_admin()
-        self.assertEqual(None, snap.use_fetch_service)
-        snap.use_fetch_service = True
-        self.assertEqual(None, snap.use_fetch_service)
-
-        # when feature flag is ON, admin can see the real value of
-        # `use_fetch_service` and opt in and out of it
-        with MemoryFeatureFixture({SNAP_USE_FETCH_SERVICE_FEATURE_FLAG: "on"}):
-            self.assertFalse(snap.use_fetch_service)
-            snap.use_fetch_service = True
-            self.assertTrue(snap.use_fetch_service)
 
     def test_create_private_snap_with_open_team_as_owner_fails(self):
         components = self.makeSnapComponents()

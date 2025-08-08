@@ -93,9 +93,7 @@ class Cve(StormBase, BugLinkTargetMixin):
     @property
     def url(self):
         """See ICve."""
-        return (
-            "https://cve.mitre.org/cgi-bin/cvename.cgi?name=%s" % self.sequence
-        )
+        return "https://cve.org/CVERecord?id=CVE-%s" % self.sequence
 
     @property
     def displayname(self):

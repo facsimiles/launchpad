@@ -3854,11 +3854,15 @@ class TestBranchMergeProposalMergeCriteria(
         self.useFixture(GitHostingFixture())
 
         self.expected_criteria = {
-            "is_in_progress": {"passed": True},
-            "has_no_conflicts": {"passed": True},
-            "diff_is_up_to_date": {"passed": True},
-            "is_approved": {"passed": True},
-            "CI_checks_passed": {"passed": True},
+            "is_in_progress": {"passed": True, "is_required": False},
+            "has_no_conflicts": {"passed": True, "is_required": True},
+            "diff_is_up_to_date": {"passed": True, "is_required": False},
+            "is_approved": {"passed": True, "is_required": False},
+            "CI_checks_passed": {"passed": True, "is_required": False},
+            "has_no_pending_prerequisite": {
+                "passed": True,
+                "is_required": False,
+            },
         }
 
     def test_checkMergeCriteria_all_passed(self):
@@ -3871,45 +3875,29 @@ class TestBranchMergeProposalMergeCriteria(
             )
         self.proposal.next_preview_diff_job.start()
         self.proposal.next_preview_diff_job.complete()
-        can_merge, criteria = self.proposal.checkMergeCriteria()
+        can_merge, can_force, criteria = self.proposal.checkMergeCriteria()
         self.assertTrue(can_merge)
+        self.assertTrue(can_force)
         self.assertDictEqual(self.expected_criteria, criteria)
 
     def test_checkMergeCriteria_some_failed(self):
         # If some criteria are not met, checkMergeCriteria returns a tuple with
         # False, and a dict stating which criteria failed.
-        can_merge, criteria = self.proposal.checkMergeCriteria()
+        can_merge, can_force, criteria = self.proposal.checkMergeCriteria()
         self.assertFalse(can_merge)
+        self.assertTrue(can_force)
         expected_criteria = self.expected_criteria
         expected_criteria["diff_is_up_to_date"] = {
             "passed": False,
+            "is_required": False,
             "error": "New changes were pushed too recently",
         }
         expected_criteria["is_approved"] = {
             "passed": False,
+            "is_required": False,
             "error": "Proposal has not been approved",
         }
         self.assertDictEqual(expected_criteria, criteria)
-
-    def test_checkMergeCriteria_force(self):
-        # Some criteria can be skippedf with force=True
-
-        self.proposal.next_preview_diff_job.start()
-        self.proposal.next_preview_diff_job.complete()
-
-        # Return False if not using force=True
-        can_merge, criteria = self.proposal.checkMergeCriteria()
-        self.assertFalse(can_merge)
-        expected_criteria = self.expected_criteria
-        expected_criteria["is_approved"] = {
-            "passed": False,
-            "error": "Proposal has not been approved",
-        }
-        self.assertDictEqual(expected_criteria, criteria)
-
-        # Return False if not using force=True
-        can_merge, criteria = self.proposal.checkMergeCriteria(force=True)
-        self.assertTrue(can_merge)
 
     def test_checkMergeCriteria_with_prerequisite(self):
         # When there is a prerequisite branch, its criteria is included
@@ -3934,18 +3922,23 @@ class TestBranchMergeProposalMergeCriteria(
         expected_criteria = self.expected_criteria
         if self.git:
             expected_can_merge = False
+            expected_can_force = True
             expected_criteria["has_no_pending_prerequisite"] = {
                 "passed": False,
+                "is_required": False,
                 "error": "Prerequisite branch not merged",
             }
         else:
             expected_can_merge = True
+            expected_can_force = True
             expected_criteria["has_no_pending_prerequisite"] = {
                 "passed": None,
+                "is_required": False,
                 "error": "Not implemented",
             }
-        can_merge, criteria = proposal.checkMergeCriteria()
+        can_merge, can_force, criteria = proposal.checkMergeCriteria()
         self.assertEqual(expected_can_merge, can_merge)
+        self.assertEqual(expected_can_force, can_force)
         self.assertDictEqual(expected_criteria, criteria)
 
     def test_getMergeCriteria_initial_state(self):
@@ -3953,18 +3946,25 @@ class TestBranchMergeProposalMergeCriteria(
         # the merge criteria statuses
         expected_criteria = {
             "can_be_merged": False,
+            "can_be_force_merged": True,
             "criteria": {
-                "is_in_progress": {"passed": True},
-                "has_no_conflicts": {"passed": True},
+                "is_in_progress": {"passed": True, "is_required": False},
+                "has_no_conflicts": {"passed": True, "is_required": True},
                 "diff_is_up_to_date": {
                     "passed": False,
+                    "is_required": False,
                     "error": "New changes were pushed too recently",
                 },
                 "is_approved": {
                     "passed": False,
+                    "is_required": False,
                     "error": "Proposal has not been approved",
                 },
-                "CI_checks_passed": {"passed": True},
+                "CI_checks_passed": {"passed": True, "is_required": False},
+                "has_no_pending_prerequisite": {
+                    "passed": True,
+                    "is_required": False,
+                },
             },
         }
 
@@ -3984,6 +3984,7 @@ class TestBranchMergeProposalMergeCriteria(
         response = self.proposal.getMergeCriteria()
         expected_response = {
             "can_be_merged": True,
+            "can_be_force_merged": True,
             "criteria": self.expected_criteria,
         }
         self.assertDictEqual(expected_response, response)
@@ -4001,28 +4002,33 @@ class TestBranchMergeProposalMergeCriteria(
 
         expected_response = {
             "can_be_merged": False,
+            "can_be_force_merged": True,
             "criteria": {
-                "is_in_progress": {"passed": True},
-                "has_no_conflicts": {"passed": True},
+                "is_in_progress": {"passed": True, "is_required": False},
+                "has_no_conflicts": {"passed": True, "is_required": True},
                 "diff_is_up_to_date": {
                     "passed": False,
+                    "is_required": False,
                     "error": "New changes were pushed too recently",
-                },
-                "has_no_pending_prerequisite": {
-                    "passed": False,
-                    "error": "Prerequisite branch not merged",
                 },
                 "is_approved": {
                     "passed": False,
+                    "is_required": False,
                     "error": "Proposal has not been approved",
                 },
-                "CI_checks_passed": {"passed": True},
+                "CI_checks_passed": {"passed": True, "is_required": False},
+                "has_no_pending_prerequisite": {
+                    "passed": False,
+                    "is_required": False,
+                    "error": "Prerequisite branch not merged",
+                },
             },
         }
 
         if not self.git:
             expected_response["criteria"]["has_no_pending_prerequisite"] = {
                 "passed": None,
+                "is_required": False,
                 "error": "Not implemented",
             }
 
@@ -4381,6 +4387,190 @@ class TestBranchMergeProposalMerge(TestCaseWithFactory):
             )
             self.assertEqual("fake-sha1", self.proposal.merged_revision_id)
             self.assertEqual(MergeType.REGULAR_MERGE, self.proposal.merge_type)
+
+
+class TestBranchMergeProposalRequestMerge(TestCaseWithFactory):
+    """Test the requestMerge method of BranchMergeProposal."""
+
+    layer = DatabaseFunctionalLayer
+
+    def setUp(self):
+        super().setUp()
+        self.hosting_fixture = self.useFixture(GitHostingFixture())
+        self.useFixture(
+            FeatureFixture({PROPOSAL_MERGE_ENABLED_FEATURE_FLAG: "on"})
+        )
+
+        self.proposal = removeSecurityProxy(
+            self.factory.makeBranchMergeProposalForGit()
+        )
+
+        self.person = self.factory.makePerson()
+        self.reviewer = self.proposal.target_git_repository.owner
+
+        rule = removeSecurityProxy(
+            self.factory.makeGitRule(
+                repository=self.proposal.target_git_repository
+            )
+        )
+        self.factory.makeGitRuleGrant(
+            rule=rule, grantee=self.person, can_create=True, can_push=True
+        )
+
+    def test_requestMerge_feature_flag(self):
+        self.useFixture(
+            FeatureFixture({PROPOSAL_MERGE_ENABLED_FEATURE_FLAG: ""})
+        )
+        self.assertRaises(
+            BranchMergeProposalFeatureDisabled,
+            self.proposal.requestMerge,
+            self.person,
+        )
+
+    def test_requestMerge_success(self):
+        repository = self.proposal.target_git_repository
+        [source_ref, target_ref] = self.factory.makeGitRefs(
+            paths=["refs/heads/source", "refs/heads/target"],
+            repository=repository,
+        )
+        proposal = removeSecurityProxy(
+            self.factory.makeBranchMergeProposalForGit(
+                source_ref=source_ref,
+                target_ref=target_ref,
+            )
+        )
+        proposal.createComment(
+            owner=self.reviewer,
+            vote=CodeReviewVote.APPROVE,
+        )
+        proposal.next_preview_diff_job.start()
+        proposal.next_preview_diff_job.complete()
+        with person_logged_in(self.person):
+            result = proposal.requestMerge(self.person)
+            self.assertEqual("Merge successfully queued", result)
+
+    def test_request_cross_repo_merge_success(self):
+        self.proposal.createComment(
+            owner=self.reviewer,
+            vote=CodeReviewVote.APPROVE,
+        )
+        self.proposal.next_preview_diff_job.start()
+        self.proposal.next_preview_diff_job.complete()
+        with person_logged_in(self.person):
+            result = self.proposal.requestMerge(self.person)
+            self.assertEqual("Merge successfully queued", result)
+
+    def test_request_force_merge(self):
+        self.proposal.next_preview_diff_job.start()
+        self.proposal.next_preview_diff_job.complete()
+        with person_logged_in(self.person):
+            self.assertRaises(
+                BranchMergeProposalNotMergeable,
+                self.proposal.requestMerge,
+                self.person,
+            )
+            result = self.proposal.requestMerge(self.person, force=True)
+            self.assertEqual("Merge successfully queued", result)
+
+    def test_requestMerge_success_commit_message(self):
+        self.proposal.createComment(
+            owner=self.reviewer,
+            vote=CodeReviewVote.APPROVE,
+        )
+        self.proposal.next_preview_diff_job.start()
+        self.proposal.next_preview_diff_job.complete()
+        self.proposal.commit_message = "Old commit message"
+        with person_logged_in(self.person):
+            result = self.proposal.requestMerge(
+                self.person,
+                commit_message="New commit message",
+            )
+            self.assertEqual("Merge successfully queued", result)
+        self.proposal = Store.of(self.proposal).get(
+            BranchMergeProposal, self.proposal.id
+        )
+        self.assertEqual("Old commit message", self.proposal.commit_message)
+
+    def test_requestMerge_unsuccessful_commit_message(self):
+        self.proposal.createComment(
+            owner=self.reviewer,
+            vote=CodeReviewVote.APPROVE,
+        )
+        self.proposal.next_preview_diff_job.start()
+        self.proposal.next_preview_diff_job.complete()
+        self.proposal.commit_message = "Old commit message"
+        self.hosting_fixture.requestMerge.failure = (
+            BranchMergeProposalMergeFailed("Merge proposal failed to merge")
+        )
+        with person_logged_in(self.person):
+            self.assertRaises(
+                BranchMergeProposalMergeFailed,
+                self.proposal.requestMerge,
+                self.person,
+                commit_message="New commit message",
+            )
+        self.proposal = Store.of(self.proposal).get(
+            BranchMergeProposal, self.proposal.id
+        )
+        self.assertEqual(self.proposal.commit_message, "Old commit message")
+
+    def test_requestMerge_no_permission(self):
+        person = self.factory.makePerson()
+        self.assertRaises(
+            Unauthorized,
+            self.proposal.requestMerge,
+            person,
+        )
+
+    def test_requestMerge_not_mergeable(self):
+        self.assertRaises(
+            BranchMergeProposalNotMergeable,
+            self.proposal.requestMerge,
+            self.person,
+        )
+
+    def test_requestMerge_bazaar_not_supported(self):
+        proposal = removeSecurityProxy(self.factory.makeBranchMergeProposal())
+        self.assertRaises(
+            NotImplementedError,
+            proposal.requestMerge,
+            self.person,
+        )
+
+    def test_requestMerge_turnip_failure(self):
+        self.proposal.createComment(
+            owner=self.reviewer,
+            vote=CodeReviewVote.APPROVE,
+        )
+        self.proposal.next_preview_diff_job.start()
+        self.proposal.next_preview_diff_job.complete()
+        self.hosting_fixture.requestMerge.failure = (
+            BranchMergeProposalMergeFailed("Merge proposal failed to merge")
+        )
+        with person_logged_in(self.person):
+            self.assertRaises(
+                BranchMergeProposalMergeFailed,
+                self.proposal.requestMerge,
+                self.person,
+            )
+
+    def test_requestMerge_already_merged(self):
+        self.proposal.createComment(
+            owner=self.reviewer,
+            vote=CodeReviewVote.APPROVE,
+        )
+        self.proposal.next_preview_diff_job.start()
+        self.proposal.next_preview_diff_job.complete()
+        self.hosting_fixture.requestMerge.result = {
+            "queued": False,
+            "already_merged": True,
+        }
+        with person_logged_in(self.person):
+            result = self.proposal.requestMerge(self.person)
+            self.assertEqual(
+                "Proposal already merged, waiting for rescan",
+                result,
+            )
 
 
 load_tests = load_tests_apply_scenarios
