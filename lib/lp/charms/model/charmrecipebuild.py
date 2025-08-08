@@ -31,7 +31,6 @@ from zope.component import getUtility
 from zope.interface import implementer
 
 from lp.app.errors import NotFoundError
-from lp.buildmaster.builderproxy import BUILD_METADATA_FILENAME_FORMAT
 from lp.buildmaster.enums import (
     BuildFarmJobType,
     BuildQueueStatus,
@@ -415,16 +414,6 @@ class CharmRecipeBuild(PackageBuildMixin, StormBase):
             ProxiedLibraryFileAlias(lfa, self).http_url
             for _, lfa, _ in self.getFiles()
         ]
-
-    @property
-    def build_metadata_url(self):
-        metadata_filename = BUILD_METADATA_FILENAME_FORMAT.format(
-            build_id=self.build_cookie
-        )
-        for url in self.getFileUrls():
-            if url.endswith(metadata_filename):
-                return url
-        return None
 
     def addFile(self, lfa):
         """See `ICharmRecipeBuild`."""
