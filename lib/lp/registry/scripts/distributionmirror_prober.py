@@ -487,7 +487,7 @@ class RedirectAwareProberFactory(ProberFactory):
             # Server redirected us to a file which doesn't seem to be what we
             # requested.  It's likely to be a stupid server which redirects
             # instead of 404ing (https://launchpad.net/bugs/204460).
-            self.failed(Failure(RedirectToDifferentFile(orig_path, new_path)))
+            self.failed(Failure(RedirectToDifferentFile(self.url, url)))
             return
 
         try:
