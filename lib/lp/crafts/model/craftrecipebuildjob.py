@@ -48,6 +48,10 @@ from lp.services.scripts import log
 # Prevents builds from hanging if network connectivity issues occur.
 CARGO_HTTP_TIMEOUT = 60
 
+# Memory limits for different job types
+MAVEN_JOB_MEMORY_LIMIT = 8 * (1024**3)  # 8GB
+DEFAULT_JOB_MEMORY_LIMIT = 2 * (1024**3)  # 2GB
+
 
 class CraftRecipeBuildJobType(DBEnumeratedType):
     """Values that `ICraftRecipeBuildJob.job_type` can take."""
@@ -174,10 +178,10 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         for _, lfa, _ in self.build.getFiles():
             if lfa.filename.endswith(".jar") or lfa.filename == "pom.xml":
                 # Maven job - needs more memory for JVM
-                return 8 * (1024**3)  # 8GB
+                return MAVEN_JOB_MEMORY_LIMIT
 
         # Non-Maven job (Rust/Cargo) - use default limit
-        return 2 * (1024**3)  # 2GB
+        return DEFAULT_JOB_MEMORY_LIMIT
 
     @classmethod
     def create(cls, build):
