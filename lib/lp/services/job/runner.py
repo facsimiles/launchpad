@@ -397,6 +397,25 @@ class BaseJobRunner(LazrJobRunner):
             enable_timeout=False, detail_filter=job.timeline_detail_filter
         )
         try:
+            # Apply memory limits before running the job
+            memory_limit = None
+
+            job_memory_limit = getattr(job, "memory_limit", None)
+            if job_memory_limit is not None:
+                memory_limit = job_memory_limit
+            elif (
+                hasattr(job, "job_source")
+                and job.job_source.memory_limit is not None
+            ):
+                # Fall back to the job_source memory_limit
+                memory_limit = job.job_source.memory_limit
+
+            if memory_limit is not None:
+                soft_limit, hard_limit = getrlimit(RLIMIT_AS)
+                if soft_limit != memory_limit:
+                    limits = (memory_limit, hard_limit)
+                    setrlimit(RLIMIT_AS, limits)
+
             return super().runJobHandleError(job, fallback=fallback)
         finally:
             clear_request_started()
