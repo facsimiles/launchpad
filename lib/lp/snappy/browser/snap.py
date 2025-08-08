@@ -45,6 +45,7 @@ from lp.app.widgets.itemswidgets import (
     LaunchpadRadioWidgetWithDescription,
 )
 from lp.app.widgets.snapbuildchannels import SnapBuildChannelsWidget
+from lp.buildmaster.builderproxy import FetchServicePolicy
 from lp.buildmaster.interfaces.processor import IProcessorSet
 from lp.code.browser.widgets.gitref import GitRefWidget
 from lp.code.interfaces.branch import IBranch
@@ -526,6 +527,7 @@ class ISnapEditSchema(Interface):
             "store_upload",
             "pro_enable",
             "use_fetch_service",
+            "fetch_service_policy",
         ],
     )
 
@@ -550,6 +552,9 @@ class ISnapEditSchema(Interface):
     store_channels = copy_field(ISnap["store_channels"], required=True)
 
     use_fetch_service = copy_field(ISnap["use_fetch_service"], required=True)
+    fetch_service_policy = copy_field(
+        ISnap["fetch_service_policy"], required=True
+    )
 
 
 def log_oops(error, request):
@@ -987,6 +992,7 @@ class SnapEditView(BaseSnapEditView, EnableProcessorsMixin):
         "store_name",
         "store_channels",
         "use_fetch_service",
+        "fetch_service_policy",
     ]
     custom_widget_store_distro_series = LaunchpadRadioWidget
     custom_widget_vcs = LaunchpadRadioWidget
@@ -1042,6 +1048,17 @@ class SnapEditView(BaseSnapEditView, EnableProcessorsMixin):
         initial_values["information_type"] = self.context.information_type
         return initial_values
 
+    def validate_widgets(self, data, names=None):
+        if (
+            self.widgets.get("use_fetch_service") is not None
+            and self.widgets.get("fetch_service_policy") is not None
+        ):
+            super().validate_widgets(data, ["use_fetch_service"])
+            self.widgets["fetch_service_policy"].context.required = data.get(
+                "use_fetch_service"
+            )
+        super().validate_widgets(data, names=names)
+
     def validate(self, data):
         super().validate(data)
         owner = data.get("owner", None)
@@ -1072,6 +1089,9 @@ class SnapEditView(BaseSnapEditView, EnableProcessorsMixin):
                         data["processors"].append(processor)
 
     def updateContextFromData(self, data, context=None, notify_modified=True):
+        if not data.get("use_fetch_service"):
+            data["fetch_service_policy"] = FetchServicePolicy.STRICT
+
         if "project" in data:
             project = data.pop("project")
             self.context.setProject(project)
