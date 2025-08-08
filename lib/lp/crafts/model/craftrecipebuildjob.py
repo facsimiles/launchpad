@@ -484,13 +484,24 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         with open(os.path.join(maven_dir, "settings.xml"), "w") as f:
             f.write(settings_xml)
 
-        # Run mvn deploy using the pom file
+        # We set MAVEN_OPTS to control JVM memory usage.
+        # -Xmx4G and -Xms4G: Set the maximum and initial heap size to 4GB.
+        #   This is needed because Maven can require significant memory for
+        #   dependency resolution and artifact processing, especially for large
+        #   projects or when running in containers with limited default memory.
+        # -XX:CompressedClassSpaceSize=1G and -XX:MaxMetaspaceSize=1G:
+        #   These options limit the class metadata and metaspace to 1GB each,
+        #   which helps prevent the JVM from exhausting system memory due to
+        #   class loading, but is generous enough for typical Maven builds.
+        # These values are chosen to balance between avoiding out-of-memory
+        # errors and not over-allocating resources in the publisher.
         env = os.environ.copy()
         env["MAVEN_OPTS"] = (
             "-Xmx4G -Xms4G "
             "-XX:CompressedClassSpaceSize=1G "
             "-XX:MaxMetaspaceSize=1G"
         )
+        # Run mvn deploy using the pom file
         result = subprocess.run(
             [
                 "mvn",
@@ -516,7 +527,11 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
 
             raise Exception("Failed to publish Maven artifact")
 
-        # Skip publishing properties for SNAPSHOT artifacts
+        # Only publish properties for release artifacts, not SNAPSHOTs.
+        # SNAPSHOT artifacts are timestamped and represent development builds,
+        # so their coordinates change with each publish and they are not
+        # considered stable releases. We only care about publishing properties
+        # for release artifacts, which are stable and have fixed coordinates.
         if "SNAPSHOT" not in artifact_name:
             self._publish_properties(maven_publish_url, artifact_name)
 
@@ -676,7 +691,15 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
 
         # Repo name is derived from the URL
         # refer to schema-lazr.conf for more details about the URL structure
-        url_parts = publish_url.rstrip("/").split("/")
+        parsed_url = urlparse(publish_url)
+        # If publish_url is a fully-qualified URL, use its path;
+        # otherwise, use as-is.
+        path_to_split = (
+            parsed_url.path
+            if parsed_url.scheme and parsed_url.netloc
+            else publish_url
+        )
+        url_parts = path_to_split.rstrip("/").split("/")
 
         if publish_url.endswith("/index") or publish_url.endswith("/index/"):
             # Cargo URL - repository name is second to last part

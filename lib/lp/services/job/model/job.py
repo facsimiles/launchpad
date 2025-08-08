@@ -282,9 +282,14 @@ Job.ready_jobs = Select(
 class UniversalJobSource:
     """Returns the RunnableJob associated with a Job.id.
 
-    The memory_limit is set to 8GB to accommodate modern workflows,
-    such as Maven publishing, which require significantly more memory
-    than older job types.
+    The memory_limit defined here is overridden to 8GB in
+    CraftPublishingJob.memory_limit (see
+    lp.crafts.model.craftrecipebuildjob.CraftPublishingJob.memory_limit) for
+    Maven publishing jobs, which require significantly more memory than other
+    job types.
+
+    In the future, this might also be overriden to any value for any job type
+    that requires more memory than the default.
     """
 
     memory_limit = 2 * (1024**3)
