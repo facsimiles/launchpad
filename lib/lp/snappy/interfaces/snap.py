@@ -1156,7 +1156,7 @@ class ISnapEditableAttributes(IHasOwner):
         Choice(
             title=_("Fetch service policy"),
             vocabulary=FetchServicePolicy,
-            required=True,
+            required=False,
             readonly=False,
             default=FetchServicePolicy.STRICT,
             description=_(
