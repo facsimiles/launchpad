@@ -597,15 +597,15 @@ class CharmRecipeBuildSet(SpecificBuildFarmJobSourceMixin):
 
         # Prefetch all charms metadata files
         charm_files = load_referencing(CharmFile, builds, ["build_id"])
-        lfas = load_related(LibraryFileAlias, charm_files, ["libraryfile_id"])
+        lfas = load_related(LibraryFileAlias, charm_files, ["library_file_id"])
 
         metadata_files = {}
         for charm_file in charm_files:
             if (
-                charm_file.libraryfile.filename
-                == charm_file.charmbuild.metadata_filename
+                charm_file.library_file.filename
+                == charm_file.build.metadata_filename
             ):
-                metadata_files[charm_file.build_id] = charm_file.libraryfile
+                metadata_files[charm_file.build_id] = charm_file.library_file
 
         for build in builds:
             cache = get_property_cache(build)
