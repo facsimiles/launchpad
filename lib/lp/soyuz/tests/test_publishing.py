@@ -52,6 +52,7 @@ from lp.soyuz.enums import (
     ArchivePurpose,
     ArchiveRepositoryFormat,
     BinaryPackageFormat,
+    DistroArchSeriesFilterSense,
     PackageUploadStatus,
 )
 from lp.soyuz.interfaces.binarypackagename import IBinaryPackageNameSet
@@ -2114,6 +2115,36 @@ class TestPublishBinaries(TestCaseWithFactory):
             ),
         )
         self.assertEqual(PackagePublishingStatus.PENDING, bpph.status)
+
+    def test_architecture_variant(self):
+        # When a package is not built for a variant, the binaries for
+        # the underlying architecture are published to the variant DAS.
+        arch_tag = self.factory.getUniqueString("arch-")
+        orig_das = self.factory.makeDistroArchSeries(architecturetag=arch_tag)
+        target_das = self.factory.makeDistroArchSeries(
+            architecturetag=arch_tag
+        )
+        target_variant_das = self.factory.makeDistroArchSeries(
+            distroseries=target_das.distroseries,
+            architecturetag=arch_tag + "v2",
+            underlying_architecturetag=arch_tag,
+        )
+        dasf = self.factory.makeDistroArchSeriesFilter(
+            distroarchseries=target_variant_das,
+            sense=DistroArchSeriesFilterSense.EXCLUDE,
+        )
+        build = self.factory.makeBinaryPackageBuild(distroarchseries=orig_das)
+        dasf.packageset.add([build.source_package_release.sourcepackagename])
+        bpr = self.factory.makeBinaryPackageRelease(
+            build=build, architecturespecific=True
+        )
+        args = self.makeArgs([bpr], target_das.distroseries)
+        bpphes = list(getUtility(IPublishingSet).publishBinaries(**args))
+        self.assertEqual(len(bpphes), 2)
+        actual_target_dases = {bpph.distroarchseries for bpph in bpphes}
+        actual_bprs = {bpph.binarypackagerelease for bpph in bpphes}
+        self.assertEqual(actual_target_dases, {target_das, target_variant_das})
+        self.assertEqual(actual_bprs, {bpr})
 
     def test_architecture_independent(self):
         # Architecture-independent binaries get published to all enabled
