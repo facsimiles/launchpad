@@ -391,6 +391,9 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
                 "\n"
                 "[registries.launchpad]\n"
                 f'index = "{cargo_publish_url}"\n'
+                "\n"
+                "[source.crates-io]\n"
+                'replace-with = "launchpad"\n'
             )
 
             # Only add the HTTP proxy configuration if it's set
