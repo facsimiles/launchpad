@@ -336,6 +336,18 @@ class ChangesFile(SignableTagFile):
         return set(self._dict["Architecture"].decode().split())
 
     @property
+    def architecture_variants(self):
+        """Return set of strings specifying architecture variants listed in file.
+
+        Can be empty.
+
+        For instance {}, {'amd64v3'}.
+        """
+        return set(
+            self._dict.get("Architecture-Variant", b"").decode().split()
+        )
+
+    @property
     def binaries(self):
         """Return set of binary package names listed."""
         return set(self._dict.get("Binary", "").decode().strip().split())

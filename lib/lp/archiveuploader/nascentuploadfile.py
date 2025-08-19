@@ -733,36 +733,54 @@ class BaseBinaryUploadFile(PackageUploadFile):
                 % (filename_version, control_version_chopped)
             )
 
-    def verifyArchitecture(self):
-        """Check if the control architecture matches the changesfile.
+    def verifyABIAndISATags(self):
+        """Check if the control abi/isa matches the changesfile.
 
         Also check if it is a valid architecture in LP context.
         """
         control_arch = six.ensure_text(self.control.get("Architecture", b""))
         control_arch_variant = six.ensure_text(
-            self.control.get("Architecture-Variant", control_arch)
+            self.control.get("Architecture-Variant", b"")
         )
+        abi_tag = control_arch
+        if control_arch_variant:
+            isa_tag = control_arch_variant
+        else:
+            isa_tag = abi_tag
+
         valid_archs = [
             a.architecturetag for a in self.policy.distroseries.architectures
         ]
 
-        if control_arch not in valid_archs and control_arch != "all":
+        if abi_tag != "all" and abi_tag not in valid_archs:
             yield UploadError(
-                "%s: Unknown architecture: '%s'"
-                % (self.filename, control_arch)
+                "%s: Unknown architecture: '%s'" % (self.filename, abi_tag)
             )
 
-        if control_arch not in self.changes.architectures:
+        if isa_tag != "all" and isa_tag not in valid_archs:
+            yield UploadError(
+                "%s: Unknown architecture variant: '%s'"
+                % (self.filename, isa_tag)
+            )
+
+        if abi_tag not in self.changes.architectures:
             yield UploadError(
                 "%s: control file lists arch as '%s' which isn't "
-                "in the changes file." % (self.filename, control_arch)
+                "in the changes file." % (self.filename, abi_tag)
             )
 
-        if control_arch_variant != self.filename_archtag:
+        if isa_tag != abi_tag:
+            if isa_tag not in self.changes.architecture_variants:
+                yield UploadError(
+                    "%s: control file lists arch variant as '%s' which isn't "
+                    "in the changes file." % (self.filename, isa_tag)
+                )
+
+        if isa_tag != self.filename_archtag:
             yield UploadError(
                 "%s: control file lists arch as '%s' which doesn't "
-                "agree with version '%s' in the filename."
-                % (self.filename, control_arch, self.architecture)
+                "agree with arch '%s' in the filename."
+                % (self.filename, control_arch, self.filename_archtag)
             )
 
     def verifyDepends(self):
@@ -1110,7 +1128,7 @@ class UdebBinaryUploadFile(BaseBinaryUploadFile):
         return [
             self.verifyPackage,
             self.verifyVersion,
-            self.verifyArchitecture,
+            self.verifyABIAndISATags,
             self.verifyDepends,
             self.verifySection,
             self.verifyPriority,
@@ -1129,7 +1147,7 @@ class DebBinaryUploadFile(BaseBinaryUploadFile):
         return [
             self.verifyPackage,
             self.verifyVersion,
-            self.verifyArchitecture,
+            self.verifyABIAndISATags,
             self.verifyDepends,
             self.verifySection,
             self.verifyPriority,
