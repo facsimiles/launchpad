@@ -570,7 +570,7 @@ class BaseBinaryUploadFile(PackageUploadFile):
         # Yeah, this is weird. Where else can I discover this without
         # unpacking the deb file, though?
         binary_match = re_isadeb.match(self.filename)
-        self.architecture = binary_match.group(3)
+        self.filename_archtag = binary_match.group(3)
 
     #
     # Useful properties.
@@ -583,7 +583,7 @@ class BaseBinaryUploadFile(PackageUploadFile):
         They can be build in any architecture and the result will fit all
         architectures available.
         """
-        return self.architecture.lower() == "all"
+        return self.filename_archtag.lower() == "all"
 
     @property
     def archtag(self):
@@ -593,7 +593,7 @@ class BaseBinaryUploadFile(PackageUploadFile):
         of the machine that has built it (it is encoded in the changesfile
         name).
         """
-        archtag = self.architecture
+        archtag = self.filename_archtag
         if archtag == "all":
             return self.changes.filename_archtag
         return archtag
@@ -758,7 +758,7 @@ class BaseBinaryUploadFile(PackageUploadFile):
                 "in the changes file." % (self.filename, control_arch)
             )
 
-        if control_arch_variant != self.architecture:
+        if control_arch_variant != self.filename_archtag:
             yield UploadError(
                 "%s: control file lists arch as '%s' which doesn't "
                 "agree with version '%s' in the filename."

@@ -372,7 +372,7 @@ class NascentUpload:
                 ddeb_key = (
                     uploaded_file.package,
                     uploaded_file.version,
-                    uploaded_file.architecture,
+                    uploaded_file.filename_archtag,
                 )
                 if ddeb_key in unmatched_ddebs:
                     yield UploadError(
@@ -392,7 +392,7 @@ class NascentUpload:
                         (
                             uploaded_file.package + "-dbgsym",
                             uploaded_file.version,
-                            uploaded_file.architecture,
+                            uploaded_file.filename_archtag,
                         )
                     )
                 except KeyError:
@@ -680,7 +680,7 @@ class NascentUpload:
                     % (
                         uploaded_file.package,
                         uploaded_file.version,
-                        uploaded_file.architecture,
+                        uploaded_file.filename_archtag,
                     )
                 )
 
@@ -698,10 +698,10 @@ class NascentUpload:
                     override_name
                 )
 
-                if uploaded_file.architecture == "all":
+                if uploaded_file.filename_archtag == "all":
                     archtag = None
                 else:
-                    archtag = uploaded_file.architecture
+                    archtag = uploaded_file.filename_archtag
 
                 try:
                     spph = uploaded_file.findCurrentSourcePublication()

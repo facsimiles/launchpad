@@ -876,8 +876,13 @@ class DebBinaryUploadFileTests(PackageUploadFileTestCase):
 
     def test_checkBuild_variant(self):
         # checkBuild() verifies consistency with a build.
+        self.factory.makeDistroArchSeries(
+            distroseries=self.policy.distroseries, architecturetag="amd64"
+        )
         das = self.factory.makeDistroArchSeries(
-            distroseries=self.policy.distroseries, architecturetag="i386"
+            distroseries=self.policy.distroseries,
+            architecturetag="amd64v3",
+            underlying_architecturetag="amd64",
         )
         build = self.factory.makeBinaryPackageBuild(
             distroarchseries=das, archive=self.policy.archive
