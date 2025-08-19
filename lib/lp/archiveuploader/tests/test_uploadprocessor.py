@@ -2923,7 +2923,7 @@ class TestUploadHandler(TestUploadProcessorBase):
         # Move the source from the accepted queue.
         self.switchToAdmin()
         [queue_item] = self.breezy.getPackageUploads(
-            status=PackageUploadStatus.ACCEPTED, version="1.0-1", name="bar"
+            status=PackageUploadStatus.ACCEPTED, name="bar", version="1.0-1"
         )
         queue_item.setDone()
 
@@ -2932,7 +2932,6 @@ class TestUploadHandler(TestUploadProcessorBase):
         self.switchToUploader()
 
         # Upload and accept a binary for the primary archive source.
-        shutil.rmtree(upload_dir)
 
         # Commit so the build cookie has the right ids.
         self.layer.txn.commit()
