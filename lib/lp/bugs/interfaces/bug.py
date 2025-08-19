@@ -115,6 +115,8 @@ class CreateBugParams:
         milestone=None,
         assignee=None,
         cve=None,
+        metadata=None,
+        check_permissions=True,
     ):
         self.owner = owner
         self.title = title
@@ -133,6 +135,8 @@ class CreateBugParams:
         self.milestone = milestone
         self.assignee = assignee
         self.cve = cve
+        self.metadata = metadata
+        self.check_permissions = check_permissions
 
 
 class BugNameField(ContentNameField):

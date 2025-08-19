@@ -249,6 +249,8 @@ def snapshot_bug_params(bug_params):
             "milestone",
             "assignee",
             "cve",
+            "metadata",
+            "check_permissions",
         ],
     )
 
@@ -3415,7 +3417,7 @@ class BugSet:
         bug.markUserAffected(bug.owner)
 
         if params.cve is not None:
-            bug.linkCVE(params.cve, params.owner)
+            bug.linkCVE(params.cve, params.owner, params.check_permissions)
 
         # Populate the creation event.
         if params.filed_by is None:
