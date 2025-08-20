@@ -108,8 +108,17 @@ class ExternalPackageType(DBEnumeratedType):
         """,
     )
 
-    SNAP = DBItem(
+    GENERIC = DBItem(
         1,
+        """
+        Generic
+
+        Generic external package
+        """,
+    )
+
+    SNAP = DBItem(
+        2,
         """
         Snap
 
@@ -118,7 +127,7 @@ class ExternalPackageType(DBEnumeratedType):
     )
 
     CHARM = DBItem(
-        2,
+        3,
         """
         Charm
 
@@ -127,7 +136,7 @@ class ExternalPackageType(DBEnumeratedType):
     )
 
     ROCK = DBItem(
-        3,
+        4,
         """
         Rock
 
@@ -136,7 +145,7 @@ class ExternalPackageType(DBEnumeratedType):
     )
 
     PYTHON = DBItem(
-        4,
+        5,
         """
         Python
 
@@ -145,7 +154,7 @@ class ExternalPackageType(DBEnumeratedType):
     )
 
     CONDA = DBItem(
-        5,
+        6,
         """
         Conda
 
@@ -154,7 +163,7 @@ class ExternalPackageType(DBEnumeratedType):
     )
 
     CARGO = DBItem(
-        6,
+        7,
         """
         Cargo
 
@@ -163,7 +172,7 @@ class ExternalPackageType(DBEnumeratedType):
     )
 
     MAVEN = DBItem(
-        7,
+        8,
         """
         Maven
 
