@@ -31,6 +31,7 @@ from zope.component import getUtility
 from zope.interface import implementer
 
 from lp.app.errors import NotFoundError
+from lp.buildmaster.builderproxy import BUILD_METADATA_FILENAME_FORMAT
 from lp.buildmaster.enums import (
     BuildFarmJobType,
     BuildQueueStatus,
@@ -60,7 +61,7 @@ from lp.registry.model.distribution import Distribution
 from lp.registry.model.distroseries import DistroSeries
 from lp.registry.model.person import Person
 from lp.services.config import config
-from lp.services.database.bulk import load_related
+from lp.services.database.bulk import load_referencing, load_related
 from lp.services.database.constants import DEFAULT
 from lp.services.database.decoratedresultset import DecoratedResultSet
 from lp.services.database.enumcol import DBEnum
@@ -415,6 +416,25 @@ class CharmRecipeBuild(PackageBuildMixin, StormBase):
             for _, lfa, _ in self.getFiles()
         ]
 
+    def lfaUrl(self, lfa):
+        """Return the URL for a LibraryFileAlias in this context."""
+        if lfa is None:
+            return None
+        return ProxiedLibraryFileAlias(lfa, self).http_url
+
+    @property
+    def metadata_filename(self):
+        return BUILD_METADATA_FILENAME_FORMAT.format(
+            build_id=self.build_cookie
+        )
+
+    @cachedproperty
+    def build_metadata_url(self):
+        try:
+            return self.lfaUrl(self.getFileByName(self.metadata_filename))
+        except NotFoundError:
+            return None
+
     def addFile(self, lfa):
         """See `ICharmRecipeBuild`."""
         charm_file = CharmFile(build=self, library_file=lfa)
@@ -574,6 +594,24 @@ class CharmRecipeBuildSet(SpecificBuildFarmJobSourceMixin):
                 build
             )
         load_related(Job, crbjs, ["job_id"])
+
+        # Prefetch all charms metadata files
+        charm_files = load_referencing(CharmFile, builds, ["build_id"])
+        lfas = load_related(LibraryFileAlias, charm_files, ["library_file_id"])
+
+        metadata_files = {}
+        for charm_file in charm_files:
+            if (
+                charm_file.library_file.filename
+                == charm_file.build.metadata_filename
+            ):
+                metadata_files[charm_file.build_id] = charm_file.library_file
+
+        for build in builds:
+            cache = get_property_cache(build)
+            cache.build_metadata_url = build.lfaUrl(
+                metadata_files.get(build.id)
+            )
 
     def getByBuildFarmJobs(self, build_farm_jobs):
         """See `ISpecificBuildFarmJobSource`."""

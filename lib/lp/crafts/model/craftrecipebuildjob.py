@@ -48,6 +48,10 @@ from lp.services.scripts import log
 # Prevents builds from hanging if network connectivity issues occur.
 CARGO_HTTP_TIMEOUT = 60
 
+# Memory limits for different job types
+MAVEN_JOB_MEMORY_LIMIT = 8 * (1024**3)  # 8GB
+DEFAULT_JOB_MEMORY_LIMIT = 2 * (1024**3)  # 2GB
+
 
 class CraftRecipeBuildJobType(DBEnumeratedType):
     """Values that `ICraftRecipeBuildJob.job_type` can take."""
@@ -159,6 +163,25 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
 
     task_queue = "native_publisher_job"
     config = config.ICraftPublishingJobSource
+
+    @property
+    def memory_limit(self):
+        """Dynamically determine memory limit based on job type.
+
+        Maven jobs need more memory for JVM operations, while Rust/Cargo jobs
+        can work with the default limit.
+
+        There is some duplication here with checking the file type in the run
+        method, but it's not worth refactoring atm.
+        """
+        # Check if this job will be processing Maven artifacts
+        for _, lfa, _ in self.build.getFiles():
+            if lfa.filename.endswith(".jar") or lfa.filename == "pom.xml":
+                # Maven job - needs more memory for JVM
+                return MAVEN_JOB_MEMORY_LIMIT
+
+        # Non-Maven job (Rust/Cargo) - use default limit
+        return DEFAULT_JOB_MEMORY_LIMIT
 
     @classmethod
     def create(cls, build):
@@ -368,6 +391,9 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
                 "\n"
                 "[registries.launchpad]\n"
                 f'index = "{cargo_publish_url}"\n'
+                "\n"
+                "[source.crates-io]\n"
+                'replace-with = "launchpad"\n'
             )
 
             # Only add the HTTP proxy configuration if it's set
@@ -461,6 +487,23 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         with open(os.path.join(maven_dir, "settings.xml"), "w") as f:
             f.write(settings_xml)
 
+        # We set MAVEN_OPTS to control JVM memory usage.
+        # -Xmx4G and -Xms4G: Set the maximum and initial heap size to 4GB.
+        #   This is needed because Maven can require significant memory for
+        #   dependency resolution and artifact processing, especially for large
+        #   projects or when running in containers with limited default memory.
+        # -XX:CompressedClassSpaceSize=1G and -XX:MaxMetaspaceSize=1G:
+        #   These options limit the class metadata and metaspace to 1GB each,
+        #   which helps prevent the JVM from exhausting system memory due to
+        #   class loading, but is generous enough for typical Maven builds.
+        # These values are chosen to balance between avoiding out-of-memory
+        # errors and not over-allocating resources in the publisher.
+        env = os.environ.copy()
+        env["MAVEN_OPTS"] = (
+            "-Xmx4G -Xms4G "
+            "-XX:CompressedClassSpaceSize=1G "
+            "-XX:MaxMetaspaceSize=1G"
+        )
         # Run mvn deploy using the pom file
         result = subprocess.run(
             [
@@ -476,14 +519,24 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
             ],
             capture_output=True,
             cwd=work_dir,
+            env=env,
         )
 
         if result.returncode != 0:
-            raise Exception(
-                f"Failed to publish Maven artifact: {result.stderr}"
+            log.error(
+                f"[+] Maven publish failed (return code: {result.returncode})"
             )
+            log.error(f"[+] Maven stdout:\n{result.stdout}")
 
-        self._publish_properties(maven_publish_url, artifact_name)
+            raise Exception("Failed to publish Maven artifact")
+
+        # Only publish properties for release artifacts, not SNAPSHOTs.
+        # SNAPSHOT artifacts are timestamped and represent development builds,
+        # so their coordinates change with each publish and they are not
+        # considered stable releases. We only care about publishing properties
+        # for release artifacts, which are stable and have fixed coordinates.
+        if "SNAPSHOT" not in artifact_name:
+            self._publish_properties(maven_publish_url, artifact_name)
 
     def _get_maven_settings_xml(self, username, password, repository_url):
         """Generate Maven settings.xml content.
@@ -640,10 +693,23 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         new_properties["soss.license"] = [self._get_license_metadata()]
 
         # Repo name is derived from the URL
-        # We assume the URL ends with "index" as both Cargo and Maven use such
-        # indexes to publish artifacts. Thus, we also assume that the
-        # repository name is the second last part of the URL.
-        repo_name = publish_url.rstrip("/").split("/")[-2]
+        # refer to schema-lazr.conf for more details about the URL structure
+        parsed_url = urlparse(publish_url)
+        # If publish_url is a fully-qualified URL, use its path;
+        # otherwise, use as-is.
+        path_to_split = (
+            parsed_url.path
+            if parsed_url.scheme and parsed_url.netloc
+            else publish_url
+        )
+        url_parts = path_to_split.rstrip("/").split("/")
+
+        if publish_url.endswith("/index") or publish_url.endswith("/index/"):
+            # Cargo URL - repository name is second to last part
+            repo_name = url_parts[-2]
+        else:
+            # Maven URL - repository name is the last part
+            repo_name = url_parts[-1]
 
         root_path_str = self._extract_root_path(publish_url)
         if not root_path_str:

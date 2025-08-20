@@ -11,9 +11,9 @@
     <p>
       You need to register an SSH key with Launchpad to be able to publish
       your Bazaar code branches in Launchpad. For more information, read about
-      <a href="https://help.launchpad.net/Code/UploadingABranch"
+      <a href="https://documentation.ubuntu.com/launchpad/developer/explanation/branches/"
         >Uploading a branch</a> and
-      <a href="https://help.launchpad.net/YourAccount/CreatingAnSSHKeyPair"
+      <a href="https://documentation.ubuntu.com/launchpad/user/how-to/import-ssh-keys/"
         >Importing your SSH key</a>.
     </p>
 

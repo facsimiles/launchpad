@@ -34,6 +34,7 @@ from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.app.widgets.tests.test_snapbuildchannels import (
     TestSnapBuildChannelsWidget,
 )
+from lp.buildmaster.builderproxy import FetchServicePolicy
 from lp.buildmaster.enums import BuildStatus
 from lp.buildmaster.interfaces.processor import IProcessorSet
 from lp.code.errors import BranchHostingFault, GitRepositoryScanFault
@@ -1451,6 +1452,61 @@ class TestSnapEditView(BaseTestSnapView):
         browser.getLink("Edit snap package").click()
         with person_logged_in(self.person):
             self.assertTrue(snap.use_fetch_service)
+
+    def test_edit_fetch_service_policy(self):
+        series = self.factory.makeUbuntuDistroSeries()
+        with admin_logged_in():
+            snappy_series = self.factory.makeSnappySeries(
+                usable_distro_series=[series]
+            )
+        login_person(self.person)
+        snap = self.factory.makeSnap(
+            registrant=self.person,
+            owner=self.person,
+            distroseries=series,
+            branch=self.factory.makeAnyBranch(),
+            store_series=snappy_series,
+        )
+        browser = self.getViewBrowser(snap, user=self.person)
+        browser.getLink("Edit snap package").click()
+        browser.getControl("Use fetch service").selected = True
+        with person_logged_in(self.person):
+            self.assertEqual(
+                snap.fetch_service_policy, FetchServicePolicy.STRICT
+            )
+        browser.getControl("Fetch service policy").value = ["PERMISSIVE"]
+        browser.getControl("Update snap package").click()
+
+        browser = self.getViewBrowser(snap, user=self.person)
+        browser.getLink("Edit snap package").click()
+        with person_logged_in(self.person):
+            self.assertEqual(
+                snap.fetch_service_policy, FetchServicePolicy.PERMISSIVE
+            )
+
+    def test_fetch_service_policy_when_use_fetch_service_is_false(self):
+        series = self.factory.makeUbuntuDistroSeries()
+        with admin_logged_in():
+            snappy_series = self.factory.makeSnappySeries(
+                usable_distro_series=[series]
+            )
+        login_person(self.person)
+        snap = self.factory.makeSnap(
+            registrant=self.person,
+            owner=self.person,
+            distroseries=series,
+            branch=self.factory.makeAnyBranch(),
+            store_series=snappy_series,
+        )
+        browser = self.getViewBrowser(snap, user=self.person)
+        browser.getLink("Edit snap package").click()
+        with person_logged_in(self.person):
+            self.assertFalse(snap.use_fetch_service)
+        browser.getControl("Update snap package").click()
+        with person_logged_in(self.person):
+            self.assertEqual(
+                snap.fetch_service_policy, FetchServicePolicy.STRICT
+            )
 
     def setUpSeries(self):
         """Set up {distro,snappy}series with some available processors."""
