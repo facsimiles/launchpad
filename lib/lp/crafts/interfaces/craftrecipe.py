@@ -720,22 +720,6 @@ class ICraftRecipeEditableAttributes(Interface):
         )
     )
 
-
-class ICraftRecipeAdminAttributes(Interface):
-    """`ICraftRecipe` attributes that can be edited by admins.
-
-    These attributes need launchpad.View to see, and launchpad.Admin to change.
-    """
-
-    require_virtualized = exported(
-        Bool(
-            title=_("Require virtualized builders"),
-            required=True,
-            readonly=False,
-            description=_("Only build this craft recipe on virtual builders."),
-        )
-    )
-
     use_fetch_service = exported(
         Bool(
             title=_("Use fetch service"),
@@ -759,6 +743,22 @@ class ICraftRecipeAdminAttributes(Interface):
                 "Which policy to use when using the fetch service. Ignored if "
                 "`use_fetch_service` flag is False."
             ),
+        )
+    )
+
+
+class ICraftRecipeAdminAttributes(Interface):
+    """`ICraftRecipe` attributes that can be edited by admins.
+
+    These attributes need launchpad.View to see, and launchpad.Admin to change.
+    """
+
+    require_virtualized = exported(
+        Bool(
+            title=_("Require virtualized builders"),
+            required=True,
+            readonly=False,
+            description=_("Only build this craft recipe on virtual builders."),
         )
     )
 
@@ -809,6 +809,8 @@ class ICraftRecipeSet(Interface):
             "store_upload",
             "store_name",
             "store_channels",
+            "use_fetch_service",
+            "fetch_service_policy",
         ],
     )
     @operation_for_version("devel")
