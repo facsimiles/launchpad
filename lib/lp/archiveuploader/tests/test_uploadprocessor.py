@@ -2912,8 +2912,8 @@ class TestUploadHandler(TestUploadProcessorBase):
         removeSecurityProxy(archive).processors = procs
 
         self.switchToUploader()
-        upload_dir = self.queueUpload("bar_1.0-1")
-        self.processUpload(self.uploadprocessor, upload_dir)
+        source_upload_dir = self.queueUpload("bar_1.0-1")
+        self.processUpload(self.uploadprocessor, source_upload_dir)
         source_pub = self.publishPackage("bar", "1.0-1")
         builds = source_pub.createMissingBuilds()
         for b in builds:
@@ -2937,15 +2937,13 @@ class TestUploadHandler(TestUploadProcessorBase):
         self.layer.txn.commit()
         behaviour = IBuildFarmJobBehaviour(build)
         leaf_name = behaviour.getUploadDirLeaf(build.build_cookie)
-        upload_dir = self.queueUpload(
+        build_upload_dir = self.queueUpload(
             "bar_1.0-1_variant", queue_entry=leaf_name
         )
         self.options.context = "buildd"
         self.options.builds = True
         pop_notifications()
-        BuildUploadHandler(
-            self.uploadprocessor, self.incoming_folder, leaf_name
-        ).process()
+        self.processUpload(self.uploadprocessor, build_upload_dir)
         self.layer.txn.commit()
         # No emails are sent on success
         self.assertEmailQueueLength(0)
