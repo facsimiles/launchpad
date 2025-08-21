@@ -787,22 +787,6 @@ class ICharmRecipeEditableAttributes(Interface):
         )
     )
 
-
-class ICharmRecipeAdminAttributes(Interface):
-    """`ICharmRecipe` attributes that can be edited by admins.
-
-    These attributes need launchpad.View to see, and launchpad.Admin to change.
-    """
-
-    require_virtualized = exported(
-        Bool(
-            title=_("Require virtualized builders"),
-            required=True,
-            readonly=False,
-            description=_("Only build this charm recipe on virtual builders."),
-        )
-    )
-
     use_fetch_service = exported(
         Bool(
             title=_("Use fetch service"),
@@ -826,6 +810,22 @@ class ICharmRecipeAdminAttributes(Interface):
                 "Which policy to use when using the fetch service. Ignored if "
                 "`use_fetch_service` flag is False."
             ),
+        )
+    )
+
+
+class ICharmRecipeAdminAttributes(Interface):
+    """`ICharmRecipe` attributes that can be edited by admins.
+
+    These attributes need launchpad.View to see, and launchpad.Admin to change.
+    """
+
+    require_virtualized = exported(
+        Bool(
+            title=_("Require virtualized builders"),
+            required=True,
+            readonly=False,
+            description=_("Only build this charm recipe on virtual builders."),
         )
     )
 
@@ -871,6 +871,8 @@ class ICharmRecipeSet(Interface):
             "store_upload",
             "store_name",
             "store_channels",
+            "use_fetch_service",
+            "fetch_service_policy",
         ],
     )
     @operation_for_version("devel")

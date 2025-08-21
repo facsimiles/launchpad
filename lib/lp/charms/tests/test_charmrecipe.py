@@ -2190,8 +2190,6 @@ class TestCharmRecipeSet(TestCaseWithFactory):
 
         admin_fields = {
             "require_virtualized": True,
-            "use_fetch_service": True,
-            "fetch_service_policy": FetchServicePolicy.PERMISSIVE,
         }
 
         for field_name, field_value in admin_fields.items():
@@ -2209,8 +2207,6 @@ class TestCharmRecipeSet(TestCaseWithFactory):
         person = self.factory.makePerson()
         admin_fields = {
             "require_virtualized": True,
-            "use_fetch_service": True,
-            "fetch_service_policy": FetchServicePolicy.PERMISSIVE,
         }
 
         for field_name, field_value in admin_fields.items():
@@ -2223,6 +2219,28 @@ class TestCharmRecipeSet(TestCaseWithFactory):
                     field_name,
                     field_value,
                 )
+
+    def test_use_fetch_service(self):
+        [ref] = self.factory.makeGitRefs()
+        charm = self.factory.makeCharmRecipe(
+            git_ref=ref, use_fetch_service=False
+        )
+        self.assertEqual(False, charm.use_fetch_service)
+        self.assertEqual(FetchServicePolicy.STRICT, charm.fetch_service_policy)
+        with person_logged_in(charm.owner):
+            charm.use_fetch_service = True
+            charm.fetch_service_policy = FetchServicePolicy.PERMISSIVE
+        self.assertEqual(True, charm.use_fetch_service)
+        self.assertEqual(
+            FetchServicePolicy.PERMISSIVE, charm.fetch_service_policy
+        )
+
+    def test_fetch_service_is_opt_in(self):
+        # The fetch service not used by default and is opt-in only
+        [ref] = self.factory.makeGitRefs()
+        charm = self.factory.makeCharmRecipe(git_ref=ref)
+        self.assertEqual(False, charm.use_fetch_service)
+        self.assertEqual(FetchServicePolicy.STRICT, charm.fetch_service_policy)
 
 
 class TestCharmRecipeWebservice(TestCaseWithFactory):
