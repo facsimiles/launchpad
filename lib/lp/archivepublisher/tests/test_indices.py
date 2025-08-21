@@ -8,7 +8,6 @@ import tempfile
 import unittest
 
 import apt_pkg
-from zope.security.proxy import removeSecurityProxy
 
 from lp.archivepublisher.indices import (
     IndexStanzaFields,
@@ -207,12 +206,11 @@ class TestNativeArchiveIndexes(TestNativePublishingBase):
         )
 
     def testBinaryStanzaArchSpecific(self):
-        das = self.factory.makeBuildableDistroArchSeries(
-            distroseries=self.distroseries, architecturetag="mips"
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries,
+            architecturetag="mips",
+            add_proc_to_archive_processors=True,
         )
-        procs = list(self.distroseries.main_archive.processors)
-        procs.append(das.processor)
-        removeSecurityProxy(self.distroseries.main_archive).processors = procs
         pub_binaries = self.getPubBinaries(
             architecturespecific=True,
         )
@@ -225,12 +223,11 @@ class TestNativeArchiveIndexes(TestNativePublishingBase):
     def testBinaryStanzaVariant(self):
         for das in self.distroseries.architectures:
             das.enabled = False
-        das_amd64 = self.factory.makeBuildableDistroArchSeries(
-            distroseries=self.distroseries, architecturetag="amd64"
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries,
+            architecturetag="amd64",
+            add_proc_to_archive_processors=True,
         )
-        procs = list(self.distroseries.main_archive.processors)
-        procs.append(das_amd64.processor)
-        self.distroseries.main_archive.setProcessors(procs)
 
         pub_source = self.getPubSource(architecturehintlist="any")
 
@@ -238,13 +235,12 @@ class TestNativeArchiveIndexes(TestNativePublishingBase):
             pub_source=pub_source,
         )
 
-        das_amd64v3 = self.factory.makeBuildableDistroArchSeries(
+        self.factory.makeBuildableDistroArchSeries(
             distroseries=self.distroseries,
             architecturetag="amd64v3",
             underlying_architecturetag="amd64",
+            add_proc_to_archive_processors=True,
         )
-        procs.append(das_amd64v3.processor)
-        self.distroseries.main_archive.setProcessors(procs)
 
         [amd64v3_binary] = self.getPubBinaries(
             pub_source=pub_source,
