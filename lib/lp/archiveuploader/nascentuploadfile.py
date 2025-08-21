@@ -738,10 +738,10 @@ class BaseBinaryUploadFile(PackageUploadFile):
 
         Also check if it is a valid architecture in LP context.
         """
-        control_arch = six.ensure_text(self.control.get("Architecture", b""))
-        control_arch_variant = six.ensure_text(
-            self.control.get("Architecture-Variant", b"")
-        )
+        control_arch = self.control.get("Architecture", b"").decode()
+        control_arch_variant = self.control.get(
+            "Architecture-Variant", b""
+        ).decode()
         abi_tag = control_arch
         if control_arch_variant:
             isa_tag = control_arch_variant

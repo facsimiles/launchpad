@@ -1074,7 +1074,9 @@ class DebBinaryUploadFileUnitTests(TestCase):
             policy=policy,
             logger=None,
         )
-        uploadfile.parseControl(control_fields)
+        uploadfile.parseControl(
+            {k: v.encode() for k, v in control_fields.items()},
+        )
         result = []
         for error in uploadfile.verifyABIAndISATags():
             if not isinstance(error, UploadError):
