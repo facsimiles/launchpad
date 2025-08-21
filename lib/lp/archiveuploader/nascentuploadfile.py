@@ -757,7 +757,11 @@ class BaseBinaryUploadFile(PackageUploadFile):
                 "%s: Unknown architecture: '%s'" % (self.filename, abi_tag)
             )
 
-        if isa_tag != "all" and isa_tag not in valid_archs:
+        if (
+            isa_tag != abi_tag
+            and isa_tag != "all"
+            and isa_tag not in valid_archs
+        ):
             yield UploadError(
                 "%s: Unknown architecture variant: '%s'"
                 % (self.filename, isa_tag)
@@ -778,9 +782,9 @@ class BaseBinaryUploadFile(PackageUploadFile):
 
         if isa_tag != self.filename_archtag:
             yield UploadError(
-                "%s: control file lists arch as '%s' which doesn't "
-                "agree with arch '%s' in the filename."
-                % (self.filename, control_arch, self.filename_archtag)
+                "%s: control file lists ISA as '%s' which doesn't "
+                "agree with '%s' in the filename."
+                % (self.filename, isa_tag, self.filename_archtag)
             )
 
     def verifyDepends(self):
