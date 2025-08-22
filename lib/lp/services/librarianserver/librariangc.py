@@ -34,6 +34,7 @@ debug = False
 
 
 STREAM_CHUNK_SIZE = 64 * 1024
+DATABASE_CHUNK_SIZE = 1_000_000
 
 
 def file_exists(content_id):
@@ -696,24 +697,45 @@ def delete_unwanted_disk_files(con):
 
     swift_enabled = getFeatureFlag("librarian.swift.enabled") or False
 
-    cur = con.cursor(name="librariangc_disk_lfcs")
+    cur = con.cursor()  # nameless cursor for multiple executions
 
     # Calculate all stored LibraryFileContent ids that we want to keep.
     # Results are ordered so we don't have to suck them all in at once.
-    cur.execute(
+    def get_next_wanted_content_id_generator():
         """
-        SELECT id FROM LibraryFileContent ORDER BY id
+        Generator that yields IDs from LibraryFileContent in chunks using
+        keyset pagination. Fetches rows in batches of DATABASE_CHUNK_SIZE for
+        efficiency and stops when done.
+
+        yields: int: Next ID from the table.
         """
-    )
-    content_id_iter = iter(cur)
+
+        last_id = 0
+        while True:
+            cur.execute(
+                """
+                SELECT id
+                FROM LibraryFileContent
+                WHERE id > %s
+                ORDER BY id
+                LIMIT %s
+                """,
+                (last_id, DATABASE_CHUNK_SIZE),
+            )
+
+            count = 0
+            for row in cur:  # stream rows
+                yield row[0]
+                last_id = row[0]
+                count += 1
+
+            if count == 0:
+                break  # no more rows
+
+    content_id_iter = get_next_wanted_content_id_generator()
 
     def get_next_wanted_content_id():
-        try:
-            result = next(content_id_iter)
-        except StopIteration:
-            return None
-        else:
-            return result[0]
+        return next(content_id_iter, None)
 
     removed_count = 0
     content_id = next_wanted_content_id = -1
