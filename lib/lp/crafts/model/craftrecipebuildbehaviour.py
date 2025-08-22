@@ -114,6 +114,12 @@ class CraftRecipeBuildBehaviour(BuilderProxyMixin, BuildFarmJobBehaviourBase):
 
         return env_vars
 
+    def should_scan_malware(self, distribution_name: str) -> bool:
+        try:
+            return config["craftbuild." + distribution_name]["scan_malware"]
+        except NoSectionError:
+            return False
+
     @defer.inlineCallbacks
     def extraBuildArgs(self, logger=None) -> Generator[Any, Any, BuildArgs]:
         """
@@ -181,6 +187,7 @@ class CraftRecipeBuildBehaviour(BuilderProxyMixin, BuildFarmJobBehaviourBase):
             args["environment_variables"] = self.build_environment_variables(
                 distribution_name
             )
+            args["scan_malware"] = self.should_scan_malware(distribution_name)
 
         return args
 
