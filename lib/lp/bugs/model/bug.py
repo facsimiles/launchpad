@@ -249,6 +249,8 @@ def snapshot_bug_params(bug_params):
             "milestone",
             "assignee",
             "cve",
+            "metadata",
+            "check_permissions",
         ],
     )
 
@@ -3320,7 +3322,11 @@ class BugSet:
         # Create the initial task on the specified target.  This also
         # reconciles access policies for this bug based on that target.
         getUtility(IBugTaskSet).createTask(
-            bug, params.owner, params.target, status=params.status
+            bug,
+            params.owner,
+            params.target,
+            status=params.status,
+            metadata=params.metadata,
         )
 
         if params.subscribe_owner:
@@ -3415,7 +3421,7 @@ class BugSet:
         bug.markUserAffected(bug.owner)
 
         if params.cve is not None:
-            bug.linkCVE(params.cve, params.owner)
+            bug.linkCVE(params.cve, params.owner, params.check_permissions)
 
         # Populate the creation event.
         if params.filed_by is None:
