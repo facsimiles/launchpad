@@ -105,6 +105,20 @@ class IGitHostingClient(Interface):
             to a list of conflicted paths.
         """
 
+    def getDiffStats(path, old, new, common_ancestor=False, logger=None):
+        """Get the diff between two commits.
+
+        :param path: Physical path of the repository on the hosting service.
+        :param old: The OID of the old commit. Can be empty to get stat
+            against empty tree diff
+        :param new: The OID of the new commit.
+        :param common_ancestor: If True, return the symmetric or common
+            ancestor diff, equivalent to
+            `git diff $(git-merge-base OLD NEW) NEW`.
+        :param logger: An optional logger.
+        :return: A dict with diff stats for the existing diff.
+        """
+
     def detectMerges(path, target, sources, previous_target=None, logger=None):
         """Detect merges of any of 'sources' into 'target'.
 

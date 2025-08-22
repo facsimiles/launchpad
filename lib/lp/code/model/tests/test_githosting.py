@@ -396,6 +396,48 @@ class TestGitHostingClient(TestCase):
                 "b",
             )
 
+    def test_getDiffStats(self):
+        with self.mockRequests("GET", json={"files": {}}):
+            stats = self.client.getDiffStats("123", "a", "b")
+        self.assertEqual({"files": {}}, stats)
+        self.assertRequest("repo/123/compare/a..b/stats", method="GET")
+
+    def test_getDiffStats_common_ancestor(self):
+        with self.mockRequests("GET", json={"files": {}}):
+            stats = self.client.getDiffStats(
+                "123", "a", "b", common_ancestor=True
+            )
+        self.assertEqual({"files": {}}, stats)
+        self.assertRequest("repo/123/compare/a...b/stats", method="GET")
+
+    def test_getDiffStats_empty_tree(self):
+        with self.mockRequests("GET", json={"files": {}}):
+            stats = self.client.getDiffStats("123", None, "b")
+        self.assertEqual({"files": {}}, stats)
+        self.assertRequest("repo/123/compare/..b/stats", method="GET")
+
+    def test_getDiffStats_no_new_commit(self):
+        self.assertRaisesWithContent(
+            GitRepositoryScanFault,
+            "'new' commit cannot be None",
+            self.client.getDiffStats,
+            "123",
+            "a",
+            None,
+        )
+
+    def test_getDiffStats_failure(self):
+        with self.mockRequests("GET", status=400):
+            self.assertRaisesWithContent(
+                GitRepositoryScanFault,
+                "Failed to get diff from Git repository: "
+                "400 Client Error: Bad Request",
+                self.client.getDiffStats,
+                "123",
+                "a",
+                "b",
+            )
+
     def test_getMergeDiff(self):
         with self.mockRequests("GET", json={"patch": ""}):
             diff = self.client.getMergeDiff("123", "a", "b")
