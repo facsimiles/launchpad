@@ -353,6 +353,7 @@ class GitHostingFixture(fixtures.Fixture):
         commits=None,
         log=None,
         diff=None,
+        diff_stats=None,
         merge_diff=None,
         merges=None,
         blob=None,
@@ -379,6 +380,9 @@ class GitHostingFixture(fixtures.Fixture):
         )
         self.getMergeDiff = fake_method_factory(
             result={} if merge_diff is None else merge_diff
+        )
+        self.getDiffStats = fake_method_factory(
+            result=({} if diff_stats is None else diff_stats)
         )
         self.detectMerges = fake_method_factory(
             result=({} if merges is None else merges)
