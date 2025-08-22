@@ -824,7 +824,11 @@ class ICharmRecipeAdminAttributes(Interface):
             default=FetchServicePolicy.STRICT,
             description=_(
                 "Which policy to use when using the fetch service. Ignored if "
-                "`use_fetch_service` flag is False."
+                "`use_fetch_service` flag is False. The “strict” mode only "
+                "allows certain resources and formats, and errors out in any "
+                "case the restrictions are violated. The “permissive” mode "
+                "works similarly, but only logs a warning when encountering "
+                "any violations."
             ),
         )
     )

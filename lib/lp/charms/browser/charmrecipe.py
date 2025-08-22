@@ -34,6 +34,7 @@ from lp.app.browser.launchpadform import (
 from lp.app.browser.lazrjs import InlinePersonEditPickerWidget
 from lp.app.browser.tales import format_link
 from lp.app.widgets.snapbuildchannels import SnapBuildChannelsWidget
+from lp.buildmaster.builderproxy import FetchServicePolicy
 from lp.charms.interfaces.charmhubclient import BadRequestPackageUploadResponse
 from lp.charms.interfaces.charmrecipe import (
     CHARM_RECIPE_WEBHOOKS_FEATURE_FLAG,
@@ -282,6 +283,8 @@ class ICharmRecipeEditSchema(Interface):
             "auto_build",
             "auto_build_channels",
             "store_upload",
+            "use_fetch_service",
+            "fetch_service_policy",
         ],
     )
 
@@ -291,6 +294,13 @@ class ICharmRecipeEditSchema(Interface):
     # care of adjusting the required attribute.
     store_name = copy_field(ICharmRecipe["store_name"], required=True)
     store_channels = copy_field(ICharmRecipe["store_channels"], required=True)
+
+    use_fetch_service = copy_field(
+        ICharmRecipe["use_fetch_service"], required=True
+    )
+    fetch_service_policy = copy_field(
+        ICharmRecipe["fetch_service_policy"], required=True
+    )
 
 
 def log_oops(error, request):
@@ -529,6 +539,8 @@ class CharmRecipeEditView(BaseCharmRecipeEditView):
         "store_upload",
         "store_name",
         "store_channels",
+        "use_fetch_service",
+        "fetch_service_policy",
     ]
     custom_widget_git_ref = GitRefWidget
     custom_widget_auto_build_channels = CustomWidgetFactory(
@@ -539,6 +551,17 @@ class CharmRecipeEditView(BaseCharmRecipeEditView):
         ),
     )
     custom_widget_store_channels = StoreChannelsWidget
+
+    def validate_widgets(self, data, names=None):
+        if (
+            self.widgets.get("use_fetch_service") is not None
+            and self.widgets.get("fetch_service_policy") is not None
+        ):
+            super().validate_widgets(data, ["use_fetch_service"])
+            self.widgets["fetch_service_policy"].context.required = data.get(
+                "use_fetch_service"
+            )
+        super().validate_widgets(data, names=names)
 
     def validate(self, data):
         super().validate(data)
@@ -559,6 +582,11 @@ class CharmRecipeEditView(BaseCharmRecipeEditView):
                     )
             except NoSuchCharmRecipe:
                 pass
+
+    def updateContextFromData(self, data, context=None, notify_modified=True):
+        if not data.get("use_fetch_service"):
+            data["fetch_service_policy"] = FetchServicePolicy.STRICT
+        super().updateContextFromData(data, context, notify_modified)
 
 
 class CharmRecipeAuthorizeView(LaunchpadEditFormView):
