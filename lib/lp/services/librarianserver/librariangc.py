@@ -911,7 +911,7 @@ def delete_unwanted_swift_files(con):
     finally:
         cur.close()
 
-    cur = con.cursor(name="librariangc_swift_lfcs")
+    cur = con.cursor()  # nameless cursor for multiple executions
 
     # Calculate all stored LibraryFileContent ids that we want to keep.
     # Results are ordered so we don't have to suck them all in at once.
