@@ -734,9 +734,6 @@ def delete_unwanted_disk_files(con):
 
     content_id_iter = get_next_wanted_content_id_generator()
 
-    def get_next_wanted_content_id():
-        return next(content_id_iter, None)
-
     removed_count = 0
     content_id = next_wanted_content_id = -1
 
@@ -796,7 +793,7 @@ def delete_unwanted_disk_files(con):
                 next_wanted_content_id is not None
                 and content_id > next_wanted_content_id
             ):
-                next_wanted_content_id = get_next_wanted_content_id()
+                next_wanted_content_id = next(content_id_iter, None)
 
                 if (
                     config.librarian_server.upstream_host is None
@@ -829,7 +826,7 @@ def delete_unwanted_disk_files(con):
     # Report any remaining LibraryFileContent that the database says
     # should exist but we didn't find on disk.
     if next_wanted_content_id == content_id:
-        next_wanted_content_id = get_next_wanted_content_id()
+        next_wanted_content_id = next(content_id_iter, None)
     if not swift_enabled:
         while next_wanted_content_id is not None:
             if config.librarian_server.upstream_host is None:
@@ -837,7 +834,7 @@ def delete_unwanted_disk_files(con):
                     "LibraryFileContent %d exists in the database but "
                     "was not found on disk." % next_wanted_content_id
                 )
-            next_wanted_content_id = get_next_wanted_content_id()
+            next_wanted_content_id = next(content_id_iter, None)
 
     cur.close()
     log.info(
@@ -918,20 +915,38 @@ def delete_unwanted_swift_files(con):
 
     # Calculate all stored LibraryFileContent ids that we want to keep.
     # Results are ordered so we don't have to suck them all in at once.
-    cur.execute(
+    def get_next_wanted_content_id_generator():
         """
-        SELECT id FROM LibraryFileContent ORDER BY id
-        """
-    )
-    content_id_iter = iter(cur)
+        Generator that yields IDs from LibraryFileContent in chunks using
+        keyset pagination. Fetches rows in batches of DATABASE_CHUNK_SIZE for
+        efficiency and stops when done.
 
-    def get_next_wanted_content_id():
-        try:
-            result = next(content_id_iter)
-        except StopIteration:
-            return None
-        else:
-            return result[0]
+        yields: int: Next ID from the table.
+        """
+
+        last_id = 0
+        while True:
+            cur.execute(
+                """
+                SELECT id
+                FROM LibraryFileContent
+                WHERE id > %s
+                ORDER BY id
+                LIMIT %s
+                """,
+                (last_id, DATABASE_CHUNK_SIZE),
+            )
+
+            count = 0
+            for row in cur:  # stream rows
+                yield row[0]
+                last_id = row[0]
+                count += 1
+
+            if count == 0:
+                break  # no more rows
+
+    content_id_iter = get_next_wanted_content_id_generator()
 
     removed_count = 0
     content_id = next_wanted_content_id = -1
@@ -949,7 +964,7 @@ def delete_unwanted_swift_files(con):
             next_wanted_content_id is not None
             and content_id > next_wanted_content_id
         ):
-            next_wanted_content_id = get_next_wanted_content_id()
+            next_wanted_content_id = next(content_id_iter, None)
 
             if (
                 config.librarian_server.upstream_host is None
@@ -995,7 +1010,7 @@ def delete_unwanted_swift_files(con):
                 removed_count += 1
 
     if next_wanted_content_id == content_id:
-        next_wanted_content_id = get_next_wanted_content_id()
+        next_wanted_content_id = next(content_id_iter, None)
     while next_wanted_content_id is not None:
         # The entry exists in the database but not in Swift. This is
         # normal, as there is lag between uploading files to disk and
@@ -1014,7 +1029,7 @@ def delete_unwanted_swift_files(con):
                 "LibraryFileContent {} exists in the database and disk "
                 "but was not found in Swift.".format(next_wanted_content_id)
             )
-        next_wanted_content_id = get_next_wanted_content_id()
+        next_wanted_content_id = next(content_id_iter, None)
 
     cur.close()
     log.info(
