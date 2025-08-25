@@ -85,13 +85,17 @@ class SOSSImporter:
         self.information_type = information_type
         self.dry_run = dry_run
         self.bug_importer = getUtility(ILaunchpadCelebrities).bug_importer
-        self.soss = getUtility(IDistributionSet).getByName(DISTRIBUTION_NAME)
         self.person_set = getUtility(IPersonSet)
         self.source_package_name_set = getUtility(ISourcePackageNameSet)
         self.bugtask_set = getUtility(IBugTaskSet)
         self.vulnerability_set = getUtility(IVulnerabilitySet)
         self.bug_set = getUtility(IBugSet)
         self.cve_set = getUtility(ICveSet)
+        self.soss = getUtility(IDistributionSet).getByName(DISTRIBUTION_NAME)
+
+        if self.soss is None:
+            logger.error("[SOSSImporter] SOSS distribution not found")
+            raise Exception("SOSS distribution not found")
 
     def import_cve_from_file(
         self, cve_path: str
