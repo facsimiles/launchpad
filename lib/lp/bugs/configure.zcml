@@ -1121,6 +1121,22 @@
             interface="lp.bugs.interfaces.apportjob.IProcessApportBlobJobSource"/>
     </lp:securedutility>
 
+    <!-- VulnerabilityJob -->
+    <class class="lp.bugs.model.vulnerabilityjob.VulnerabilityJob">
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IVulnerabilityJob" />
+    </class>
+
+    <!-- ImportVulnerabilityJobSource -->
+    <lp:securedutility
+      component="lp.bugs.model.importvulnerabilityjob.ImportVulnerabilityJob"
+      provides="lp.bugs.interfaces.vulnerabilityjob.IImportVulnerabilityJobSource">
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IImportVulnerabilityJobSource"/>
+    </lp:securedutility>
+    <class class="lp.bugs.model.importvulnerabilityjob.ImportVulnerabilityJob">
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IImportVulnerabilityJob" />
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IVulnerabilityJob" />
+    </class>
+
     <!-- FileBugData -->
     <class class="lp.bugs.model.bug.FileBugData">
         <allow interface="lp.bugs.interfaces.bug.IFileBugData" />
