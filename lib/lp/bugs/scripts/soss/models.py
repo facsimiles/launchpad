@@ -109,6 +109,8 @@ class SOSSRecord:
     @classmethod
     def from_yaml(cls, yaml_str: str) -> "SOSSRecord":
         raw: Dict[str, Any] = yaml.safe_load(yaml_str)
+        if not isinstance(raw, dict):
+            raise TypeError(f"{type(raw)} is not a dict")
         return cls.from_dict(raw)
 
     @classmethod
@@ -155,7 +157,7 @@ class SOSSRecord:
         return cls(
             references=raw.get("References", []),
             notes=raw.get("Notes", []),
-            priority=SOSSRecord.PriorityEnum(raw["Priority"]),
+            priority=SOSSRecord.PriorityEnum(raw.get("Priority")),
             priority_reason=raw.get("Priority-Reason", ""),
             assigned_to=raw.get("Assigned-To", ""),
             packages=packages,
