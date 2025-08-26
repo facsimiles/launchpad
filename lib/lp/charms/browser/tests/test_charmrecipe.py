@@ -33,6 +33,7 @@ from zope.testbrowser.browser import LinkNotFoundError
 
 from lp.app.enums import InformationType
 from lp.app.interfaces.launchpad import ILaunchpadCelebrities
+from lp.buildmaster.builderproxy import FetchServicePolicy
 from lp.buildmaster.enums import BuildStatus
 from lp.buildmaster.interfaces.processor import IProcessorSet
 from lp.charms.browser.charmrecipe import (
@@ -1021,6 +1022,54 @@ class TestCharmRecipeEditView(BaseTestCharmRecipeView):
             "A public charm recipe cannot have a private repository.",
             extract_text(find_tags_by_class(browser.contents, "message")[1]),
         )
+
+    def test_edit_fetch_service_policy(self):
+        login_person(self.person)
+        recipe = self.factory.makeCharmRecipe(
+            registrant=self.person,
+            owner=self.person,
+            git_ref=self.factory.makeGitRefs()[0],
+        )
+        browser = self.getViewBrowser(recipe, user=self.person)
+        browser.getLink("Edit charm recipe").click()
+        with person_logged_in(self.person):
+            self.assertFalse(recipe.use_fetch_service)
+            self.assertEqual(
+                recipe.fetch_service_policy, FetchServicePolicy.STRICT
+            )
+        browser.getControl("Use fetch service").selected = True
+        with person_logged_in(self.person):
+            self.assertEqual(
+                recipe.fetch_service_policy, FetchServicePolicy.STRICT
+            )
+        browser.getControl("Fetch service policy").value = ["PERMISSIVE"]
+        browser.getControl("Update charm recipe").click()
+
+        browser = self.getViewBrowser(recipe, user=self.person)
+        browser.getLink("Edit charm recipe").click()
+        with person_logged_in(self.person):
+            self.assertTrue(recipe.use_fetch_service)
+            self.assertEqual(
+                recipe.fetch_service_policy, FetchServicePolicy.PERMISSIVE
+            )
+
+    def test_fetch_service_policy_when_opted_in(self):
+        # If the use_fetch_service parameter is set to 'True', the
+        # fetch_service_policy defaults to 'strict' mode unless specified
+        login_person(self.person)
+        recipe = self.factory.makeCharmRecipe(
+            registrant=self.person,
+            owner=self.person,
+            git_ref=self.factory.makeGitRefs()[0],
+            use_fetch_service=True,
+        )
+        browser = self.getViewBrowser(recipe, user=self.person)
+        browser.getLink("Edit charm recipe").click()
+        with person_logged_in(self.person):
+            self.assertTrue(recipe.use_fetch_service)
+            self.assertEqual(
+                recipe.fetch_service_policy, FetchServicePolicy.STRICT
+            )
 
 
 class TestCharmRecipeAuthorizeView(BaseTestCharmRecipeView):
