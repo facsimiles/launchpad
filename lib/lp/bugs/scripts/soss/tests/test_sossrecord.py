@@ -279,6 +279,10 @@ class TestSOSSRecord(TestCase):
 
         self.assertEqual(self.soss_record, soss_record)
 
+    def test_from_yaml_wrong(self):
+        not_a_yaml = b"not a yaml"
+        self.assertRaises(TypeError, SOSSRecord.from_yaml, not_a_yaml)
+
     def test_to_dict(self):
         self.assertDictEqual(
             self.soss_record.to_dict(),

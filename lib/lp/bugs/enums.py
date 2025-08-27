@@ -9,6 +9,7 @@ __all__ = [
     "BugNotificationLevel",
     "BugNotificationStatus",
     "VulnerabilityStatus",
+    "VulnerabilityHandlerEnum",
 ]
 
 from lazr.enum import DBEnumeratedType, DBItem, use_template
@@ -166,5 +167,17 @@ class VulnerabilityStatus(DBEnumeratedType):
         Retired
 
         This vulnerability is now retired.
+        """,
+    )
+
+
+class VulnerabilityHandlerEnum(DBEnumeratedType):
+    SOSS = DBItem(
+        1,
+        """
+        SOSS Handler
+
+        Specific handler to use for SOSS vulnerability data imports and
+        exports.
         """,
     )
