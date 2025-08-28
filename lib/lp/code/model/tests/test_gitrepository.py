@@ -2560,6 +2560,80 @@ class TestGitRepositoryRefs(TestCaseWithFactory):
             hosting_fixture.getRefs.extract_kwargs(),
         )
 
+        master_sha1 = hashlib.sha1(b"refs/heads/master").hexdigest()
+        author = self.factory.makePerson()
+        with person_logged_in(author):
+            author_email = author.preferredemail.email
+        author_date = datetime(2015, 1, 1, tzinfo=timezone.utc)
+        committer_date = datetime(2015, 1, 2, tzinfo=timezone.utc)
+        self.useFixture(
+            GitHostingFixture(
+                commits=[
+                    {
+                        "sha1": master_sha1,
+                        "message": "tip of master",
+                        "author": {
+                            "name": author.displayname,
+                            "email": author_email,
+                            "time": int(seconds_since_epoch(author_date)),
+                        },
+                        "committer": {
+                            "name": "New Person",
+                            "email": "new-person@example.org",
+                            "time": int(seconds_since_epoch(committer_date)),
+                        },
+                        "parents": [],
+                        "tree": hashlib.sha1(b"").hexdigest(),
+                    }
+                ]
+            )
+        )
+
+    def test_checkCommitInRef(self):
+        """Test that a commit is on a GitRef."""
+        repository = self.factory.makeGitRepository()
+        paths = ["refs/heads/master", "refs/heads/other-branch"]
+        ref = self.factory.makeGitRefs(repository=repository, paths=paths)
+
+        # Check that ref[0] is master
+        self.assertEqual(ref[0].path, "refs/heads/master")
+
+        # Check that the commit we created exists in the specified branch
+        result = repository.checkCommitInRef(
+            ref[0].commit_sha1, "refs/heads/master"
+        )
+        self.assertEqual(result, True)
+
+    def test_checkCommitInRef_wrong_branch(self):
+        """Test that checkCommitInRef returns False when checking a commit from
+        a different branch.
+        """
+        repository = self.factory.makeGitRepository()
+        paths = ["refs/heads/master", "refs/heads/other-branch"]
+        ref = self.factory.makeGitRefs(repository=repository, paths=paths)
+
+        # Check that ref[0] is master
+        self.assertEqual(ref[0].path, "refs/heads/master")
+
+        # Check that the commit from master does not exist in other-branch
+        result = repository.checkCommitInRef(
+            ref[0].commit_sha1, "refs/heads/other-branch"
+        )
+        self.assertEqual(result, False)
+
+    def test_checkCommitInRef_wrong_commit_sha1(self):
+        """Test that checkCommitInRef returns False when checking a wrong
+        commit_sha1.
+        """
+        repository = self.factory.makeGitRepository()
+        paths = ["refs/heads/master", "refs/heads/other-branch"]
+        self.factory.makeGitRefs(repository=repository, paths=paths)
+
+        # Check that a commit that does not exist in this repo does not exist
+        # in master
+        result = repository.checkCommitInRef("1" * 40, "refs/heads/master")
+        self.assertEqual(result, False)
+
     def test_fetchRefCommits(self):
         # fetchRefCommits fetches detailed tip commit metadata for the
         # requested refs.
