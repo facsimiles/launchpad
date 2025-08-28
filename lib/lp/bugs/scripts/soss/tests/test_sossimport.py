@@ -28,8 +28,11 @@ class TestSOSSImporter(TestCaseWithFactory):
             self.soss_record = SOSSRecord.from_yaml(file)
 
         self.cve = self.factory.makeCVE(sequence="2025-1979")
+        self.owner = self.factory.makePerson()
         self.soss = self.factory.makeDistribution(
-            name="soss", displayname="SOSS"
+            name="soss",
+            displayname="SOSS",
+            owner=self.owner,
         )
         transaction.commit()
 
@@ -438,3 +441,10 @@ class TestSOSSImporter(TestCaseWithFactory):
             self.soss_record, f"CVE-{self.cve.sequence}"
         )
         self.assertEqual(valid, False)
+
+    def test_checkUserPermissions(self):
+        soss_importer = SOSSImporter()
+
+        user = self.factory.makePerson()
+        self.assertEqual(soss_importer.checkUserPermissions(user), False)
+        self.assertEqual(soss_importer.checkUserPermissions(self.owner), True)
