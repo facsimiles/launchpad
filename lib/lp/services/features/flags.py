@@ -330,6 +330,15 @@ flag_info = sorted(
             "",
             "",
         ),
+        (
+            "bugs.vulnerability_import_export.enabled",
+            "boolean",
+            "If true, users with the right permissions can trigger "
+            "vulnerability data imports and exports via API",
+            "",
+            "",
+            "",
+        ),
     ]
 )
 
