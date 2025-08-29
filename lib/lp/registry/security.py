@@ -6,6 +6,7 @@
 __all__ = [
     "EditByOwnersOrAdmins",
     "PublicOrPrivateTeamsExistence",
+    "SecurityAdminDistribution",
 ]
 
 from storm.expr import Select, Union

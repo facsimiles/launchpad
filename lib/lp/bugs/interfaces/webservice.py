@@ -35,6 +35,7 @@ __all__ = [
     "IllegalRelatedBugTasksParams",
     "IllegalTarget",
     "IVulnerability",
+    "IVulnerabilitySet",
     "NominationError",
     "NominationSeriesObsoleteError",
     "UserCannotEditBugTaskAssignee",
@@ -81,7 +82,7 @@ from lp.bugs.interfaces.structuralsubscription import (
     IStructuralSubscription,
     IStructuralSubscriptionTarget,
 )
-from lp.bugs.interfaces.vulnerability import IVulnerability
+from lp.bugs.interfaces.vulnerability import IVulnerability, IVulnerabilitySet
 from lp.code.interfaces.branchmergeproposal import IBranchMergeProposal
 from lp.registry.interfaces.distributionsourcepackage import (
     IDistributionSourcePackage,
