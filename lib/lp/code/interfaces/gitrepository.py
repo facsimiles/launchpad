@@ -770,8 +770,11 @@ class IGitRepositoryView(IHasRecipes, IAccessTokenTarget):
         "yet been scanned."
     )
 
-    def checkCommitInRef(paths):
-        """Check if a commit exists in a git ref."""
+    def checkCommitInRef(commit, ref):
+        """Check if a commit exists in a git ref.
+        :param commit: the commit sha1 to look for.
+        :param ref: the git reference path where it will look.
+        """
 
     def updateMergeCommitIDs(paths):
         """Update commit SHA1s of merge proposals for this repository.
