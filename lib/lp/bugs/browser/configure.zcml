@@ -864,6 +864,10 @@
             for="lp.bugs.interfaces.cve.ICveSet"
             path_expression="string:cve"
             parent_utility="lp.bugs.interfaces.malone.IMaloneApplication"/>
+        <lp:url
+            for="lp.bugs.interfaces.vulnerability.IVulnerabilitySet"
+            path_expression="string:vulnerabilities"
+            parent_utility="lp.services.webapp.interfaces.ILaunchpadRoot"/>
         <lp:navigation
             module="lp.bugs.browser.cve"
             classes="

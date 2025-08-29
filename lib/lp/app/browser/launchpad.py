@@ -66,6 +66,7 @@ from lp.blueprints.interfaces.specification import ISpecificationSet
 from lp.blueprints.interfaces.sprint import ISprintSet
 from lp.bugs.interfaces.bug import IBugSet
 from lp.bugs.interfaces.malone import IMaloneApplication
+from lp.bugs.interfaces.vulnerability import IVulnerabilitySet
 from lp.buildmaster.interfaces.builder import IBuilderSet
 from lp.buildmaster.interfaces.processor import IProcessorSet
 from lp.charms.interfaces.charmbase import ICharmBaseSet
@@ -920,6 +921,7 @@ class LaunchpadRootNavigation(Navigation):
         "testopenid": ITestOpenIDApplication,
         "questions": IQuestionSet,
         "temporary-blobs": ITemporaryStorageManager,
+        "vulnerabilities": IVulnerabilitySet,
         "+feature-rules": IFeatureRules,
         # These three have been renamed, and no redirects done, as the old
         # urls now point to the product pages.

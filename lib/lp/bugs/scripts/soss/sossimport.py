@@ -30,10 +30,12 @@ from lp.bugs.scripts.soss.models import SOSSRecord
 from lp.registry.interfaces.distribution import IDistributionSet
 from lp.registry.interfaces.externalpackage import ExternalPackageType
 from lp.registry.interfaces.person import IPersonSet
+from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.interfaces.sourcepackagename import ISourcePackageNameSet
 from lp.registry.model.distribution import Distribution
 from lp.registry.model.externalpackage import ExternalPackage
 from lp.registry.model.person import Person
+from lp.registry.security import SecurityAdminDistribution
 from lp.testing import person_logged_in
 
 __all__ = [
@@ -476,3 +478,8 @@ class SOSSImporter:
         packagetype = first_item[0]
         package = first_item[1][0]
         return packagetype, package
+
+    def checkUserPermissions(self, user):
+        return SecurityAdminDistribution(self.soss).checkAuthenticated(
+            IPersonRoles(user)
+        )
