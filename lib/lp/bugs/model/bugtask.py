@@ -1908,6 +1908,7 @@ class BugTaskSet:
         importance=None,
         assignee=None,
         milestone=None,
+        metadata=None,
     ):
         """See `IBugTaskSet`."""
         if status is None:
@@ -1939,6 +1940,7 @@ class BugTaskSet:
                 importance,
                 assignee,
                 milestone,
+                metadata,
             )
             for key in target_keys
         ]
@@ -1958,6 +1960,7 @@ class BugTaskSet:
                 BugTask.importance,
                 BugTask.assignee,
                 BugTask.milestone,
+                BugTask.metadata,
             ),
             values,
             get_objects=True,
@@ -1986,6 +1989,7 @@ class BugTaskSet:
         importance=None,
         assignee=None,
         milestone=None,
+        metadata=None,
     ):
         """See `IBugTaskSet`."""
         # Create tasks for accepted nominations if this is a source
@@ -2012,6 +2016,7 @@ class BugTaskSet:
             importance=importance,
             assignee=assignee,
             milestone=milestone,
+            metadata=metadata,
         )
         return [task for task in tasks if task.target == target][0]
 

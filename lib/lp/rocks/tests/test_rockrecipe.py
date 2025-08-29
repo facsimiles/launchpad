@@ -1398,8 +1398,6 @@ class TestRockRecipeSet(TestCaseWithFactory):
 
         admin_fields = {
             "require_virtualized": True,
-            "use_fetch_service": True,
-            "fetch_service_policy": FetchServicePolicy.PERMISSIVE,
         }
 
         for field_name, field_value in admin_fields.items():
@@ -1415,8 +1413,6 @@ class TestRockRecipeSet(TestCaseWithFactory):
         person = self.factory.makePerson()
         admin_fields = {
             "require_virtualized": True,
-            "use_fetch_service": True,
-            "fetch_service_policy": FetchServicePolicy.PERMISSIVE,
         }
 
         for field_name, field_value in admin_fields.items():
@@ -1429,6 +1425,27 @@ class TestRockRecipeSet(TestCaseWithFactory):
                     field_name,
                     field_value,
                 )
+
+    def test_use_fetch_service(self):
+        [ref] = self.factory.makeGitRefs()
+        rock = self.factory.makeRockRecipe(
+            git_ref=ref, use_fetch_service=False
+        )
+        self.assertEqual(False, rock.use_fetch_service)
+        self.assertEqual(FetchServicePolicy.STRICT, rock.fetch_service_policy)
+        with person_logged_in(rock.owner):
+            rock.use_fetch_service = True
+            rock.fetch_service_policy = FetchServicePolicy.PERMISSIVE
+            self.assertEqual(True, rock.use_fetch_service)
+            self.assertEqual(
+                FetchServicePolicy.PERMISSIVE, rock.fetch_service_policy
+            )
+
+    def test_use_fetch_service_not_passed(self):
+        [ref] = self.factory.makeGitRefs()
+        rock = self.factory.makeRockRecipe(git_ref=ref)
+        self.assertEqual(False, rock.use_fetch_service)
+        self.assertEqual(FetchServicePolicy.STRICT, rock.fetch_service_policy)
 
 
 class TestRockRecipeWebservice(TestCaseWithFactory):

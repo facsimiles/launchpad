@@ -254,7 +254,9 @@
                     subscribe
                     getConjoinedPrimary
                     findSimilarBugs
-                    getContributorInfo"/>
+                    getContributorInfo
+                    metadata
+                    "/>
             <require
                 permission="launchpad.Delete"
                 interface="lp.bugs.interfaces.bugtask.IBugTaskDelete"/>
@@ -295,6 +297,7 @@
                     status_explanation
                     targetname
                     title
+                    metadata
                     "/>
         </class>
         <adapter
@@ -1117,6 +1120,22 @@
         <allow
             interface="lp.bugs.interfaces.apportjob.IProcessApportBlobJobSource"/>
     </lp:securedutility>
+
+    <!-- VulnerabilityJob -->
+    <class class="lp.bugs.model.vulnerabilityjob.VulnerabilityJob">
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IVulnerabilityJob" />
+    </class>
+
+    <!-- ImportVulnerabilityJobSource -->
+    <lp:securedutility
+      component="lp.bugs.model.importvulnerabilityjob.ImportVulnerabilityJob"
+      provides="lp.bugs.interfaces.vulnerabilityjob.IImportVulnerabilityJobSource">
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IImportVulnerabilityJobSource"/>
+    </lp:securedutility>
+    <class class="lp.bugs.model.importvulnerabilityjob.ImportVulnerabilityJob">
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IImportVulnerabilityJob" />
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IVulnerabilityJob" />
+    </class>
 
     <!-- FileBugData -->
     <class class="lp.bugs.model.bug.FileBugData">

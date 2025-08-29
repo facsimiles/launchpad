@@ -243,6 +243,42 @@ class GitHostingClient:
                 "Failed to get diff from Git repository: %s" % str(e)
             )
 
+    def getDiffStats(
+        self,
+        path,
+        old,
+        new,
+        common_ancestor=False,
+        logger=None,
+    ):
+        """See `IGitHostingClient`."""
+        try:
+            # Diff with empty tree case
+            if old is None:
+                old = ""
+
+            # New commit cannot be None
+            if new == "" or new is None:
+                raise GitRepositoryScanFault("'new' commit cannot be None")
+
+            if logger is not None:
+                logger.info(
+                    "Requesting diff for %s from %s to %s" % (path, old, new)
+                )
+
+            separator = "..." if common_ancestor else ".."
+            url = "/repo/%s/compare/%s%s%s/stats" % (
+                path,
+                quote(old),
+                separator,
+                quote(new),
+            )
+            return self._get(url)
+        except requests.RequestException as e:
+            raise GitRepositoryScanFault(
+                "Failed to get diff from Git repository: %s" % str(e)
+            )
+
     def getMergeDiff(self, path, base, head, prerequisite=None, logger=None):
         """See `IGitHostingClient`."""
         try:

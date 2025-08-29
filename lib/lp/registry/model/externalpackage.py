@@ -168,6 +168,11 @@ class ExternalPackage(
         """See `IBugTarget`."""
         return self.distribution.bug_reported_acknowledgement
 
+    def getBugSummaryContextWhereClause(self):
+        """See `IBugSummaryDimension`."""
+        # 2025-08-06 TODO: add support for BugSummary
+        return False
+
     def _getOfficialTagClause(self):
         """See `IBugTarget`."""
         return self.distribution._getOfficialTagClause()

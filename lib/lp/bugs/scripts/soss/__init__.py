@@ -2,3 +2,4 @@
 #  GNU Affero General Public License version 3 (see the file LICENSE).
 
 from lp.bugs.scripts.soss.models import SOSSRecord  # noqa: F401
+from lp.bugs.scripts.soss.sossimport import SOSSImporter  # noqa: F401

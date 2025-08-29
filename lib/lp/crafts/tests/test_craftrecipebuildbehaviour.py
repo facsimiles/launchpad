@@ -719,6 +719,7 @@ class TestAsyncCraftRecipeBuildBehaviour(
 
         # Verify no environment variables were included
         self.assertEqual({}, args.get("environment_variables", {}))
+        self.assertFalse(args["scan_malware"])
 
     @defer.inlineCallbacks
     def test_extraBuildArgs_git_include_artifactory_configuration(self):
@@ -767,7 +768,8 @@ class TestAsyncCraftRecipeBuildBehaviour(
                             "CARGO_ARTIFACTORY1_READ_AUTH": "user:pass",
                             "MAVEN_ARTIFACTORY1_READ_AUTH": "user:pass",
                         }
-                    )
+                    ),
+                    "scan_malware": Is(False),
                 }
             ),
         )
@@ -813,6 +815,22 @@ class TestAsyncCraftRecipeBuildBehaviour(
 
         # Verify no environment variables were included
         self.assertEqual({}, args.get("environment_variables", {}))
+
+    @defer.inlineCallbacks
+    def test_extraBuildArgs_scan_malware(self):
+        # scan_malware is read from craftbuild.<distribution>
+        distribution = self.factory.makeDistribution(name="soss")
+        package = self.factory.makeDistributionSourcePackage(
+            distribution=distribution
+        )
+        git_repository = self.factory.makeGitRepository(target=package)
+        [git_ref] = self.factory.makeGitRefs(repository=git_repository)
+        # Enable flag
+        self.pushConfig("craftbuild.soss", scan_malware=True)
+        job = self.makeJob(git_ref=git_ref)
+        with dbuser(config.builddmaster.dbuser):
+            args = yield job.extraBuildArgs()
+        self.assertTrue(args["scan_malware"])
 
 
 class TestAsyncCraftRecipeBuildBehaviourFetchService(
