@@ -13,6 +13,7 @@ from zope.component import getUtility
 from zope.security.proxy import removeSecurityProxy
 
 from lp.app.enums import InformationType
+from lp.app.errors import NotFoundError
 from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.bugs.enums import VulnerabilityStatus
 from lp.bugs.interfaces.bug import CreateBugParams, IBugSet
@@ -97,7 +98,7 @@ class SOSSImporter:
 
         if self.soss is None:
             logger.error("[SOSSImporter] SOSS distribution not found")
-            raise Exception("SOSS distribution not found")
+            raise NotFoundError("SOSS distribution not found")
 
     def import_cve_from_file(
         self, cve_path: str
