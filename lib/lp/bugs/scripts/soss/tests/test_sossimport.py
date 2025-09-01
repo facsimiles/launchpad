@@ -76,15 +76,7 @@ class TestSOSSImporter(TestCaseWithFactory):
                     channel=("jammy:2.22.0", "stable"),
                 ),
                 BugTaskStatus.INVALID,
-                {"repositories": ["nvidia-pb3-python-stable-local"]},
-            ),
-            (
-                self.soss.getExternalPackage(
-                    name=ray,
-                    packagetype=ExternalPackageType.PYTHON,
-                    channel=("jammy:2.22.0", "stable"),
-                ),
-                BugTaskStatus.FIXRELEASED,
+                "",
                 {"repositories": ["nvidia-pb3-python-stable-local"]},
             ),
             (
@@ -94,6 +86,17 @@ class TestSOSSImporter(TestCaseWithFactory):
                     channel=("jammy:1.17.0", "stable"),
                 ),
                 BugTaskStatus.INVALID,
+                "2.22.0+soss.1",
+                {"repositories": ["nvidia-pb3-python-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=ray,
+                    packagetype=ExternalPackageType.PYTHON,
+                    channel=("jammy:2.22.0", "stable"),
+                ),
+                BugTaskStatus.FIXRELEASED,
+                "2.22.0+soss.1",
                 {"repositories": ["nvidia-pb3-python-stable-local"]},
             ),
             (
@@ -103,16 +106,8 @@ class TestSOSSImporter(TestCaseWithFactory):
                     channel=("focal:0.27.0", "stable"),
                 ),
                 BugTaskStatus.DEFERRED,
+                "2.22.0+soss.1",
                 {"repositories": ["nvidia-pb3-python-stable-local"]},
-            ),
-            (
-                self.soss.getExternalPackage(
-                    name=vllm,
-                    packagetype=ExternalPackageType.GENERIC,
-                    channel=("noble:0.7.3", "stable"),
-                ),
-                BugTaskStatus.NEW,
-                {"repositories": ["soss-src-stable-local"]},
             ),
             (
                 self.soss.getExternalPackage(
@@ -121,6 +116,17 @@ class TestSOSSImporter(TestCaseWithFactory):
                     channel=("noble:0.7.3", "stable"),
                 ),
                 BugTaskStatus.UNKNOWN,
+                "",
+                {"repositories": ["soss-src-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=vllm,
+                    packagetype=ExternalPackageType.GENERIC,
+                    channel=("noble:0.7.3", "stable"),
+                ),
+                BugTaskStatus.NEW,
+                "",
                 {"repositories": ["soss-src-stable-local"]},
             ),
         ]
@@ -165,9 +171,14 @@ class TestSOSSImporter(TestCaseWithFactory):
     ):
         self.assertEqual(len(bugtasks), len(bugtask_reference))
 
-        for i, (target, status, metadata) in enumerate(bugtask_reference):
+        for i, (target, status, status_explanation, metadata) in enumerate(
+            bugtask_reference
+        ):
             self.assertEqual(bugtasks[i].target, target)
             self.assertEqual(bugtasks[i].status, status)
+            self.assertEqual(
+                bugtasks[i].status_explanation, status_explanation
+            )
             self.assertEqual(bugtasks[i].importance, importance)
             self.assertEqual(bugtasks[i].assignee, assignee)
             self.assertEqual(bugtasks[i].metadata, metadata)
@@ -356,6 +367,7 @@ class TestSOSSImporter(TestCaseWithFactory):
                 channel=("noble:4.23.1", "stable"),
             ),
             BugTaskStatus.DEFERRED,
+            "test note",
             {"repositories": ["test-repo"]},
         )
 
@@ -407,13 +419,13 @@ class TestSOSSImporter(TestCaseWithFactory):
             ],
             SOSSRecord.PackageTypeEnum.UNPACKAGED,
         )
-        self.assertEqual(generic_pkg, self.bugtask_reference[4][0])
+        self.assertEqual(generic_pkg, self.bugtask_reference[5][0])
 
         maven_pkg = soss_importer._get_or_create_external_package(
             self.soss_record.packages[SOSSRecord.PackageTypeEnum.MAVEN][0],
             SOSSRecord.PackageTypeEnum.MAVEN,
         )
-        self.assertEqual(maven_pkg, self.bugtask_reference[5][0])
+        self.assertEqual(maven_pkg, self.bugtask_reference[4][0])
 
     def test_prepare_cvss_data(self):
         """Test prepare the cvss json"""
