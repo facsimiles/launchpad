@@ -41,6 +41,10 @@ from lp.testing import person_logged_in
 
 __all__ = [
     "SOSSImporter",
+    "PRIORITY_ENUM_MAP",
+    "PACKAGE_TYPE_MAP",
+    "PACKAGE_STATUS_MAP",
+    "DISTRIBUTION_NAME",
 ]
 
 logger = logging.getLogger(__name__)
@@ -56,11 +60,11 @@ PRIORITY_ENUM_MAP = {
 }
 
 PACKAGE_TYPE_MAP = {
-    SOSSRecord.PackageTypeEnum.UNPACKAGED: ExternalPackageType.GENERIC,
-    SOSSRecord.PackageTypeEnum.PYTHON: ExternalPackageType.PYTHON,
-    SOSSRecord.PackageTypeEnum.MAVEN: ExternalPackageType.MAVEN,
     SOSSRecord.PackageTypeEnum.CONDA: ExternalPackageType.CONDA,
+    SOSSRecord.PackageTypeEnum.MAVEN: ExternalPackageType.MAVEN,
+    SOSSRecord.PackageTypeEnum.PYTHON: ExternalPackageType.PYTHON,
     SOSSRecord.PackageTypeEnum.RUST: ExternalPackageType.CARGO,
+    SOSSRecord.PackageTypeEnum.UNPACKAGED: ExternalPackageType.GENERIC,
 }
 
 PACKAGE_STATUS_MAP = {

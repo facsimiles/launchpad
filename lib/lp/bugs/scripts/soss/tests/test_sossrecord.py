@@ -47,30 +47,14 @@ class TestSOSSRecord(TestCase):
             ),
             assigned_to="janitor",
             packages={
-                SOSSRecord.PackageTypeEnum.UNPACKAGED: [
-                    SOSSRecord.Package(
-                        name="vllm",
-                        channel=SOSSRecord.Channel("noble:0.7.3/stable"),
-                        repositories=["soss-src-stable-local"],
-                        status=SOSSRecord.PackageStatusEnum.NEEDED,
-                        note="",
-                    )
-                ],
-                SOSSRecord.PackageTypeEnum.PYTHON: [
+                SOSSRecord.PackageTypeEnum.CONDA: [
                     SOSSRecord.Package(
                         name="ray",
-                        channel=SOSSRecord.Channel("jammy:2.22.0/stable"),
-                        repositories=["nvidia-pb3-python-stable-local"],
-                        status=SOSSRecord.PackageStatusEnum.RELEASED,
-                        note="2.22.0+soss.1",
-                    ),
-                    SOSSRecord.Package(
-                        name="pyyaml",
-                        channel=SOSSRecord.Channel("jammy:2.22.0/stable"),
+                        channel=SOSSRecord.Channel("jammy:1.17.0/stable"),
                         repositories=["nvidia-pb3-python-stable-local"],
                         status=SOSSRecord.PackageStatusEnum.NOT_AFFECTED,
-                        note="",
-                    ),
+                        note="2.22.0+soss.1",
+                    )
                 ],
                 SOSSRecord.PackageTypeEnum.MAVEN: [
                     SOSSRecord.Package(
@@ -81,14 +65,21 @@ class TestSOSSRecord(TestCase):
                         note="",
                     )
                 ],
-                SOSSRecord.PackageTypeEnum.CONDA: [
+                SOSSRecord.PackageTypeEnum.PYTHON: [
                     SOSSRecord.Package(
-                        name="ray",
-                        channel=SOSSRecord.Channel("jammy:1.17.0/stable"),
+                        name="pyyaml",
+                        channel=SOSSRecord.Channel("jammy:2.22.0/stable"),
                         repositories=["nvidia-pb3-python-stable-local"],
                         status=SOSSRecord.PackageStatusEnum.NOT_AFFECTED,
+                        note="",
+                    ),
+                    SOSSRecord.Package(
+                        name="ray",
+                        channel=SOSSRecord.Channel("jammy:2.22.0/stable"),
+                        repositories=["nvidia-pb3-python-stable-local"],
+                        status=SOSSRecord.PackageStatusEnum.RELEASED,
                         note="2.22.0+soss.1",
-                    )
+                    ),
                 ],
                 SOSSRecord.PackageTypeEnum.RUST: [
                     SOSSRecord.Package(
@@ -97,6 +88,15 @@ class TestSOSSRecord(TestCase):
                         repositories=["nvidia-pb3-python-stable-local"],
                         status=SOSSRecord.PackageStatusEnum.DEFERRED,
                         note="2.22.0+soss.1",
+                    )
+                ],
+                SOSSRecord.PackageTypeEnum.UNPACKAGED: [
+                    SOSSRecord.Package(
+                        name="vllm",
+                        channel=SOSSRecord.Channel("noble:0.7.3/stable"),
+                        repositories=["soss-src-stable-local"],
+                        status=SOSSRecord.PackageStatusEnum.NEEDED,
+                        note="",
                     )
                 ],
             },
@@ -159,30 +159,14 @@ class TestSOSSRecord(TestCase):
             ),
             "Assigned-To": "janitor",
             "Packages": {
-                "unpackaged": [
-                    {
-                        "Name": "vllm",
-                        "Channel": "noble:0.7.3/stable",
-                        "Repositories": ["soss-src-stable-local"],
-                        "Status": "needed",
-                        "Note": "",
-                    }
-                ],
-                "python": [
+                "conda": [
                     {
                         "Name": "ray",
-                        "Channel": "jammy:2.22.0/stable",
-                        "Repositories": ["nvidia-pb3-python-stable-local"],
-                        "Status": "released",
-                        "Note": "2.22.0+soss.1",
-                    },
-                    {
-                        "Name": "pyyaml",
-                        "Channel": "jammy:2.22.0/stable",
+                        "Channel": "jammy:1.17.0/stable",
                         "Repositories": ["nvidia-pb3-python-stable-local"],
                         "Status": "not-affected",
-                        "Note": "",
-                    },
+                        "Note": "2.22.0+soss.1",
+                    }
                 ],
                 "maven": [
                     {
@@ -193,14 +177,21 @@ class TestSOSSRecord(TestCase):
                         "Note": "",
                     }
                 ],
-                "conda": [
+                "python": [
                     {
-                        "Name": "ray",
-                        "Channel": "jammy:1.17.0/stable",
+                        "Name": "pyyaml",
+                        "Channel": "jammy:2.22.0/stable",
                         "Repositories": ["nvidia-pb3-python-stable-local"],
                         "Status": "not-affected",
+                        "Note": "",
+                    },
+                    {
+                        "Name": "ray",
+                        "Channel": "jammy:2.22.0/stable",
+                        "Repositories": ["nvidia-pb3-python-stable-local"],
+                        "Status": "released",
                         "Note": "2.22.0+soss.1",
-                    }
+                    },
                 ],
                 "rust": [
                     {
@@ -209,6 +200,15 @@ class TestSOSSRecord(TestCase):
                         "Repositories": ["nvidia-pb3-python-stable-local"],
                         "Status": "deferred",
                         "Note": "2.22.0+soss.1",
+                    }
+                ],
+                "unpackaged": [
+                    {
+                        "Name": "vllm",
+                        "Channel": "noble:0.7.3/stable",
+                        "Repositories": ["soss-src-stable-local"],
+                        "Status": "needed",
+                        "Note": "",
                     }
                 ],
             },
