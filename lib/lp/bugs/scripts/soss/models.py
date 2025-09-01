@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import yaml
+from packaging.version import Version
 
 __all__ = [
     "SOSSRecord",
@@ -53,6 +54,14 @@ class SOSSRecord:
         def __str__(self) -> str:
             return self.value
 
+        def __lt__(self, other) -> bool:
+            try:
+                self_ver = self.value.split(":")[-1].split("/")[0]
+                other_ver = self.value.split(":")[-1].split("/")[0]
+                return Version(self_ver) < Version(other_ver)
+            except Exception:
+                return self.value < other.value
+
     @dataclass
     class CVSS:
         source: str
@@ -94,6 +103,12 @@ class SOSSRecord:
                 "Status": self.status.value,
                 "Note": self.note,
             }
+
+        def __lt__(self, other: "SOSSRecord.Package") -> bool:
+            if self.name == other.name:
+                return self.channel < other.channel
+
+            return self.name <= other.name
 
     references: List[str]
     notes: List[str]
