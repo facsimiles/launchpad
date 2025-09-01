@@ -132,7 +132,7 @@ class SOSSImporter:
         else:
             bug = self._update_bug(bug, soss_record, lp_cve)
 
-        vulnerability = self._find_existing_vulnerability(bug, self.soss)
+        vulnerability = self._find_existing_vulnerability(lp_cve, self.soss)
         if not vulnerability:
             vulnerability = self._create_vulnerability(
                 bug, soss_record, lp_cve, self.soss
@@ -307,14 +307,18 @@ class SOSSImporter:
         return None
 
     def _find_existing_vulnerability(
-        self, bug: BugModel, distribution: Distribution
+        self, lp_cve: CveModel, distribution: Distribution
     ) -> Optional[Vulnerability]:
         """Find existing vulnerability for the current distribution"""
-        if not bug:
+        if not lp_cve:
             return None
 
         vulnerability = next(
-            (v for v in bug.vulnerabilities if v.distribution == distribution),
+            (
+                v
+                for v in lp_cve.vulnerabilities
+                if v.distribution == distribution
+            ),
             None,
         )
         return vulnerability
