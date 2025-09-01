@@ -356,7 +356,7 @@ class SOSSImporter:
                 )
 
                 if target not in bugtask_by_target:
-                    self.bugtask_set.createTask(
+                    bugtask = self.bugtask_set.createTask(
                         bug,
                         self.bug_importer,
                         target,
@@ -381,6 +381,8 @@ class SOSSImporter:
                     # We always have rights to change assignees
                     bugtask.transitionToAssignee(assignee, validate=False)
                     bugtask.metadata = metadata
+
+                bugtask.status_explanation = package.note
 
         # Remove bugtasks that were deleted from the record
         for bugtask in bugtask_by_target.values():
