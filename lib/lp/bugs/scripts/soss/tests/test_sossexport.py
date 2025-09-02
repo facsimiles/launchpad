@@ -25,6 +25,7 @@ class TestSOSSExporter(TestCaseWithFactory):
         self.soss = self.factory.makeDistribution(
             name="soss",
             displayname="SOSS",
+            information_type=InformationType.PROPRIETARY,
         )
         transaction.commit()
 
@@ -69,7 +70,7 @@ class TestSOSSExporter(TestCaseWithFactory):
     def test_to_record(self):
         """Test that imported and exported SOSSRecords match."""
         soss_importer = SOSSImporter(
-            information_type=InformationType.PRIVATESECURITY
+            information_type=InformationType.PROPRIETARY
         )
 
         for file in self.sampledata.iterdir():
@@ -91,7 +92,7 @@ class TestSOSSExporter(TestCaseWithFactory):
         """Integration test that checks that cve files imported and exported
         match."""
         soss_importer = SOSSImporter(
-            information_type=InformationType.PRIVATESECURITY
+            information_type=InformationType.PROPRIETARY
         )
 
         for file in self.sampledata.iterdir():

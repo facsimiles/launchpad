@@ -49,7 +49,7 @@ class SOSSExporter:
 
     def __init__(
         self,
-        information_type: InformationType = InformationType.PRIVATESECURITY,
+        information_type: InformationType = InformationType.PROPRIETARY,
         dry_run: bool = False,
     ) -> None:
         self.dry_run = dry_run
