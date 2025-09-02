@@ -37,7 +37,6 @@ from lp.registry.model.distribution import Distribution
 from lp.registry.model.externalpackage import ExternalPackage
 from lp.registry.model.person import Person
 from lp.registry.security import SecurityAdminDistribution
-from lp.testing import person_logged_in
 
 __all__ = [
     "SOSSImporter",
@@ -114,9 +113,7 @@ class SOSSImporter:
         with open(cve_path, encoding="utf-8") as file:
             soss_record = SOSSRecord.from_yaml(file)
 
-        with person_logged_in(self.bug_importer):
-            bug, vulnerability = self.import_cve(soss_record, cve_sequence)
-
+        bug, vulnerability = self.import_cve(soss_record, cve_sequence)
         return bug, vulnerability
 
     def import_cve(
@@ -184,6 +181,7 @@ class SOSSImporter:
                 status=PACKAGE_STATUS_MAP[package.status],
                 status_explanation=package.note,
                 assignee=assignee,
+                validate_assignee=False,
                 importance=PRIORITY_ENUM_MAP[soss_record.priority],
                 cve=lp_cve,
                 metadata=metadata,
