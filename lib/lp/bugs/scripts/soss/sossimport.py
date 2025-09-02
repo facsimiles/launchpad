@@ -263,7 +263,7 @@ class SOSSImporter:
 
     def _update_vulnerability(
         self, vulnerability: Vulnerability, soss_record: SOSSRecord
-    ) -> None:
+    ) -> Vulnerability:
         """
         Update a Vulnerability model with the information
         contained in a SOSSRecord
@@ -288,6 +288,7 @@ class SOSSImporter:
             "[SOSSImporter] Updated Vulnerability with ID: "
             f"{vulnerability.id} for {vulnerability.distribution.name}",
         )
+        return vulnerability
 
     def _find_existing_bug(
         self,
