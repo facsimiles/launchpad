@@ -85,7 +85,7 @@ class SOSSImporter:
 
     def __init__(
         self,
-        information_type: InformationType = InformationType.PRIVATESECURITY,
+        information_type: InformationType = InformationType.PROPRIETARY,
         dry_run: bool = False,
     ) -> None:
         self.information_type = information_type

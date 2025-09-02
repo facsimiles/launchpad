@@ -33,6 +33,7 @@ class TestSOSSImporter(TestCaseWithFactory):
             name="soss",
             displayname="SOSS",
             owner=self.owner,
+            information_type=InformationType.PROPRIETARY,
         )
         transaction.commit()
 
@@ -187,7 +188,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         """Helper function to check the imported bug"""
         self.assertEqual(bug.description, self.description)
         self.assertEqual(bug.title, self.cve.sequence)
-        self.assertEqual(bug.information_type, InformationType.PRIVATESECURITY)
+        self.assertEqual(bug.information_type, InformationType.PROPRIETARY)
         self.assertEqual(bug.owner, self.bug_importer)
 
         self._check_bugtasks(
@@ -210,7 +211,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(vulnerability.date_notice_issued, None)
         self.assertEqual(vulnerability.date_coordinated_release, None)
         self.assertEqual(
-            vulnerability.information_type, InformationType.PRIVATESECURITY
+            vulnerability.information_type, InformationType.PROPRIETARY
         )
         self.assertEqual(vulnerability.importance, BugTaskImportance.LOW)
         self.assertEqual(
@@ -235,7 +236,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         file = self.sampledata / "CVE-2025-1979"
 
         soss_importer = SOSSImporter(
-            information_type=InformationType.PRIVATESECURITY
+            information_type=InformationType.PROPRIETARY
         )
         bug, vulnerability = soss_importer.import_cve_from_file(file)
 
@@ -273,14 +274,14 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.RUST)
 
         bug = SOSSImporter(
-            information_type=InformationType.PUBLICSECURITY
+            information_type=InformationType.PROPRIETARY
         )._update_bug(bug, self.soss_record, new_cve)
         transaction.commit()
 
         # Check bug fields
         self.assertEqual(bug.description, new_description)
         self.assertEqual(bug.title, new_cve.sequence)
-        self.assertEqual(bug.information_type, InformationType.PUBLICSECURITY)
+        self.assertEqual(bug.information_type, InformationType.PROPRIETARY)
 
         # Check bugtasks
         bugtasks = bug.bugtasks
@@ -309,7 +310,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(vulnerability.date_notice_issued, None)
         self.assertEqual(vulnerability.date_coordinated_release, None)
         self.assertEqual(
-            vulnerability.information_type, InformationType.PRIVATESECURITY
+            vulnerability.information_type, InformationType.PROPRIETARY
         )
         self.assertEqual(vulnerability.importance, BugTaskImportance.LOW)
         self.assertEqual(
