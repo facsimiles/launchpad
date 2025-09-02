@@ -297,16 +297,19 @@ class SOSSImporter:
         distribution: Distribution,
     ) -> Optional[BugModel]:
         """Find existing bug for the given CVE."""
-        for vulnerability in lp_cve.vulnerabilities:
-            if vulnerability.distribution == distribution:
-                bugs = vulnerability.bugs
-                if len(bugs) > 1:
-                    raise ValueError(
-                        "Multiple existing bugs found for CVE ",
-                        soss_record.sequence,
-                    )
-                if bugs:
-                    return bugs[0]
+        vulnerability = self._find_existing_vulnerability(lp_cve, distribution)
+        if not vulnerability:
+            return None
+
+        bugs = vulnerability.bugs
+        if len(bugs) > 1:
+            raise ValueError(
+                "Multiple existing bugs found for CVE ",
+                soss_record.sequence,
+            )
+        if bugs:
+            return bugs[0]
+
         return None
 
     def _find_existing_vulnerability(
@@ -316,15 +319,7 @@ class SOSSImporter:
         if not lp_cve:
             return None
 
-        vulnerability = next(
-            (
-                v
-                for v in lp_cve.vulnerabilities
-                if v.distribution == distribution
-            ),
-            None,
-        )
-        return vulnerability
+        return lp_cve.getDistributionVulnerability(distribution)
 
     def _create_or_update_bugtasks(
         self, bug: BugModel, soss_record: SOSSRecord
