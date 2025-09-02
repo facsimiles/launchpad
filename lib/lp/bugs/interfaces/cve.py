@@ -189,6 +189,9 @@ class ICve(Interface):
     def setCVSSVectorForAuthority(authority, vector_string):
         """Set the CVSS vector string from an authority."""
 
+    def getDistributionVulnerability(self, distribution):
+        """Return the linked vulnerability for the given distribution."""
+
     def getVulnerabilitiesVisibleToUser(user):
         """Return the linked vulnerabilities visible to the given user."""
 
