@@ -248,6 +248,7 @@ def snapshot_bug_params(bug_params):
             "importance",
             "milestone",
             "assignee",
+            "validate_assignee",
             "cve",
             "metadata",
             "check_permissions",
@@ -3337,7 +3338,9 @@ class BugSet:
 
         bug_task = bug.default_bugtask
         if params.assignee:
-            bug_task.transitionToAssignee(params.assignee)
+            bug_task.transitionToAssignee(
+                params.assignee, validate=params.validate_assignee
+            )
         if params.importance:
             bug_task.transitionToImportance(params.importance, params.owner)
         if params.milestone:
