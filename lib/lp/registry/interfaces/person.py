@@ -91,6 +91,7 @@ from lp.app.validators.email import email_validator
 from lp.app.validators.name import name_validator
 from lp.blueprints.interfaces.specificationtarget import IHasSpecifications
 from lp.bugs.interfaces.bugtarget import IHasBugs
+from lp.code.enums import BranchMergeProposalStatus
 from lp.code.interfaces.hasbranches import (
     IHasBranches,
     IHasMergeProposals,
@@ -1929,6 +1930,40 @@ class IPersonViewRestricted(
 
         If no orderby is provided, Person.sortingColumns is used.
         """
+
+    @operation_parameters(
+        status=List(
+            title=_("A list of statuses to filter the merge proposals by."),
+            value_type=Choice(vocabulary=BranchMergeProposalStatus),
+        ),
+        created_before=Datetime(
+            title=_(
+                "Search for merge proposals that were created"
+                "before the given date."
+            ),
+            required=False,
+        ),
+        created_since=Datetime(
+            title=_(
+                "Search for merge proposals that were created"
+                "since the given date."
+            ),
+            required=False,
+        ),
+    )
+    @call_with(visible_by_user=REQUEST_USER, eager_load=True)
+    # Really IBranchMergeProposal
+    @operation_returns_collection_of(Interface)
+    @export_read_operation()
+    @operation_for_version("devel")
+    def getMergeProposals(
+        status=None,
+        visible_by_user=None,
+        eager_load=False,
+        created_before=None,
+        created_since=None,
+    ):
+        """Return matching BranchMergeProposals."""
 
 
 class IPersonEditRestricted(Interface):

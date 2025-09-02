@@ -908,6 +908,66 @@ class TestPerson(TestCaseWithFactory):
         )
 
 
+# Tests for user specific merge proposal operations. Shared behavior
+# is mostly tested in TestHasMergeProposalsWebservice (test_hasbranches.py)
+class TestPersonMergeProposals(TestCaseWithFactory):
+    layer = DatabaseFunctionalLayer
+
+    def setUp(self):
+        super().setUp()
+
+    def _makeMergeProposalWithDateCreated(self, user, date_created):
+        branch = self.factory.makeBranch(owner=user)
+        return self.factory.makeBranchMergeProposal(
+            registrant=user, source_branch=branch, date_created=date_created
+        )
+
+    def test_all_merge_proposals(self):
+        user = self.factory.makePerson()
+        today = datetime.now(timezone.utc)
+
+        mp_ten_days_ago = self._makeMergeProposalWithDateCreated(
+            user, today - timedelta(days=10)
+        )
+        mp_nine_days_ago = self._makeMergeProposalWithDateCreated(
+            user, today - timedelta(days=9)
+        )
+
+        merge_proposals = user.getMergeProposals()
+        self.assertEqual(
+            [mp_nine_days_ago, mp_ten_days_ago], list(merge_proposals)
+        )
+
+    def test_created_before(self):
+        user = self.factory.makePerson()
+        today = datetime.now(timezone.utc)
+
+        nine_days_ago = today - timedelta(days=9)
+
+        mp_ten_days_ago = self._makeMergeProposalWithDateCreated(
+            user, today - timedelta(days=10)
+        )
+
+        merge_proposals = user.getMergeProposals(created_before=nine_days_ago)
+        self.assertEqual([mp_ten_days_ago], list(merge_proposals))
+
+    def test_created_since(self):
+        user = self.factory.makePerson()
+        today = datetime.now(timezone.utc)
+
+        nine_days_ago = today - timedelta(days=9)
+
+        self._makeMergeProposalWithDateCreated(
+            user, today - timedelta(days=10)
+        )
+        mp_nine_days_ago = self._makeMergeProposalWithDateCreated(
+            user, today - timedelta(days=9)
+        )
+
+        merge_proposals = user.getMergeProposals(created_since=nine_days_ago)
+        self.assertEqual([mp_nine_days_ago], list(merge_proposals))
+
+
 class TestPersonStates(TestCaseWithFactory):
     layer = DatabaseFunctionalLayer
 

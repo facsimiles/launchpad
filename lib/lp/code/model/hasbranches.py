@@ -55,7 +55,12 @@ class HasMergeProposalsMixin:
     """A mixin implementation class for `IHasMergeProposals`."""
 
     def getMergeProposals(
-        self, status=None, visible_by_user=None, eager_load=False
+        self,
+        status=None,
+        visible_by_user=None,
+        eager_load=False,
+        created_before=None,
+        created_since=None,
     ):
         """See `IHasMergeProposals`."""
         # Circular import.
@@ -71,7 +76,12 @@ class HasMergeProposalsMixin:
         def _getProposals(interface):
             collection = removeSecurityProxy(interface(self))
             collection = collection.visibleByUser(visible_by_user)
-            return collection.getMergeProposals(status, eager_load=False)
+            return collection.getMergeProposals(
+                status,
+                created_before=created_before,
+                created_since=created_since,
+                eager_load=False,
+            )
 
         # SourcePackage Bazaar branches are an aberration which was not
         # replicated for Git, so SourcePackage does not support Git.
