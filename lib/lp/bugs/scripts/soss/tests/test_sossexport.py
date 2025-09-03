@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import transaction
 from zope.component import getUtility
 from zope.security.proxy import removeSecurityProxy
 
@@ -10,7 +9,7 @@ from lp.bugs.interfaces.cve import ICveSet
 from lp.bugs.scripts.soss import SOSSRecord
 from lp.bugs.scripts.soss.sossexport import SOSSExporter
 from lp.bugs.scripts.soss.sossimport import SOSSImporter
-from lp.testing import TestCaseWithFactory, person_logged_in
+from lp.testing import TestCaseWithFactory
 from lp.testing.layers import LaunchpadZopelessLayer
 
 
@@ -20,6 +19,9 @@ class TestSOSSExporter(TestCaseWithFactory):
 
     def setUp(self):
         super().setUp()
+        self.cve_set = getUtility(ICveSet)
+        self.bug_importer = getUtility(ILaunchpadCelebrities).bug_importer
+
         self.sampledata = Path(__file__).parent / "sampledata"
         self.factory.makePerson(name="octagalland")
         self.soss = self.factory.makeDistribution(
@@ -27,21 +29,20 @@ class TestSOSSExporter(TestCaseWithFactory):
             displayname="SOSS",
             information_type=InformationType.PROPRIETARY,
         )
-        transaction.commit()
+        self._makeCves()
 
         self.soss_importer = SOSSImporter()
         self.soss_exporter = SOSSExporter()
 
-        self.cve_set = getUtility(ICveSet)
-        self.bug_importer = getUtility(ILaunchpadCelebrities).bug_importer
-
-    def test_get_packages(self):
-        """Test get SOSSRecord.Package list from bugtasks."""
+    def _makeCves(self):
         for file in self.sampledata.iterdir():
             cve_sequence = file.name.lstrip("CVE-")
             if not self.cve_set[cve_sequence]:
                 self.factory.makeCVE(sequence=cve_sequence)
 
+    def test_get_packages(self):
+        """Test get SOSSRecord.Package list from bugtasks."""
+        for file in self.sampledata.iterdir():
             with open(file) as f:
                 soss_record = SOSSRecord.from_yaml(f)
 
@@ -74,17 +75,16 @@ class TestSOSSExporter(TestCaseWithFactory):
         )
 
         for file in self.sampledata.iterdir():
-            cve_sequence = file.name.lstrip("CVE-")
-            if not self.cve_set[cve_sequence]:
-                self.factory.makeCVE(sequence=cve_sequence)
-
             with open(file) as f:
                 soss_record = SOSSRecord.from_yaml(f)
 
             bug, vulnerability = soss_importer.import_cve_from_file(file)
 
-            with person_logged_in(self.bug_importer):
-                exported = self.soss_exporter.to_record(file.name)
+            cve_sequence = file.name.lstrip("CVE-")
+            lp_cve = self.cve_set[cve_sequence]
+            exported = self.soss_exporter.to_record(
+                lp_cve, self.soss, bug, vulnerability
+            )
 
             self.assertEqual(soss_record, exported)
 
@@ -96,14 +96,14 @@ class TestSOSSExporter(TestCaseWithFactory):
         )
 
         for file in self.sampledata.iterdir():
-            cve_sequence = file.name.lstrip("CVE-")
-            if not self.cve_set[cve_sequence]:
-                self.factory.makeCVE(sequence=cve_sequence)
 
             bug, vulnerability = soss_importer.import_cve_from_file(file)
 
-            with person_logged_in(self.bug_importer):
-                exported = self.soss_exporter.to_record(file.name)
+            cve_sequence = file.name.lstrip("CVE-")
+            lp_cve = self.cve_set[cve_sequence]
+            exported = self.soss_exporter.to_record(
+                lp_cve, self.soss, bug, vulnerability
+            )
 
             with open(file) as f:
                 self.assertEqual(f.read(), exported.to_yaml())
