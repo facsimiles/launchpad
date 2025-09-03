@@ -97,7 +97,9 @@ class SOSSImporter:
         self.vulnerability_set = getUtility(IVulnerabilitySet)
         self.bug_set = getUtility(IBugSet)
         self.cve_set = getUtility(ICveSet)
-        self.soss = getUtility(IDistributionSet).getByName(DISTRIBUTION_NAME)
+        self.soss = removeSecurityProxy(
+            getUtility(IDistributionSet).getByName(DISTRIBUTION_NAME)
+        )
 
         if self.soss is None:
             logger.error("[SOSSImporter] SOSS distribution not found")
@@ -171,23 +173,25 @@ class SOSSImporter:
         metadata = {"repositories": package.repositories}
 
         # Create the bug, only first bugtask
-        bug, _ = self.bug_set.createBug(
-            CreateBugParams(
-                comment=self._make_bug_description(soss_record),
-                title=lp_cve.sequence,
-                information_type=self.information_type,
-                owner=self.bug_importer,
-                target=externalpackage,
-                status=PACKAGE_STATUS_MAP[package.status],
-                status_explanation=package.note,
-                assignee=assignee,
-                validate_assignee=False,
-                importance=PRIORITY_ENUM_MAP[soss_record.priority],
-                cve=lp_cve,
-                metadata=metadata,
-                check_permissions=False,
-            ),
-            notify_event=False,
+        bug, _ = removeSecurityProxy(
+            self.bug_set.createBug(
+                CreateBugParams(
+                    comment=self._make_bug_description(soss_record),
+                    title=lp_cve.sequence,
+                    information_type=self.information_type,
+                    owner=self.bug_importer,
+                    target=externalpackage,
+                    status=PACKAGE_STATUS_MAP[package.status],
+                    status_explanation=package.note,
+                    assignee=assignee,
+                    validate_assignee=False,
+                    importance=PRIORITY_ENUM_MAP[soss_record.priority],
+                    cve=lp_cve,
+                    metadata=metadata,
+                    check_permissions=False,
+                ),
+                notify_event=False,
+            )
         )
 
         # Create next bugtasks
@@ -234,23 +238,25 @@ class SOSSImporter:
         :param distribution: a Distribution affected by the vulnerability
         :return: a Vulnerability
         """
-        vulnerability: Vulnerability = self.vulnerability_set.new(
-            distribution=distribution,
-            status=VulnerabilityStatus.NEEDS_TRIAGE,
-            importance=PRIORITY_ENUM_MAP[soss_record.priority],
-            creator=bug.owner,
-            information_type=self.information_type,
-            cve=lp_cve,
-            description=soss_record.description,
-            notes="\n".join(soss_record.notes),
-            mitigation=None,
-            importance_explanation=soss_record.priority_reason,
-            date_made_public=self._normalize_date_with_timezone(
-                soss_record.public_date
-            ),
-            date_notice_issued=None,
-            date_coordinated_release=None,
-            cvss=self._prepare_cvss_data(soss_record),
+        vulnerability: Vulnerability = removeSecurityProxy(
+            self.vulnerability_set.new(
+                distribution=distribution,
+                status=VulnerabilityStatus.NEEDS_TRIAGE,
+                importance=PRIORITY_ENUM_MAP[soss_record.priority],
+                creator=bug.owner,
+                information_type=self.information_type,
+                cve=lp_cve,
+                description=soss_record.description,
+                notes="\n".join(soss_record.notes),
+                mitigation=None,
+                importance_explanation=soss_record.priority_reason,
+                date_made_public=self._normalize_date_with_timezone(
+                    soss_record.public_date
+                ),
+                date_notice_issued=None,
+                date_coordinated_release=None,
+                cvss=self._prepare_cvss_data(soss_record),
+            )
         )
         vulnerability.linkBug(bug, bug.owner)
 
@@ -308,7 +314,7 @@ class SOSSImporter:
                 soss_record.sequence,
             )
         if bugs:
-            return bugs[0]
+            return removeSecurityProxy(bugs[0])
 
         return None
 
@@ -319,7 +325,8 @@ class SOSSImporter:
         if not lp_cve:
             return None
 
-        return lp_cve.getDistributionVulnerability(distribution)
+        vulnerability = lp_cve.getDistributionVulnerability(distribution)
+        return removeSecurityProxy(vulnerability)
 
     def _create_or_update_bugtasks(
         self, bug: BugModel, soss_record: SOSSRecord
@@ -340,7 +347,9 @@ class SOSSImporter:
         assignee = self._get_assignee(soss_record.assigned_to)
 
         # Build a lookup dict for existing bug tasks
-        bugtask_by_target = {task.target: task for task in bug.bugtasks}
+        bugtask_by_target = {
+            task.target: removeSecurityProxy(task) for task in bug.bugtasks
+        }
 
         for packagetype, package_list in packages:
             for package in package_list:
@@ -354,14 +363,16 @@ class SOSSImporter:
                 )
 
                 if target not in bugtask_by_target:
-                    bugtask = self.bugtask_set.createTask(
-                        bug,
-                        self.bug_importer,
-                        target,
-                        status=PACKAGE_STATUS_MAP[package.status],
-                        importance=PRIORITY_ENUM_MAP[soss_record.priority],
-                        assignee=assignee,
-                        metadata=metadata,
+                    bugtask = removeSecurityProxy(
+                        self.bugtask_set.createTask(
+                            bug,
+                            self.bug_importer,
+                            target,
+                            status=PACKAGE_STATUS_MAP[package.status],
+                            importance=PRIORITY_ENUM_MAP[soss_record.priority],
+                            assignee=assignee,
+                            metadata=metadata,
+                        )
                     )
                 else:
                     bugtask = bugtask_by_target[target]
