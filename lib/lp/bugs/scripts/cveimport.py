@@ -736,7 +736,7 @@ class CVEUpdater(LaunchpadCronScript):
         for ref in references:
             url = ref.get("url")
             source = "external"  # default source
-            content = ref.get("name", "")
+            content = ref.get("name", url)
 
             # look for existing reference
             was_there_previously = False
