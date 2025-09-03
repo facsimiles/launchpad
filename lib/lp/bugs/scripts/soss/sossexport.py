@@ -102,41 +102,36 @@ class SOSSExporter:
         """
         self._validate_to_record_args(lp_cve, distribution, bug, vulnerability)
 
-        # Export bug
-        desc_parts = bug.description.rsplit("\n\nReferences:\n")
+        # Parse bug
+        desc_parts = bug.description.rsplit("\n\nReferences:\n", maxsplit=1)
         references = desc_parts[1].split("\n") if len(desc_parts) > 1 else []
 
-        # Export bug.bugtasks
+        # Parse bug.bugtasks
         packages = self._get_packages(bug.bugtasks)
         assigned_to = (
             bug.bugtasks[0].assignee.name if bug.bugtasks[0].assignee else ""
         )
 
-        # Export vulnerability
-        description = vulnerability.description
-        public_date = vulnerability.date_made_public
+        # Parse vulnerability
+        public_date = self._normalize_date_without_timezone(
+            vulnerability.date_made_public
+        )
         notes = vulnerability.notes.split("\n") if vulnerability.notes else []
         priority = SOSSRecord.PriorityEnum(
             PRIORITY_ENUM_MAP_REVERSE[vulnerability.importance]
         )
-        priority_reason = vulnerability.importance_explanation
-
-        # Export vulnerability.cvss
-        cvss = self._get_cvss(vulnerability.cvss)
-
-        candidate = f"CVE-{lp_cve.sequence}"
 
         return SOSSRecord(
             references=references,
             notes=notes,
             priority=priority,
-            priority_reason=priority_reason,
+            priority_reason=vulnerability.importance_explanation,
             assigned_to=assigned_to,
             packages=packages,
-            candidate=candidate,
-            description=description,
-            cvss=cvss,
-            public_date=self._normalize_date_without_timezone(public_date),
+            candidate=f"CVE-{lp_cve.sequence}",
+            description=vulnerability.description,
+            cvss=self._get_cvss(vulnerability.cvss),
+            public_date=public_date,
         )
 
     def _validate_to_record_args(
