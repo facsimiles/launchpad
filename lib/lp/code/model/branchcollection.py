@@ -377,6 +377,8 @@ class GenericBranchCollection:
         merged_revnos=None,
         merged_revision=None,
         eager_load=False,
+        created_before=None,
+        created_since=None,
     ):
         """See `IBranchCollection`."""
         if for_branches is not None and not for_branches:
@@ -392,6 +394,8 @@ class GenericBranchCollection:
             or prerequisite_branch is not None
             or merged_revnos is not None
             or merged_revision is not None
+            or created_before is not None
+            or created_since is not None
         ):
             return self._naiveGetMergeProposals(
                 statuses,
@@ -400,6 +404,8 @@ class GenericBranchCollection:
                 prerequisite_branch,
                 merged_revnos,
                 merged_revision,
+                created_before=created_before,
+                created_since=created_since,
                 eager_load=eager_load,
             )
         else:
@@ -419,6 +425,8 @@ class GenericBranchCollection:
         merged_revnos=None,
         merged_revision=None,
         eager_load=False,
+        created_before=None,
+        created_since=None,
     ):
         Target = ClassAlias(Branch, "target")
         extra_tables = list(
@@ -477,6 +485,14 @@ class GenericBranchCollection:
         if statuses is not None:
             expressions.append(
                 BranchMergeProposal.queue_status.is_in(statuses)
+            )
+        if created_before is not None:
+            expressions.append(
+                BranchMergeProposal.date_created < created_before
+            )
+        if created_since is not None:
+            expressions.append(
+                BranchMergeProposal.date_created >= created_since
             )
         resultset = self.store.using(*tables).find(
             BranchMergeProposal, *expressions

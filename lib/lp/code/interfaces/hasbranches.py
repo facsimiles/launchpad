@@ -87,7 +87,7 @@ class IHasMergeProposals(Interface):
 
     @operation_parameters(
         status=List(
-            title=_("A list of merge proposal statuses to filter by."),
+            title=_("A list of statuses to filter the merge proposals by."),
             value_type=Choice(vocabulary=BranchMergeProposalStatus),
         )
     )
