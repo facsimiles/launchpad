@@ -4,8 +4,10 @@
 import gzip
 import io
 import json
+import os
 import shutil
 import tempfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -203,6 +205,20 @@ class TestCVEUpdater(TestCase):
         self.assertIsNotNone(cve)
         self.assertEqual("Delta CVE", cve.description)
 
+    def test_process_delta_directory_empty(self):
+        """Test processing an empty directory of delta CVE files."""
+        # Create empty test delta directory
+        delta_dir = Path(self.temp_dir) / "deltaCves"
+        delta_dir.mkdir()
+
+        # Process the directory using the script infrastructure
+        updater = self.make_updater([str(delta_dir)])
+        processed, errors = updater.process_delta_directory(str(delta_dir))
+
+        # Verify results
+        self.assertEqual(0, processed)
+        self.assertEqual(0, errors)
+
     def test_construct_github_url(self):
         """Test GitHub URL construction for different scenarios."""
         updater = CVEUpdater(
@@ -262,3 +278,66 @@ class TestCVEUpdater(TestCase):
         # Verify the update
         updated_cve = cveset["2024-0004"]
         self.assertEqual(new_desc, updated_cve.description)
+
+    def test_extract_github_zip(self):
+        """Test extract_github_zip for complete releases."""
+        updater = self.make_updater()
+        outer_buffer = io.BytesIO()
+
+        with zipfile.ZipFile(outer_buffer, "w") as outer_zip:
+            # create inner cves.zip in memory
+            inner_buffer = io.BytesIO()
+            with zipfile.ZipFile(inner_buffer, "w") as inner_zip:
+                inner_zip.writestr("cves/CVE-2025-8941.json", "CVE data")
+            outer_zip.writestr("cves.zip", inner_buffer.getvalue())
+
+        target_dir = updater.extract_github_zip(outer_buffer.getvalue())
+        self.assertTrue(target_dir.endswith("cves"))
+        self.assertEqual(os.listdir(target_dir), ["CVE-2025-8941.json"])
+
+    def test_extract_empty_github_zip(self):
+        """Test that extract_github_zip for complete releases raises
+        LaunchpadScriptFailure when the zip is empty.
+        """
+        updater = self.make_updater()
+        buffer = io.BytesIO()
+
+        # Empty zipfile buffer
+        with zipfile.ZipFile(buffer, "w"):
+            pass
+
+        self.assertRaisesWithContent(
+            LaunchpadScriptFailure,
+            "Failed to extract ZIP files: \"There is no item named 'cves.zip' "
+            'in the archive"',
+            updater.extract_github_zip,
+            buffer.getvalue(),
+        )
+
+    def test_extract_delta_github_zip(self):
+        """Test extract_github_zip for delta releases."""
+        updater = self.make_updater()
+        buffer = io.BytesIO()
+
+        with zipfile.ZipFile(buffer, "w") as zf:
+            zf.writestr("deltaCves/CVE-2025-8941.json", "delta CVE data")
+
+        empty_dir = updater.extract_github_zip(buffer.getvalue(), delta=True)
+        self.assertTrue(empty_dir.endswith("deltaCves"))
+        self.assertEqual(os.listdir(empty_dir), ["CVE-2025-8941.json"])
+
+    def test_extract_empty_delta_github_zip(self):
+        """Test that extract_github_zip for delta releases returns an empty dir
+        if the zip is empty. There can be hours when no cves are updated so we
+        will return an empty dir and will not import cves.
+        """
+        updater = self.make_updater()
+        buffer = io.BytesIO()
+
+        # Empty zipfile buffer
+        with zipfile.ZipFile(buffer, "w"):
+            pass
+
+        empty_dir = updater.extract_github_zip(buffer.getvalue(), delta=True)
+        self.assertTrue(empty_dir.endswith("deltaCves"))
+        self.assertEqual(os.listdir(empty_dir), [])
