@@ -1176,8 +1176,8 @@ class IPersonViewRestricted(
     safe_email_or_blank = TextLine(
         title=_("Safe email for display"),
         description=_(
-            "The person's preferred email if they have"
-            "one and do not choose to hide it. Otherwise"
+            "The person's preferred email if they have "
+            "one and do not choose to hide it. Otherwise "
             "the empty string."
         ),
         readonly=True,
@@ -3100,7 +3100,7 @@ class IAdminTeamMergeSchema(Interface):
         required=True,
         vocabulary="ValidTeam",
         description=_(
-            "The duplicated team found in Launchpad."
+            "The duplicated team found in Launchpad. "
             "This team will be removed."
         ),
     )

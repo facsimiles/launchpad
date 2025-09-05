@@ -1,6 +1,8 @@
 # Copyright 2013-2017 Canonical Ltd.  This software is licensed under the
 # GNU Affero General Public License version 3 (see the file LICENSE).
 
+from datetime import datetime, timedelta, timezone
+
 from testtools.testcase import ExpectedException
 from zope.component import getUtility
 from zope.security.interfaces import Unauthorized
@@ -72,3 +74,47 @@ class TestQuestionSearch(TestCaseWithFactory):
         questions = list(getUtility(IQuestionSet).searchQuestions())
         self.assertIn(active_question, questions)
         self.assertNotIn(inactive_question, questions)
+
+    def test_created_before(self):
+        today = datetime.now(timezone.utc)
+        nine_days_ago = today - timedelta(days=9)
+
+        q_nine_days_ago = self.factory.makeQuestion(
+            datecreated=today - timedelta(days=9)
+        )
+        q_ten_days_ago = self.factory.makeQuestion(
+            datecreated=today - timedelta(days=10)
+        )
+
+        questions = list(
+            getUtility(IQuestionSet).searchQuestions(
+                created_before=nine_days_ago
+            )
+        )
+
+        # Requires using assertIn/assertNotIn instead of assertEqual
+        # because database already contains multiple questions
+        self.assertIn(q_ten_days_ago, questions)
+        self.assertNotIn(q_nine_days_ago, questions)
+
+    def test_created_since(self):
+        today = datetime.now(timezone.utc)
+        nine_days_ago = today - timedelta(days=9)
+
+        q_nine_days_ago = self.factory.makeQuestion(
+            datecreated=today - timedelta(days=9)
+        )
+        q_ten_days_ago = self.factory.makeQuestion(
+            datecreated=today - timedelta(days=10)
+        )
+
+        questions = list(
+            getUtility(IQuestionSet).searchQuestions(
+                created_since=nine_days_ago
+            )
+        )
+
+        # Requires using assertIn/assertNotIn instead of assertEqual
+        # because database already contains multiple questions
+        self.assertIn(q_nine_days_ago, questions)
+        self.assertNotIn(q_ten_days_ago, questions)

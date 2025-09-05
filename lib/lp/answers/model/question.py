@@ -887,6 +887,8 @@ class QuestionSet:
         language=None,
         status=QUESTION_STATUS_DEFAULT_SEARCH,
         sort=None,
+        created_before=None,
+        created_since=None,
     ):
         """See `IQuestionSet`"""
         return QuestionSearch(
@@ -894,6 +896,8 @@ class QuestionSet:
             status=status,
             language=language,
             sort=sort,
+            created_before=created_before,
+            created_since=created_since,
         ).getResults()
 
     def getQuestionLanguages(self):
@@ -1073,6 +1077,8 @@ class QuestionSearch:
         distribution=None,
         sourcepackagename=None,
         projectgroup=None,
+        created_before=None,
+        created_since=None,
     ):
         self.search_text = search_text
         self.nl_phrase_used = False
@@ -1098,6 +1104,8 @@ class QuestionSearch:
         self.distribution = distribution
         self.sourcepackagename = sourcepackagename
         self.projectgroup = projectgroup
+        self.created_before = created_before
+        self.created_since = created_since
 
     def getTargetConstraints(self):
         """Return the constraints related to the IQuestionTarget context."""
@@ -1220,6 +1228,12 @@ class QuestionSearch:
                     [language.id for language in self.language]
                 )
             )
+
+        if self.created_before:
+            constraints.append(Question.datecreated < self.created_before)
+
+        if self.created_since:
+            constraints.append(Question.datecreated >= self.created_since)
 
         return constraints
 
@@ -1348,6 +1362,8 @@ class QuestionTargetSearch(QuestionSearch):
         product=None,
         distribution=None,
         sourcepackagename=None,
+        created_before=None,
+        created_since=None,
     ):
         assert (
             product is not None
@@ -1365,6 +1381,8 @@ class QuestionTargetSearch(QuestionSearch):
             product=product,
             distribution=distribution,
             sourcepackagename=sourcepackagename,
+            created_before=created_before,
+            created_since=created_since,
         )
 
         if owner:
@@ -1450,6 +1468,8 @@ class QuestionPersonSearch(QuestionSearch):
         sort=None,
         participation=None,
         needs_attention=False,
+        created_before=None,
+        created_since=None,
     ):
         if needs_attention:
             needs_attention_from = person
@@ -1463,6 +1483,8 @@ class QuestionPersonSearch(QuestionSearch):
             language=language,
             needs_attention_from=needs_attention_from,
             sort=sort,
+            created_before=created_before,
+            created_since=created_since,
         )
 
         assert IPerson.providedBy(person), "expected IPerson, got %r" % person
