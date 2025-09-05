@@ -20,7 +20,9 @@ import os.path
 import shutil
 import time
 from contextlib import contextmanager
+from resource import getrlimit, setrlimit
 from signal import SIGKILL, SIGTERM
+from typing import Tuple
 
 
 def remove_tree(path):
@@ -184,3 +186,19 @@ def process_exists(pid):
         # All is well - the process doesn't exist.
         return False
     return True
+
+
+@contextmanager
+def preserve_rlimit(resource_type: int):
+    """
+    Context manager to preserve and restore a specific resource limit.
+    """
+    saved_limits: Tuple[int, int] = getrlimit(resource_type)
+    try:
+        yield
+    finally:
+        try:
+            setrlimit(resource_type, saved_limits)
+        except Exception:
+            # Ignore restoration errors
+            pass
