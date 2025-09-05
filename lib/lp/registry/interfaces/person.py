@@ -1955,7 +1955,7 @@ class IPersonViewRestricted(
     # Really IBranchMergeProposal
     @operation_returns_collection_of(Interface)
     @export_read_operation()
-    @operation_for_version("devel")
+    @operation_for_version("beta")
     def getMergeProposals(
         status=None,
         visible_by_user=None,
