@@ -56,11 +56,7 @@ class TestHasMergeProposalsWebservice(TestCaseWithFactory):
         owner = self.factory.makePerson()
         owner_url = api_url(owner)
         webservice = webservice_for_person(
-            owner,
-            permission=OAuthPermission.READ_PRIVATE,
-            # Required because we override the getMergeProposals
-            # API version from IHasMergeProposals in IPersonViewRestricted
-            default_api_version="devel",
+            owner, permission=OAuthPermission.READ_PRIVATE
         )
 
         def create_merge_proposals():
