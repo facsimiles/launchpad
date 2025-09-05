@@ -1137,6 +1137,17 @@
         <allow interface="lp.bugs.interfaces.vulnerabilityjob.IVulnerabilityJob" />
     </class>
 
+    <!-- ExportVulnerabilityJobSource -->
+    <lp:securedutility
+      component="lp.bugs.model.exportvulnerabilityjob.ExportVulnerabilityJob"
+      provides="lp.bugs.interfaces.vulnerabilityjob.IExportVulnerabilityJobSource">
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IExportVulnerabilityJobSource"/>
+    </lp:securedutility>
+    <class class="lp.bugs.model.exportvulnerabilityjob.ExportVulnerabilityJob">
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IExportVulnerabilityJob" />
+        <allow interface="lp.bugs.interfaces.vulnerabilityjob.IVulnerabilityJob" />
+    </class>
+
     <!-- FileBugData -->
     <class class="lp.bugs.model.bug.FileBugData">
         <allow interface="lp.bugs.interfaces.bug.IFileBugData" />
