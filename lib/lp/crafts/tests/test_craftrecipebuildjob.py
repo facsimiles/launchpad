@@ -8,6 +8,7 @@ import os
 import tarfile
 import tempfile
 from pathlib import Path
+from resource import RLIMIT_AS
 
 from artifactory import ArtifactoryPath
 from fixtures import FakeLogger
@@ -34,6 +35,7 @@ from lp.services.job.interfaces.job import JobStatus
 from lp.services.job.runner import JobRunner
 from lp.services.librarian.interfaces import ILibraryFileAliasSet
 from lp.services.librarian.utils import copy_and_close
+from lp.services.osutils import preserve_rlimit
 from lp.testing import TestCaseWithFactory
 from lp.testing.layers import CeleryJobLayer, ZopelessDatabaseLayer
 
@@ -95,7 +97,12 @@ class TestCraftPublishingJob(TestCaseWithFactory):
     def run_job(self, job):
         """Helper to run a job and return the result."""
         job = getUtility(ICraftPublishingJobSource).create(self.build)
-        JobRunner([job]).runAll()
+
+        # Preserve RLIMIT_AS resource limit because runAll changes it which
+        # causes the whole test worker process to have limited memory
+        with preserve_rlimit(RLIMIT_AS):
+            JobRunner([job]).runAll()
+
         job = removeSecurityProxy(job)
         return job
 
@@ -852,7 +859,10 @@ class TestCraftPublishingJob(TestCaseWithFactory):
             lambda self: "https://example.com/repo.git",
         )
 
-        JobRunner([job]).runAll()
+        # Preserve RLIMIT_AS resource limit because runAll changes it which
+        # causes the whole test worker process to have limited memory
+        with preserve_rlimit(RLIMIT_AS):
+            JobRunner([job]).runAll()
 
         artifact = self._artifactory_search("repository", "artifact.file")
         self.assertEqual(artifact["properties"]["soss.license"], "unknown")
@@ -894,7 +904,10 @@ class TestCraftPublishingJob(TestCaseWithFactory):
             lambda self: "https://example.com/repo.git",
         )
 
-        JobRunner([job]).runAll()
+        # Preserve RLIMIT_AS resource limit because runAll changes it which
+        # causes the whole test worker process to have limited memory
+        with preserve_rlimit(RLIMIT_AS):
+            JobRunner([job]).runAll()
 
         artifact = self._artifactory_search("repository", "artifact.file")
         self.assertEqual(artifact["properties"]["soss.license"], "unknown")
@@ -937,7 +950,10 @@ class TestCraftPublishingJob(TestCaseWithFactory):
             lambda self: "https://example.com/repo.git",
         )
 
-        JobRunner([job]).runAll()
+        # Preserve RLIMIT_AS resource limit because runAll changes it which
+        # causes the whole test worker process to have limited memory
+        with preserve_rlimit(RLIMIT_AS):
+            JobRunner([job]).runAll()
 
         artifact = self._artifactory_search("repository", "artifact.file")
         self.assertEqual(artifact["properties"]["soss.license"], license_value)
