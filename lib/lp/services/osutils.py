@@ -190,15 +190,14 @@ def process_exists(pid):
 
 @contextmanager
 def preserve_rlimit(resource_type: int):
-    """
-    Context manager to preserve and restore a specific resource limit.
-    """
-    saved_limits: Tuple[int, int] = getrlimit(resource_type)
+    """Context manager to preserve and restore a specific resource limit."""
+    current_limits: Tuple[int, int] = getrlimit(resource_type)
     try:
         yield
     finally:
         try:
-            setrlimit(resource_type, saved_limits)
-        except Exception:
-            # Ignore restoration errors
+            setrlimit(resource_type, current_limits)
+        except ValueError:
+            # throws a ValueError if the resource_type has no enum counterpart
+            # inside the "resource" package such as "RLIMIT_AS"
             pass

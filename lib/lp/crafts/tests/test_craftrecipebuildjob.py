@@ -8,7 +8,7 @@ import os
 import tarfile
 import tempfile
 from pathlib import Path
-from resource import RLIMIT_AS
+from resource import RLIMIT_AS  # Maximum memory that can be taken by a process
 
 from artifactory import ArtifactoryPath
 from fixtures import FakeLogger
@@ -98,8 +98,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         """Helper to run a job and return the result."""
         job = getUtility(ICraftPublishingJobSource).create(self.build)
 
-        # Preserve RLIMIT_AS resource limit because runAll changes it which
-        # causes the whole test worker process to have limited memory
+        # Preserve the virtual memory resource limit because runAll changes it
+        # which causes the whole test worker process to have limited memory
         with preserve_rlimit(RLIMIT_AS):
             JobRunner([job]).runAll()
 
@@ -859,8 +859,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
             lambda self: "https://example.com/repo.git",
         )
 
-        # Preserve RLIMIT_AS resource limit because runAll changes it which
-        # causes the whole test worker process to have limited memory
+        # Preserve the virtual memory resource limit because runAll changes it
+        # which causes the whole test worker process to have limited memory
         with preserve_rlimit(RLIMIT_AS):
             JobRunner([job]).runAll()
 
@@ -904,8 +904,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
             lambda self: "https://example.com/repo.git",
         )
 
-        # Preserve RLIMIT_AS resource limit because runAll changes it which
-        # causes the whole test worker process to have limited memory
+        # Preserve the virtual memory resource limit because runAll changes it
+        # which causes the whole test worker process to have limited memory
         with preserve_rlimit(RLIMIT_AS):
             JobRunner([job]).runAll()
 
@@ -950,8 +950,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
             lambda self: "https://example.com/repo.git",
         )
 
-        # Preserve RLIMIT_AS resource limit because runAll changes it which
-        # causes the whole test worker process to have limited memory
+        # Preserve the virtual memory resource limit because runAll changes it
+        # which causes the whole test worker process to have limited memory
         with preserve_rlimit(RLIMIT_AS):
             JobRunner([job]).runAll()
 
