@@ -204,6 +204,8 @@ class TestAsyncLiveFSBuildBehaviour(TestLiveFSBuildBehaviourBase):
                 "archive_private": False,
                 "archives": expected_archives,
                 "arch_tag": "i386",
+                "isa_tag": "i386",
+                "abi_tag": "i386",
                 "build_url": canonical_url(job.build),
                 "builder_constraints": [],
                 "datestamp": "20140425-103800",

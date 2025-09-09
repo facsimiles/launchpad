@@ -3618,6 +3618,7 @@ class LaunchpadObjectFactory(ObjectFactory):
         official=True,
         owner=None,
         enabled=True,
+        underlying_architecturetag=None,
     ):
         """Create a new distroarchseries"""
 
@@ -3634,7 +3635,12 @@ class LaunchpadObjectFactory(ObjectFactory):
             architecturetag = self.getUniqueString("arch")
         return ProxyFactory(
             distroseries.newArch(
-                architecturetag, processor, official, owner, enabled
+                architecturetag,
+                processor,
+                official,
+                owner,
+                enabled,
+                underlying_architecturetag,
             )
         )
 

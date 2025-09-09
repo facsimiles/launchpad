@@ -1424,16 +1424,6 @@ class GitRepository(
         )
         return not jobs.is_empty()
 
-    def checkCommitInRef(self, commit, ref):
-        """See `IGitRepository`."""
-        store = Store.of(self)
-        return not store.find(
-            GitRef.commit_sha1,
-            GitRef.repository_id == self.id,
-            GitRef.commit_sha1 == commit,
-            GitRef.path == ref,
-        ).is_empty()
-
     def updateMergeCommitIDs(self, paths):
         """See `IGitRepository`."""
         store = Store.of(self)

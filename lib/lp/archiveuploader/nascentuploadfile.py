@@ -570,7 +570,7 @@ class BaseBinaryUploadFile(PackageUploadFile):
         # Yeah, this is weird. Where else can I discover this without
         # unpacking the deb file, though?
         binary_match = re_isadeb.match(self.filename)
-        self.architecture = binary_match.group(3)
+        self.filename_archtag = binary_match.group(3)
 
     #
     # Useful properties.
@@ -583,7 +583,7 @@ class BaseBinaryUploadFile(PackageUploadFile):
         They can be build in any architecture and the result will fit all
         architectures available.
         """
-        return self.architecture.lower() == "all"
+        return self.filename_archtag.lower() == "all"
 
     @property
     def archtag(self):
@@ -593,7 +593,7 @@ class BaseBinaryUploadFile(PackageUploadFile):
         of the machine that has built it (it is encoded in the changesfile
         name).
         """
-        archtag = self.architecture
+        archtag = self.filename_archtag
         if archtag == "all":
             return self.changes.filename_archtag
         return archtag
@@ -733,33 +733,58 @@ class BaseBinaryUploadFile(PackageUploadFile):
                 % (filename_version, control_version_chopped)
             )
 
-    def verifyArchitecture(self):
-        """Check if the control architecture matches the changesfile.
+    def verifyABIAndISATags(self):
+        """Check if the control abi/isa matches the changesfile.
 
         Also check if it is a valid architecture in LP context.
         """
-        control_arch = six.ensure_text(self.control.get("Architecture", b""))
+        control_arch = self.control.get("Architecture", b"").decode()
+        control_arch_variant = self.control.get(
+            "Architecture-Variant", b""
+        ).decode()
+        abi_tag = control_arch
+        if control_arch_variant:
+            isa_tag = control_arch_variant
+        else:
+            isa_tag = abi_tag
+
         valid_archs = [
             a.architecturetag for a in self.policy.distroseries.architectures
         ]
 
-        if control_arch not in valid_archs and control_arch != "all":
+        if abi_tag != "all" and abi_tag not in valid_archs:
             yield UploadError(
-                "%s: Unknown architecture: '%s'"
-                % (self.filename, control_arch)
+                "%s: Unknown architecture: '%s'" % (self.filename, abi_tag)
             )
 
-        if control_arch not in self.changes.architectures:
+        if (
+            isa_tag != abi_tag
+            and isa_tag != "all"
+            and isa_tag not in valid_archs
+        ):
+            yield UploadError(
+                "%s: Unknown architecture variant: '%s'"
+                % (self.filename, isa_tag)
+            )
+
+        if abi_tag not in self.changes.architectures:
             yield UploadError(
                 "%s: control file lists arch as '%s' which isn't "
-                "in the changes file." % (self.filename, control_arch)
+                "in the changes file." % (self.filename, abi_tag)
             )
 
-        if control_arch != self.architecture:
+        if isa_tag != abi_tag:
+            if isa_tag not in self.changes.architecture_variants:
+                yield UploadError(
+                    "%s: control file lists arch variant as '%s' which isn't "
+                    "in the changes file." % (self.filename, isa_tag)
+                )
+
+        if isa_tag != self.filename_archtag:
             yield UploadError(
-                "%s: control file lists arch as '%s' which doesn't "
-                "agree with version '%s' in the filename."
-                % (self.filename, control_arch, self.architecture)
+                "%s: control file lists ISA as '%s' which doesn't "
+                "agree with '%s' in the filename."
+                % (self.filename, isa_tag, self.filename_archtag)
             )
 
     def verifyDepends(self):
@@ -1107,7 +1132,7 @@ class UdebBinaryUploadFile(BaseBinaryUploadFile):
         return [
             self.verifyPackage,
             self.verifyVersion,
-            self.verifyArchitecture,
+            self.verifyABIAndISATags,
             self.verifyDepends,
             self.verifySection,
             self.verifyPriority,
@@ -1126,7 +1151,7 @@ class DebBinaryUploadFile(BaseBinaryUploadFile):
         return [
             self.verifyPackage,
             self.verifyVersion,
-            self.verifyArchitecture,
+            self.verifyABIAndISATags,
             self.verifyDepends,
             self.verifySection,
             self.verifyPriority,

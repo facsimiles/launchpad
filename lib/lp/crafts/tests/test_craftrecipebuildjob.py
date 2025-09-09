@@ -8,6 +8,7 @@ import os
 import tarfile
 import tempfile
 from pathlib import Path
+from resource import RLIMIT_AS  # Maximum memory that can be taken by a process
 
 from artifactory import ArtifactoryPath
 from fixtures import FakeLogger
@@ -34,6 +35,7 @@ from lp.services.job.interfaces.job import JobStatus
 from lp.services.job.runner import JobRunner
 from lp.services.librarian.interfaces import ILibraryFileAliasSet
 from lp.services.librarian.utils import copy_and_close
+from lp.services.osutils import preserve_rlimit
 from lp.testing import TestCaseWithFactory
 from lp.testing.layers import CeleryJobLayer, ZopelessDatabaseLayer
 
@@ -95,7 +97,12 @@ class TestCraftPublishingJob(TestCaseWithFactory):
     def run_job(self, job):
         """Helper to run a job and return the result."""
         job = getUtility(ICraftPublishingJobSource).create(self.build)
-        JobRunner([job]).runAll()
+
+        # Preserve the virtual memory resource limit because runAll changes it
+        # which causes the whole test worker process to have limited memory
+        with preserve_rlimit(RLIMIT_AS):
+            JobRunner([job]).runAll()
+
         job = removeSecurityProxy(job)
         return job
 
@@ -421,7 +428,7 @@ class TestCraftPublishingJob(TestCaseWithFactory):
 
         # Add a metadata file with license information
         license_value = "Apache-2.0"
-        metadata_yaml = f"license: {license_value}\n"
+        metadata_yaml = f"license: {license_value}\nversion: 0.1.0\n"
         librarian = getUtility(ILibraryFileAliasSet)
         metadata_lfa = librarian.create(
             "metadata.yaml",
@@ -540,6 +547,9 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         )
         self.assertEqual(artifact["properties"]["soss.type"], "source")
         self.assertEqual(artifact["properties"]["soss.license"], license_value)
+        self.assertEqual(
+            artifact["properties"].get("launchpad.channel"), "0.1.0/stable"
+        )
 
     def test_run_missing_maven_config(self):
         """
@@ -625,7 +635,7 @@ class TestCraftPublishingJob(TestCaseWithFactory):
 
         # Create a metadata file with license information
         license_value = "Apache-2.0"
-        metadata_yaml = f"license: {license_value}\n"
+        metadata_yaml = f"license: {license_value}\nversion: 0.1.0\n"
         librarian = getUtility(ILibraryFileAliasSet)
         metadata_lfa = librarian.create(
             "metadata.yaml",
@@ -762,6 +772,9 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         )
         self.assertEqual(artifact["properties"]["soss.type"], "source")
         self.assertEqual(artifact["properties"]["soss.license"], license_value)
+        self.assertEqual(
+            artifact["properties"].get("launchpad.channel"), "0.1.0/stable"
+        )
 
     def test__publish_properties_sets_expected_properties(self):
         """Test that _publish_properties sets the correct properties in
@@ -805,6 +818,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         )
         self.assertEqual(props["soss.type"], "source")
         self.assertEqual(props["soss.license"], "MIT")
+        self.assertIn("launchpad.channel", props)
+        self.assertEqual(props["launchpad.channel"], "unknown/stable")
 
     def test__publish_properties_artifact_not_found(self):
         """Test that _publish_properties raises NotFoundError if artifact is
@@ -844,10 +859,16 @@ class TestCraftPublishingJob(TestCaseWithFactory):
             lambda self: "https://example.com/repo.git",
         )
 
-        JobRunner([job]).runAll()
+        # Preserve the virtual memory resource limit because runAll changes it
+        # which causes the whole test worker process to have limited memory
+        with preserve_rlimit(RLIMIT_AS):
+            JobRunner([job]).runAll()
 
         artifact = self._artifactory_search("repository", "artifact.file")
         self.assertEqual(artifact["properties"]["soss.license"], "unknown")
+        self.assertEqual(
+            artifact["properties"].get("launchpad.channel"), "unknown/stable"
+        )
 
     def test__publish_properties_no_license_in_metadata_yaml(self):
         """Test that _publish_properties sets license to 'unknown' if no
@@ -883,10 +904,16 @@ class TestCraftPublishingJob(TestCaseWithFactory):
             lambda self: "https://example.com/repo.git",
         )
 
-        JobRunner([job]).runAll()
+        # Preserve the virtual memory resource limit because runAll changes it
+        # which causes the whole test worker process to have limited memory
+        with preserve_rlimit(RLIMIT_AS):
+            JobRunner([job]).runAll()
 
         artifact = self._artifactory_search("repository", "artifact.file")
         self.assertEqual(artifact["properties"]["soss.license"], "unknown")
+        self.assertEqual(
+            artifact["properties"].get("launchpad.channel"), "unknown/stable"
+        )
 
     def test__publish_properties_license_from_metadata_yaml(self):
         """Test that _publish_properties gets license from metadata.yaml
@@ -894,7 +921,7 @@ class TestCraftPublishingJob(TestCaseWithFactory):
 
         # Create a metadata.yaml file with a license
         license_value = "Apache-2.0"
-        metadata_yaml = f"license: {license_value}\n"
+        metadata_yaml = f"license: {license_value}\nversion: 0.1.0\n"
         librarian = getUtility(ILibraryFileAliasSet)
         metadata_lfa = librarian.create(
             "metadata.yaml",
@@ -923,10 +950,16 @@ class TestCraftPublishingJob(TestCaseWithFactory):
             lambda self: "https://example.com/repo.git",
         )
 
-        JobRunner([job]).runAll()
+        # Preserve the virtual memory resource limit because runAll changes it
+        # which causes the whole test worker process to have limited memory
+        with preserve_rlimit(RLIMIT_AS):
+            JobRunner([job]).runAll()
 
         artifact = self._artifactory_search("repository", "artifact.file")
         self.assertEqual(artifact["properties"]["soss.license"], license_value)
+        self.assertEqual(
+            artifact["properties"].get("launchpad.channel"), "0.1.0/stable"
+        )
 
     def test__publish_properties_git_repository_source_url(self):
         """Test that _publish_properties gets git_repository as source_url."""

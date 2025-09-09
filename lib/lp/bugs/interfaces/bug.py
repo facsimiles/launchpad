@@ -115,6 +115,7 @@ class CreateBugParams:
         importance=None,
         milestone=None,
         assignee=None,
+        validate_assignee=True,
         cve=None,
         metadata=None,
         check_permissions=True,
@@ -136,6 +137,7 @@ class CreateBugParams:
         self.importance = importance
         self.milestone = milestone
         self.assignee = assignee
+        self.validate_assignee = validate_assignee
         self.cve = cve
         self.metadata = metadata
         self.check_permissions = check_permissions

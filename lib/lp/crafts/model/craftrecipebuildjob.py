@@ -691,6 +691,11 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         new_properties["soss.source_url"] = [self._recipe_git_url()]
         new_properties["soss.type"] = ["source"]
         new_properties["soss.license"] = [self._get_license_metadata()]
+        version_str = self._get_version_metadata()
+        channel_value = (
+            f"{version_str}/stable" if version_str else "unknown/stable"
+        )
+        new_properties["launchpad.channel"] = [channel_value]
 
         # Repo name is derived from the URL
         # refer to schema-lazr.conf for more details about the URL structure
@@ -781,31 +786,46 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
             )
             return "unknown"
 
-    def _get_license_metadata(self) -> str:
-        """Get the license metadata from the build files."""
+    def _get_artifact_metadata(self) -> dict:
+        """Load and cache metadata from metadata.yaml if present.
+
+        Returns an empty dict when metadata is missing or cannot be parsed.
+        """
+        if hasattr(self, "_artifact_metadata"):
+            return self._artifact_metadata
+
         for _, lfa, _ in self.build.getFiles():
             if lfa.filename == "metadata.yaml":
                 lfa.open()
                 try:
                     content = lfa.read().decode("utf-8")
-                    metadata = yaml.safe_load(content)
-
-                    if "license" not in metadata:
-                        log.info(
-                            "No license found in metadata.yaml, returning \
-                            'unknown'."
-                        )
-                        return "unknown"
-
-                    return metadata.get("license")
-
+                    metadata = yaml.safe_load(content) or {}
+                    self._artifact_metadata = metadata
+                    return self._artifact_metadata
                 except yaml.YAMLError as e:
                     self.error_message = f"Failed to parse metadata.yaml: {e}"
-
                     log.info(self.error_message)
-                    return "unknown"
+                    self._artifact_metadata = {}
+                    return self._artifact_metadata
                 finally:
                     lfa.close()
 
         log.info("No metadata.yaml file found in the build files.")
-        return "unknown"
+        self._artifact_metadata = {}
+        return self._artifact_metadata
+
+    def _get_license_metadata(self) -> str:
+        """Get the license metadata from the cached metadata."""
+        metadata = self._get_artifact_metadata()
+        if "license" not in metadata:
+            log.info("No license found in metadata.yaml, returning 'unknown'.")
+            return "unknown"
+        return metadata.get("license")
+
+    def _get_version_metadata(self) -> str:
+        """Get the version metadata from the cached metadata."""
+        metadata = self._get_artifact_metadata()
+        if "version" not in metadata:
+            log.info("No version found in metadata.yaml, returning 'unknown'.")
+            return "unknown"
+        return str(metadata.get("version"))

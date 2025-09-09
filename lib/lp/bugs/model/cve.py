@@ -115,6 +115,18 @@ class Cve(StormBase, BugLinkTargetMixin):
             sorted(bulk.load(Bug, bug_ids), key=operator.attrgetter("id"))
         )
 
+    def getDistributionVulnerability(self, distribution):
+        """See `ICve`."""
+        return (
+            Store.of(self)
+            .find(
+                Vulnerability,
+                Vulnerability.cve == self,
+                Vulnerability.distribution_id == distribution.id,
+            )
+            .one()
+        )
+
     def getVulnerabilitiesVisibleToUser(self, user):
         """See `ICve`."""
         vulnerabilities = Store.of(self).find(

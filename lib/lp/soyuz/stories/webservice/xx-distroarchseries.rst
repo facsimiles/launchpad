@@ -49,6 +49,7 @@ For a distroarchseries we publish a subset of its attributes.
     self_link: 'http://.../ubuntu/hoary/i386'
     supports_virtualized: True
     title: 'The Hoary Hedgehog Release for i386 (386)'
+    underlying_architecture_tag: None
     web_link: 'http://launchpad.../ubuntu/hoary/i386'
 
 DistroArchSeries.enabled is published in the API devel version.
@@ -73,4 +74,5 @@ DistroArchSeries.enabled is published in the API devel version.
     self_link: 'http://.../ubuntu/hoary/i386'
     supports_virtualized: True
     title: 'The Hoary Hedgehog Release for i386 (386)'
+    underlying_architecture_tag: None
     web_link: 'http://launchpad.../ubuntu/hoary/i386'

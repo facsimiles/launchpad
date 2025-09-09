@@ -1410,9 +1410,15 @@ def expand_binary_requests(distroseries, binaries):
         published, as a sequence of (`DistroArchSeries`,
         `BinaryPackageRelease`, (overrides)) tuples.
     """
-
     archs = list(distroseries.enabled_architectures)
     arch_map = {arch.architecturetag: arch for arch in archs}
+    variant_map = {}
+    for arch in archs:
+        spf = arch.getSourceFilter()
+        if spf and arch.underlying_architecturetag:
+            variant_map.setdefault(arch.underlying_architecturetag, []).append(
+                (arch, spf)
+            )
 
     expanded = []
     for bpr, overrides in binaries.items():
@@ -1421,7 +1427,15 @@ def expand_binary_requests(distroseries, binaries):
             # build arch tag. If it does not exist or is disabled, we should
             # not publish.
             target_arch = arch_map.get((bpr.build or bpr.ci_build).arch_tag)
-            target_archs = [target_arch] if target_arch is not None else []
+            if target_arch is None:
+                continue
+            target_archs = [target_arch]
+            for variant_arch, spf in variant_map.get(
+                target_arch.architecturetag, []
+            ):
+                spn = bpr.build.source_package_release.sourcepackagename
+                if not spf.isSourceIncluded(spn):
+                    target_archs.append(variant_arch)
         else:
             target_archs = archs
         for target_arch in target_archs:

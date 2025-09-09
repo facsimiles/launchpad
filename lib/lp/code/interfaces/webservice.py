@@ -79,7 +79,7 @@ from lp.code.interfaces.sourcepackagerecipe import ISourcePackageRecipe
 from lp.code.interfaces.sourcepackagerecipebuild import (
     ISourcePackageRecipeBuild,
 )
-from lp.registry.interfaces.person import IPerson
+from lp.registry.interfaces.person import IPerson, IPersonViewRestricted
 from lp.registry.interfaces.product import IProduct
 from lp.registry.interfaces.sourcepackage import ISourcePackage
 from lp.services.fields import InlineObject
@@ -259,4 +259,9 @@ patch_collection_property(
 )
 patch_collection_property(
     ISourcePackageRecipe, "completed_builds", ISourcePackageRecipeBuild
+)
+
+# IPersonViewRestricted
+patch_collection_return_type(
+    IPersonViewRestricted, "getMergeProposals", IBranchMergeProposal
 )

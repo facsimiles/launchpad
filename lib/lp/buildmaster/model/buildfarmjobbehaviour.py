@@ -110,8 +110,16 @@ class BuildFarmJobBehaviourBase:
 
         launchpad_server_url = config.vhost.mainsite.hostname
         launchpad_instance = launchpad_urls.get(launchpad_server_url, "devel")
+        if self.distro_arch_series.underlying_architecturetag is not None:
+            abi_tag = self.distro_arch_series.underlying_architecturetag
+            isa_tag = self.distro_arch_series.architecturetag
+        else:
+            abi_tag = isa_tag = self.distro_arch_series.architecturetag
+
         return {
             "arch_tag": self.distro_arch_series.architecturetag,
+            "abi_tag": abi_tag,
+            "isa_tag": isa_tag,
             "archive_private": self.archive.private,
             "build_url": canonical_url(self.build),
             "builder_constraints": removeSecurityProxy(

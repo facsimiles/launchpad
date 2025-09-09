@@ -11,7 +11,7 @@ from lp.bugs.scripts.soss import SOSSRecord
 from lp.bugs.scripts.soss.sossimport import SOSSImporter
 from lp.registry.interfaces.externalpackage import ExternalPackageType
 from lp.registry.interfaces.sourcepackagename import ISourcePackageNameSet
-from lp.testing import TestCaseWithFactory, person_logged_in
+from lp.testing import TestCaseWithFactory
 from lp.testing.layers import LaunchpadZopelessLayer
 
 
@@ -33,6 +33,7 @@ class TestSOSSImporter(TestCaseWithFactory):
             name="soss",
             displayname="SOSS",
             owner=self.owner,
+            information_type=InformationType.PROPRIETARY,
         )
         transaction.commit()
 
@@ -76,15 +77,7 @@ class TestSOSSImporter(TestCaseWithFactory):
                     channel=("jammy:2.22.0", "stable"),
                 ),
                 BugTaskStatus.INVALID,
-                {"repositories": ["nvidia-pb3-python-stable-local"]},
-            ),
-            (
-                self.soss.getExternalPackage(
-                    name=ray,
-                    packagetype=ExternalPackageType.PYTHON,
-                    channel=("jammy:2.22.0", "stable"),
-                ),
-                BugTaskStatus.FIXRELEASED,
+                "",
                 {"repositories": ["nvidia-pb3-python-stable-local"]},
             ),
             (
@@ -94,6 +87,17 @@ class TestSOSSImporter(TestCaseWithFactory):
                     channel=("jammy:1.17.0", "stable"),
                 ),
                 BugTaskStatus.INVALID,
+                "2.22.0+soss.1",
+                {"repositories": ["nvidia-pb3-python-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=ray,
+                    packagetype=ExternalPackageType.PYTHON,
+                    channel=("jammy:2.22.0", "stable"),
+                ),
+                BugTaskStatus.FIXRELEASED,
+                "2.22.0+soss.1",
                 {"repositories": ["nvidia-pb3-python-stable-local"]},
             ),
             (
@@ -103,16 +107,8 @@ class TestSOSSImporter(TestCaseWithFactory):
                     channel=("focal:0.27.0", "stable"),
                 ),
                 BugTaskStatus.DEFERRED,
+                "2.22.0+soss.1",
                 {"repositories": ["nvidia-pb3-python-stable-local"]},
-            ),
-            (
-                self.soss.getExternalPackage(
-                    name=vllm,
-                    packagetype=ExternalPackageType.GENERIC,
-                    channel=("noble:0.7.3", "stable"),
-                ),
-                BugTaskStatus.NEW,
-                {"repositories": ["soss-src-stable-local"]},
             ),
             (
                 self.soss.getExternalPackage(
@@ -121,6 +117,17 @@ class TestSOSSImporter(TestCaseWithFactory):
                     channel=("noble:0.7.3", "stable"),
                 ),
                 BugTaskStatus.UNKNOWN,
+                "",
+                {"repositories": ["soss-src-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=vllm,
+                    packagetype=ExternalPackageType.GENERIC,
+                    channel=("noble:0.7.3", "stable"),
+                ),
+                BugTaskStatus.NEW,
+                "",
                 {"repositories": ["soss-src-stable-local"]},
             ),
         ]
@@ -165,9 +172,14 @@ class TestSOSSImporter(TestCaseWithFactory):
     ):
         self.assertEqual(len(bugtasks), len(bugtask_reference))
 
-        for i, (target, status, metadata) in enumerate(bugtask_reference):
+        for i, (target, status, status_explanation, metadata) in enumerate(
+            bugtask_reference
+        ):
             self.assertEqual(bugtasks[i].target, target)
             self.assertEqual(bugtasks[i].status, status)
+            self.assertEqual(
+                bugtasks[i].status_explanation, status_explanation
+            )
             self.assertEqual(bugtasks[i].importance, importance)
             self.assertEqual(bugtasks[i].assignee, assignee)
             self.assertEqual(bugtasks[i].metadata, metadata)
@@ -176,7 +188,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         """Helper function to check the imported bug"""
         self.assertEqual(bug.description, self.description)
         self.assertEqual(bug.title, self.cve.sequence)
-        self.assertEqual(bug.information_type, InformationType.PRIVATESECURITY)
+        self.assertEqual(bug.information_type, InformationType.PROPRIETARY)
         self.assertEqual(bug.owner, self.bug_importer)
 
         self._check_bugtasks(
@@ -199,7 +211,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(vulnerability.date_notice_issued, None)
         self.assertEqual(vulnerability.date_coordinated_release, None)
         self.assertEqual(
-            vulnerability.information_type, InformationType.PRIVATESECURITY
+            vulnerability.information_type, InformationType.PROPRIETARY
         )
         self.assertEqual(vulnerability.importance, BugTaskImportance.LOW)
         self.assertEqual(
@@ -224,7 +236,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         file = self.sampledata / "CVE-2025-1979"
 
         soss_importer = SOSSImporter(
-            information_type=InformationType.PRIVATESECURITY
+            information_type=InformationType.PROPRIETARY
         )
         bug, vulnerability = soss_importer.import_cve_from_file(file)
 
@@ -234,10 +246,14 @@ class TestSOSSImporter(TestCaseWithFactory):
         # Check vulnerability
         self._check_vulnerability_fields(vulnerability, bug)
 
+        # Import again to check that it doesn't create new objects
+        bug_copy, vulnerability_copy = soss_importer.import_cve_from_file(file)
+        self.assertEqual(bug, bug_copy)
+        self.assertEqual(vulnerability, vulnerability_copy)
+
     def test_create_update_bug(self):
         """Test create and update a bug from a SOSS cve file"""
-        with person_logged_in(self.bug_importer):
-            bug = SOSSImporter()._create_bug(self.soss_record, self.cve)
+        bug = SOSSImporter()._create_bug(self.soss_record, self.cve)
 
         self._check_bug_fields(bug, self.bugtask_reference)
 
@@ -262,14 +278,14 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.RUST)
 
         bug = SOSSImporter(
-            information_type=InformationType.PUBLICSECURITY
+            information_type=InformationType.PROPRIETARY
         )._update_bug(bug, self.soss_record, new_cve)
         transaction.commit()
 
         # Check bug fields
         self.assertEqual(bug.description, new_description)
         self.assertEqual(bug.title, new_cve.sequence)
-        self.assertEqual(bug.information_type, InformationType.PUBLICSECURITY)
+        self.assertEqual(bug.information_type, InformationType.PROPRIETARY)
 
         # Check bugtasks
         bugtasks = bug.bugtasks
@@ -281,11 +297,10 @@ class TestSOSSImporter(TestCaseWithFactory):
     def test_create_update_vulnerability(self):
         """Test create and update a vulnerability from a SOSS cve file"""
         soss_importer = SOSSImporter()
-        with person_logged_in(self.bug_importer):
-            bug = soss_importer._create_bug(self.soss_record, self.cve)
-            vulnerability = soss_importer._create_vulnerability(
-                bug, self.soss_record, self.cve, self.soss
-            )
+        bug = soss_importer._create_bug(self.soss_record, self.cve)
+        vulnerability = soss_importer._create_vulnerability(
+            bug, self.soss_record, self.cve, self.soss
+        )
 
         self.assertEqual(vulnerability.distribution, self.soss)
         self.assertEqual(
@@ -298,7 +313,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(vulnerability.date_notice_issued, None)
         self.assertEqual(vulnerability.date_coordinated_release, None)
         self.assertEqual(
-            vulnerability.information_type, InformationType.PRIVATESECURITY
+            vulnerability.information_type, InformationType.PROPRIETARY
         )
         self.assertEqual(vulnerability.importance, BugTaskImportance.LOW)
         self.assertEqual(
@@ -321,8 +336,7 @@ class TestSOSSImporter(TestCaseWithFactory):
     def test_create_or_update_bugtasks(self):
         """Test update bugtasks"""
         soss_importer = SOSSImporter()
-        with person_logged_in(self.bug_importer):
-            bug = soss_importer._create_bug(self.soss_record, self.cve)
+        bug = soss_importer._create_bug(self.soss_record, self.cve)
 
         self._check_bugtasks(
             bug.bugtasks,
@@ -356,6 +370,7 @@ class TestSOSSImporter(TestCaseWithFactory):
                 channel=("noble:4.23.1", "stable"),
             ),
             BugTaskStatus.DEFERRED,
+            "test note",
             {"repositories": ["test-repo"]},
         )
 
@@ -407,13 +422,13 @@ class TestSOSSImporter(TestCaseWithFactory):
             ],
             SOSSRecord.PackageTypeEnum.UNPACKAGED,
         )
-        self.assertEqual(generic_pkg, self.bugtask_reference[4][0])
+        self.assertEqual(generic_pkg, self.bugtask_reference[5][0])
 
         maven_pkg = soss_importer._get_or_create_external_package(
             self.soss_record.packages[SOSSRecord.PackageTypeEnum.MAVEN][0],
             SOSSRecord.PackageTypeEnum.MAVEN,
         )
-        self.assertEqual(maven_pkg, self.bugtask_reference[5][0])
+        self.assertEqual(maven_pkg, self.bugtask_reference[4][0])
 
     def test_prepare_cvss_data(self):
         """Test prepare the cvss json"""

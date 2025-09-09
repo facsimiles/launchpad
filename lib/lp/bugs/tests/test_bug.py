@@ -334,6 +334,26 @@ class TestBugCreation(TestCaseWithFactory):
             assignee=person_2,
         )
 
+    def test_CreateBugParams_accepts_validate_asignee_changes(self):
+        # createBug() will accept any assignee change if validate_assignee
+        # equals false
+        person = self.factory.makePerson()
+        person_2 = self.factory.makePerson()
+        target = self.factory.makeProduct()
+        # Setting the target's bug supervisor means that
+        # canTransitionToAssignee() will return False for `person` if
+        # another Person is passed as `assignee`.
+        with person_logged_in(target.owner):
+            target.bug_supervisor = target.owner
+
+        bug = self.createBug(
+            owner=person,
+            target=target,
+            assignee=person_2,
+            validate_assignee=False,
+        )
+        self.assertEqual(person_2, bug.default_bugtask.assignee)
+
     def test_CreateBugParams_rejects_not_allowed_milestone_changes(self):
         # createBug() will reject any importance value passed by users
         # who don't have the right to set the milestone.

@@ -739,7 +739,7 @@ class IGitRepositoryView(IHasRecipes, IAccessTokenTarget):
 
     @operation_parameters(
         status=List(
-            title=_("A list of merge proposal statuses to filter by."),
+            title=_("A list of statuses to filter the merge proposals by."),
             value_type=Choice(vocabulary=BranchMergeProposalStatus),
         ),
         merged_revision_ids=List(
@@ -769,12 +769,6 @@ class IGitRepositoryView(IHasRecipes, IAccessTokenTarget):
         "Whether there are recent changes in this repository that have not "
         "yet been scanned."
     )
-
-    def checkCommitInRef(commit, ref):
-        """Check if a commit exists in a git ref.
-        :param commit: the commit sha1 to look for.
-        :param ref: the git reference path where it will look.
-        """
 
     def updateMergeCommitIDs(paths):
         """Update commit SHA1s of merge proposals for this repository.

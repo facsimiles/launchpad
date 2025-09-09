@@ -1385,7 +1385,13 @@ class DistroSeries(
         return DecoratedResultSet(package_caches, result_to_dsbp)
 
     def newArch(
-        self, architecturetag, processor, official, owner, enabled=True
+        self,
+        architecturetag,
+        processor,
+        official,
+        owner,
+        enabled=True,
+        underlying_architecturetag=None,
     ):
         """See `IDistroSeries`."""
         das = DistroArchSeries(
@@ -1395,6 +1401,7 @@ class DistroSeries(
             distroseries=self,
             owner=owner,
             enabled=enabled,
+            underlying_architecturetag=underlying_architecturetag,
         )
         IStore(das).flush()
         return das
