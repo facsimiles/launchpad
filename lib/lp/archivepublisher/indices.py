@@ -185,9 +185,16 @@ def build_binary_stanza_fields(
     # Present 'all' in every archive index for architecture
     # independent binaries.
     if bpr.architecturespecific:
-        architecture = bpr.build.distro_arch_series.architecturetag
+        if bpr.build.distro_arch_series.underlying_architecturetag:
+            architecture = (
+                bpr.build.distro_arch_series.underlying_architecturetag
+            )
+        else:
+            architecture = bpr.build.distro_arch_series.architecturetag
     else:
         architecture = "all"
+
+    architecture_variant = bpr.getUserDefinedField("Architecture-Variant")
 
     essential = None
     if bpr.essential:
@@ -207,6 +214,8 @@ def build_binary_stanza_fields(
     fields.append("Installed-Size", bpr.installedsize)
     fields.append("Maintainer", spr.dsc_maintainer_rfc822)
     fields.append("Architecture", architecture)
+    if architecture_variant is not None:
+        fields.append("Architecture-Variant", architecture_variant)
     fields.append("Version", bpr.version)
     fields.append("Recommends", bpr.recommends)
     fields.append("Replaces", bpr.replaces)
