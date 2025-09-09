@@ -52,14 +52,17 @@ class InitializationHelperTestCase(TestCaseWithFactory):
     # - setup/populate parents with packages;
     # - initialize a child from parents.
 
-    def setupDas(self, parent, processor_name, arch_tag):
+    def setupDas(self, parent, processor_name, arch_tag, **kw):
         try:
             processor = getUtility(IProcessorSet).getByName(processor_name)
         except ProcessorNotFound:
             processor = self.factory.makeProcessor(name=processor_name)
         processor.supports_virtualized = True
         parent_das = self.factory.makeDistroArchSeries(
-            distroseries=parent, processor=processor, architecturetag=arch_tag
+            distroseries=parent,
+            processor=processor,
+            architecturetag=arch_tag,
+            **kw,
         )
         lf = self.factory.makeLibraryFileAlias()
         transaction.commit()
@@ -870,6 +873,42 @@ class TestInitializeDistroSeries(InitializationHelperTestCase):
         self.assertEqual(len(das), 1)
         self.assertEqual(
             das[0].architecturetag, self.parent_das.architecturetag
+        )
+
+    def test_initialize_variant(self):
+        # Initializing a distroseries when a distroarchseries has an
+        # underlying_architecturetag preserves the underlying_architecturetag.
+        parent, parent_das = self.setupParent()
+        underlying_archtag = parent_das.architecturetag
+        variant_archtag = underlying_archtag + "v2"
+        # Add a variant of parent_das
+        parent_das_v = self.setupDas(
+            parent=parent,
+            processor_name=parent_das.processor.name + "v2",
+            arch_tag=variant_archtag,
+            underlying_architecturetag=underlying_archtag,
+        )
+        child = self._fullInitialize(
+            [parent],
+            distribution=parent.distribution,
+            previous_series=parent,
+        )
+        # Both dases were copied.
+        self.assertEqual(
+            IStore(DistroArchSeries)
+            .find(DistroArchSeries, distroseries=child)
+            .count(),
+            2,
+        )
+        # Both architecturetag and underlying_architecturetag were copied when
+        # creating the dases for the child.
+        child_das = child[parent_das.architecturetag]
+        child_das_v = child[parent_das_v.architecturetag]
+        self.assertEqual(child_das.architecturetag, underlying_archtag)
+        self.assertIs(child_das.underlying_architecturetag, None)
+        self.assertEqual(child_das_v.architecturetag, variant_archtag)
+        self.assertEqual(
+            child_das_v.underlying_architecturetag, underlying_archtag
         )
 
     def test_copying_packagesets(self):

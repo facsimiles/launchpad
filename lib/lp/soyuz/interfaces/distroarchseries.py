@@ -105,6 +105,18 @@ class IDistroArchSeriesPublic(IHasBuildRecords, IHasOwner):
         ),
         exported_as="architecture_tag",
     )
+    underlying_architecturetag = exported(
+        TextLine(
+            title=_("Underlying Architecture Tag"),
+            description=_(
+                "If set, identifies architecture_tag as a 'variant' of the "
+                "specified architecture."
+            ),
+            required=False,
+            constraint=name_validator,
+        ),
+        exported_as="underlying_architecture_tag",
+    )
     official = exported(
         Bool(
             title=_("Official Support"),
