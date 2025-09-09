@@ -67,7 +67,7 @@ class TestBuildInfoFile(PackageUploadFileTestCase):
                 "0.42",
                 self.createChangesFile("foo_0.1-1_%s.changes" % arch, changes),
             )
-            self.assertEqual(arch, buildinfofile.architecture)
+            self.assertEqual(arch, buildinfofile.filename_archtag)
             self.assertEqual(is_sourceful, buildinfofile.is_sourceful)
             self.assertEqual(is_binaryful, buildinfofile.is_binaryful)
             self.assertEqual(is_archindep, buildinfofile.is_archindep)

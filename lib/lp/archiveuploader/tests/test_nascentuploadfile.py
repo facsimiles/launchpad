@@ -43,8 +43,14 @@ from lp.soyuz.enums import (
     PackagePublishingStatus,
     PackageUploadCustomFormat,
 )
-from lp.testing import TestCaseWithFactory
-from lp.testing.layers import LaunchpadZopelessLayer, ZopelessDatabaseLayer
+from lp.testing import (
+    TestCase,
+    TestCaseWithFactory,
+)
+from lp.testing.layers import (
+    LaunchpadZopelessLayer,
+    ZopelessDatabaseLayer,
+)
 
 
 class NascentUploadFileTestCase(TestCaseWithFactory):
@@ -874,6 +880,39 @@ class DebBinaryUploadFileTests(PackageUploadFileTestCase):
         self.assertEqual(BuildStatus.FULLYBUILT, build.status)
         self.assertIs(None, build.upload_log)
 
+    def test_checkBuild_variant(self):
+        # checkBuild() verifies consistency with a build.
+        self.factory.makeDistroArchSeries(
+            distroseries=self.policy.distroseries, architecturetag="amd64"
+        )
+        das = self.factory.makeDistroArchSeries(
+            distroseries=self.policy.distroseries,
+            architecturetag="amd64v3",
+            underlying_architecturetag="amd64",
+        )
+        build = self.factory.makeBinaryPackageBuild(
+            distroarchseries=das, archive=self.policy.archive
+        )
+        control = self.getBaseControl()
+        control["Architecture"] = b"amd64"
+        control["Architecture-Variant"] = b"amd64v3"
+        uploadfile = self.createDebBinaryUploadFile(
+            "foo_0.42_amd64v3.deb",
+            "main/python",
+            "unknown",
+            "mypkg",
+            "0.42",
+            None,
+            control=control,
+            data_format="gz",
+            control_format="gz",
+        )
+        uploadfile.checkBuild(build)
+        # checkBuild() sets the build status to FULLYBUILT and
+        # removes the upload log.
+        self.assertEqual(BuildStatus.FULLYBUILT, build.status)
+        self.assertIs(None, build.upload_log)
+
     def test_checkBuild_inconsistent(self):
         # checkBuild() raises UploadError if inconsistencies between build
         # and upload file are found.
@@ -982,4 +1021,199 @@ class DebBinaryUploadFileTests(PackageUploadFileTestCase):
         uploadfile.parseControl(control)
         self.assertEqual(
             spph2.sourcepackagerelease, uploadfile.findSourcePackageRelease()
+        )
+
+
+class FakeDAS:
+    def __init__(self, arch_tag):
+        self.architecturetag = arch_tag
+
+
+class FakeSeries:
+    def __init__(self, valid_arches):
+        self.architectures = [FakeDAS(arch_tag) for arch_tag in valid_arches]
+
+
+class FakePolicy:
+    def __init__(self, series):
+        self.distroseries = series
+
+
+class FakeChanges:
+    def __init__(self, architectures, architecture_variants):
+        self.architectures = architectures
+        self.architecture_variants = architecture_variants
+
+
+class DebBinaryUploadFileUnitTests(TestCase):
+
+    layer = ZopelessDatabaseLayer
+
+    def abiIsaErrorsFor(
+        self, *, filename, control_fields, changes_fields, valid_arches
+    ):
+
+        policy = FakePolicy(FakeSeries(valid_arches))
+
+        changes = FakeChanges(
+            architectures=changes_fields["Architecture"].split(),
+            architecture_variants=set(
+                changes_fields.get("Architecture-Variant", "").split()
+            ),
+        )
+
+        uploadfile = DebBinaryUploadFile(
+            filepath=filename,
+            md5={},
+            size=0,
+            component_and_section="main/misc",
+            priority_name="optional",
+            package=None,
+            version=None,
+            changes=changes,
+            policy=policy,
+            logger=None,
+        )
+        uploadfile.parseControl(
+            {k: v.encode() for k, v in control_fields.items()},
+        )
+        result = []
+        for error in uploadfile.verifyABIAndISATags():
+            if not isinstance(error, UploadError):
+                self.fail(
+                    f"verifyABIAndISATags yielded wrong kind of error: {error}"
+                )
+            error = str(error)
+            if not error.startswith(filename + ": "):
+                self.fail(
+                    "verifyABIAndISATags yielded error without expected "
+                    f"prefix: {error}"
+                )
+            error = error.replace(filename + ": ", "", 1)
+            result.append(str(error))
+        return result
+
+    def test_verifyABIAndISATags_ok_no_variant(self):
+        self.assertEqual(
+            self.abiIsaErrorsFor(
+                filename="foo_1.0_amd64.deb",
+                control_fields={"Architecture": "amd64"},
+                changes_fields={"Architecture": "amd64"},
+                valid_arches=["amd64"],
+            ),
+            [],
+        )
+
+    def test_verifyABIAndISATags_ok_with_variant(self):
+        self.assertEqual(
+            self.abiIsaErrorsFor(
+                filename="foo_1.0_amd64v3.deb",
+                control_fields={
+                    "Architecture": "amd64",
+                    "Architecture-Variant": "amd64v3",
+                },
+                changes_fields={
+                    "Architecture": "amd64",
+                    "Architecture-Variant": "amd64v3",
+                },
+                valid_arches=["amd64", "amd64v3"],
+            ),
+            [],
+        )
+
+    def test_verifyABIAndISATags_arch_does_not_match_filename(self):
+        self.assertEqual(
+            self.abiIsaErrorsFor(
+                filename="foo_1.0_i386.deb",
+                control_fields={"Architecture": "amd64"},
+                changes_fields={"Architecture": "amd64"},
+                valid_arches=["amd64"],
+            ),
+            [
+                "control file lists ISA as 'amd64' which doesn't agree with "
+                "'i386' in the filename.",
+            ],
+        )
+
+    def test_verifyABIAndISATags_unknown_abi_tag(self):
+        self.assertEqual(
+            self.abiIsaErrorsFor(
+                filename="foo_1.0_amd64.deb",
+                control_fields={"Architecture": "amd64"},
+                changes_fields={"Architecture": "amd64"},
+                valid_arches=["i386"],
+            ),
+            [
+                "Unknown architecture: 'amd64'",
+            ],
+        )
+
+    def test_verifyABIAndISATags_arch_not_in_changes(self):
+        self.assertEqual(
+            self.abiIsaErrorsFor(
+                filename="foo_1.0_amd64.deb",
+                control_fields={"Architecture": "amd64"},
+                changes_fields={"Architecture": "i386"},
+                valid_arches=["amd64"],
+            ),
+            [
+                "control file lists arch as 'amd64' which isn't in the "
+                "changes file.",
+            ],
+        )
+
+    def test_verifyABIAndISATags_variant_does_not_match_filename(self):
+        self.assertEqual(
+            self.abiIsaErrorsFor(
+                filename="foo_1.0_amd64.deb",
+                control_fields={
+                    "Architecture": "amd64",
+                    "Architecture-Variant": "amd64v3",
+                },
+                changes_fields={
+                    "Architecture": "amd64",
+                    "Architecture-Variant": "amd64v3",
+                },
+                valid_arches=["amd64", "amd64v3"],
+            ),
+            [
+                "control file lists ISA as 'amd64v3' which doesn't agree "
+                "with 'amd64' in the filename."
+            ],
+        )
+
+    def test_verifyABIAndISATags_variant_not_in_changes(self):
+        self.assertEqual(
+            self.abiIsaErrorsFor(
+                filename="foo_1.0_amd64v3.deb",
+                control_fields={
+                    "Architecture": "amd64",
+                    "Architecture-Variant": "amd64v3",
+                },
+                changes_fields={
+                    "Architecture": "amd64",
+                },
+                valid_arches=["amd64", "amd64v3"],
+            ),
+            [
+                "control file lists arch variant as 'amd64v3' which isn't in "
+                "the changes file.",
+            ],
+        )
+
+    def test_verifyABIAndISATags_unknown_variant(self):
+        self.assertEqual(
+            self.abiIsaErrorsFor(
+                filename="foo_1.0_amd64v3.deb",
+                control_fields={
+                    "Architecture": "amd64",
+                    "Architecture-Variant": "amd64v3",
+                },
+                changes_fields={
+                    "Architecture": "amd64",
+                    "Architecture-Variant": "amd64v3",
+                },
+                valid_arches=["amd64"],
+            ),
+            ["Unknown architecture variant: 'amd64v3'"],
         )

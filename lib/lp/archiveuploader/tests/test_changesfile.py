@@ -296,6 +296,22 @@ class ChangesFileTests(TestCase):
         self.assertEqual("i386", changes.architecture_line)
         self.assertEqual({"i386"}, changes.architectures)
 
+    def test_architecture_variants(self):
+        # The architecture variants get extracted from the changes
+        # file and parsed correctly.
+        changes = self.createChangesFile(
+            "mypkg_0.1_i386.changes", self.getBaseChanges()
+        )
+        self.assertEqual(set(), changes.architecture_variants)
+        contents = self.getBaseChanges()
+        contents["Architecture-Variant"] = "i386sse"
+        changes = self.createChangesFile("mypkg_0.1_i386.changes", contents)
+        self.assertEqual({"i386sse"}, changes.architecture_variants)
+        contents = self.getBaseChanges()
+        contents["Architecture-Variant"] = "i386sse i386avx"
+        changes = self.createChangesFile("mypkg_0.1_i386.changes", contents)
+        self.assertEqual({"i386sse", "i386avx"}, changes.architecture_variants)
+
     def test_source(self):
         # The source package name gets extracted from the changes file.
         changes = self.createChangesFile(
