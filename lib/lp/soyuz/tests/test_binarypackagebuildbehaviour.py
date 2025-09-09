@@ -164,6 +164,8 @@ class TestBinaryBuildPackageBehaviour(StatsMixin, TestCaseWithFactory):
         extra_args = {
             "arch_indep": arch_indep,
             "arch_tag": das.architecturetag,
+            "abi_tag": das.architecturetag,
+            "isa_tag": das.architecturetag,
             "archive_private": archive.private,
             "archive_purpose": archive_purpose.name,
             "archives": archives,

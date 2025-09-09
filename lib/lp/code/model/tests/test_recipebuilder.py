@@ -204,6 +204,8 @@ class TestAsyncRecipeBuilder(TestRecipeBuilderBase):
         self.assertEqual(
             {
                 "arch_tag": "i386",
+                "abi_tag": "i386",
+                "isa_tag": "i386",
                 "archive_private": False,
                 "archive_purpose": "PPA",
                 "archives": expected_archives,
@@ -308,6 +310,8 @@ class TestAsyncRecipeBuilder(TestRecipeBuilderBase):
         self.assertEqual(
             {
                 "arch_tag": "i386",
+                "abi_tag": "i386",
+                "isa_tag": "i386",
                 "archive_private": False,
                 "archive_purpose": "PPA",
                 "archives": expected_archives,
@@ -359,6 +363,8 @@ class TestAsyncRecipeBuilder(TestRecipeBuilderBase):
         self.assertEqual(
             {
                 "arch_tag": "i386",
+                "abi_tag": "i386",
+                "isa_tag": "i386",
                 "archive_private": False,
                 "archive_purpose": "PPA",
                 "archives": expected_archives,

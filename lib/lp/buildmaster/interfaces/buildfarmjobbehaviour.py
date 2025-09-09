@@ -27,8 +27,13 @@ class BuildArgs(TypedDict, total=False):
     # True if this build should build architecture-independent packages
     # as well as architecture-dependent packages [binarypackage].
     arch_indep: bool
-    # The architecture tag to build for.
+    # The architecture tag to build for. (deprecated in favor of
+    # abi_tag and isa_tag)
     arch_tag: str
+    # The architecture (i.e. ABI) tag to build for.
+    abi_tag: str
+    # The ISA tag to build for.
+    isa_tag: str
     # Whether this is a build in a private archive.  (This causes URLs
     # in the build log to be sanitized.)
     archive_private: bool
