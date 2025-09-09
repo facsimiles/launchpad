@@ -10,11 +10,13 @@ from testtools.testcase import ExpectedException
 from zope.component import getUtility
 from zope.security.proxy import removeSecurityProxy
 
+from lp.app.enums import InformationType
 from lp.bugs.interfaces.bugtasksearch import BugTaskSearchParams
 from lp.bugs.interfaces.cve import CveStatus, ICveSet
 from lp.bugs.scripts.uct.models import CVSS
 from lp.testing import (
     TestCaseWithFactory,
+    admin_logged_in,
     login_person,
     person_logged_in,
     verifyObject,
@@ -357,3 +359,27 @@ class TestCve(TestCaseWithFactory):
             },
             unproxied_cve.cvss,
         )
+
+    def test_getDistributionVulnerability(self):
+        cve = self.factory.makeCVE(sequence="2099-1234")
+        distribution = self.factory.makeDistribution(
+            information_type=InformationType.PROPRIETARY
+        )
+        vulnerability = self.factory.makeVulnerability(
+            distribution=distribution,
+            cve=cve,
+            information_type=InformationType.PROPRIETARY,
+        )
+
+        # getDistributionVulnerability returns the vulnerability although we
+        # are not logged in
+        self.assertEqual(
+            vulnerability, cve.getDistributionVulnerability(distribution)
+        )
+
+        # As we are not logged as an user, cve.vulnerabilities is empty
+        self.assertEqual(len(list(cve.vulnerabilities)), 0)
+
+        # Admin can see the PROPRIETARY vulnerability
+        with admin_logged_in():
+            self.assertEqual(vulnerability, cve.vulnerabilities[0])

@@ -312,6 +312,8 @@ class GenericGitCollection:
         merged_revision_ids=None,
         merge_proposal_ids=None,
         eager_load=False,
+        created_before=None,
+        created_since=None,
     ):
         """See `IGitCollection`."""
         if merged_revision_ids is not None and not merged_revision_ids:
@@ -325,6 +327,8 @@ class GenericGitCollection:
             or prerequisite_path is not None
             or merged_revision_ids is not None
             or merge_proposal_ids is not None
+            or created_before is not None
+            or created_since is not None
         ):
             return self._naiveGetMergeProposals(
                 statuses,
@@ -334,6 +338,8 @@ class GenericGitCollection:
                 prerequisite_path,
                 merged_revision_ids,
                 merge_proposal_ids,
+                created_before=created_before,
+                created_since=created_since,
                 eager_load=eager_load,
             )
         else:
@@ -354,6 +360,8 @@ class GenericGitCollection:
         merged_revision_ids=None,
         merge_proposal_ids=None,
         eager_load=False,
+        created_before=None,
+        created_since=None,
     ):
         Target = ClassAlias(GitRepository, "target")
         extra_tables = list(
@@ -412,6 +420,14 @@ class GenericGitCollection:
         if statuses is not None:
             expressions.append(
                 BranchMergeProposal.queue_status.is_in(statuses)
+            )
+        if created_before is not None:
+            expressions.append(
+                BranchMergeProposal.date_created < created_before
+            )
+        if created_since is not None:
+            expressions.append(
+                BranchMergeProposal.date_created >= created_since
             )
         resultset = self.store.using(*tables).find(
             BranchMergeProposal, *expressions

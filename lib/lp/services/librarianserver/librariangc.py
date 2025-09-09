@@ -673,8 +673,8 @@ def delete_unwanted_files(con):
     con.rollback()
     orig_autocommit = con.autocommit
     try:
-        # Disable autocommit so that we can use named cursors.
-        con.autocommit = False
+        # Enable autocommit so that each query gets closed automatically.
+        con.autocommit = True
         delete_unwanted_disk_files(con)
         swift_enabled = getFeatureFlag("librarian.swift.enabled") or False
         if swift_enabled:

@@ -1270,6 +1270,8 @@ class Product(
         owner=None,
         needs_attention_from=None,
         unsupported=False,
+        created_before=None,
+        created_since=None,
     ):
         """See `IQuestionCollection`."""
         if unsupported:
@@ -1286,6 +1288,8 @@ class Product(
             owner=owner,
             needs_attention_from=needs_attention_from,
             unsupported_target=unsupported_target,
+            created_before=created_before,
+            created_since=created_since,
         ).getResults()
 
     def getTargetTypes(self):

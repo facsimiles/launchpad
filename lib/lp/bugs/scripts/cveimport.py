@@ -374,6 +374,16 @@ class CVEUpdater(LaunchpadCronScript):
             # extract the outer zip file
             with zipfile.ZipFile(outer_zip_path) as outer_zf:
                 if delta:
+                    target_dir = os.path.join(temp_dir, "deltaCves")
+
+                    # If there are no delta cves, we return an empty dir
+                    if not outer_zf.namelist():
+                        self.logger.info(
+                            "Zip file is empty: there are no delta changes"
+                        )
+                        os.mkdir(target_dir)
+                        return target_dir
+
                     # for delta, extract deltacves directory
                     members = [
                         m
@@ -381,7 +391,6 @@ class CVEUpdater(LaunchpadCronScript):
                         if m.startswith("deltaCves/")
                     ]
                     outer_zf.extractall(temp_dir, members=members)
-                    target_dir = os.path.join(temp_dir, "deltaCves")
                 else:
                     # for baseline, handle nested zip structure
                     outer_zf.extract("cves.zip", temp_dir)
@@ -727,7 +736,7 @@ class CVEUpdater(LaunchpadCronScript):
         for ref in references:
             url = ref.get("url")
             source = "external"  # default source
-            content = ref.get("name", "")
+            content = ref.get("name", url)
 
             # look for existing reference
             was_there_previously = False

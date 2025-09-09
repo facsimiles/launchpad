@@ -490,6 +490,8 @@ class TestAsyncOCIRecipeBuildBehaviour(
                     "archive_private": Is(False),
                     "archives": Equals(expected_archives),
                     "arch_tag": Equals("i386"),
+                    "isa_tag": Equals("i386"),
+                    "abi_tag": Equals("i386"),
                     "build_file": Equals(job.build.recipe.build_file),
                     "build_args": Equals(
                         {"BUILD_VAR": "123", "LAUNCHPAD_BUILD_ARCH": arch_tag}
@@ -569,6 +571,8 @@ class TestAsyncOCIRecipeBuildBehaviour(
                     "archive_private": Is(False),
                     "archives": Equals(expected_archives),
                     "arch_tag": Equals("i386"),
+                    "isa_tag": Equals("i386"),
+                    "abi_tag": Equals("i386"),
                     "build_file": Equals(job.build.recipe.build_file),
                     "build_args": Equals(
                         {"BUILD_VAR": "123", "LAUNCHPAD_BUILD_ARCH": arch_tag}
@@ -660,6 +664,8 @@ class TestAsyncOCIRecipeBuildBehaviour(
                     "archive_private": Is(False),
                     "archives": Equals(expected_archives),
                     "arch_tag": Equals("i386"),
+                    "isa_tag": Equals("i386"),
+                    "abi_tag": Equals("i386"),
                     "build_file": Equals(job.build.recipe.build_file),
                     "build_args": Equals(
                         {"BUILD_VAR": "123", "LAUNCHPAD_BUILD_ARCH": arch_tag}

@@ -21,7 +21,7 @@ from lazr.restful.declarations import (
 )
 from lazr.restful.fields import ReferenceChoice
 from zope.interface import Attribute, Interface
-from zope.schema import Choice, Int, List, TextLine
+from zope.schema import Choice, Datetime, Int, List, TextLine
 
 from lp import _
 from lp.answers.enums import (
@@ -48,6 +48,20 @@ class IQuestionCollection(Interface):
             value_type=ReferenceChoice(vocabulary="Language"),
         ),
         sort=Choice(title=_("Sort"), required=False, vocabulary=QuestionSort),
+        created_before=Datetime(
+            title=_(
+                "Search for questions that were created "
+                "before the given date."
+            ),
+            required=False,
+        ),
+        created_since=Datetime(
+            title=_(
+                "Search for questions that were created "
+                "since the given date."
+            ),
+            required=False,
+        ),
     )
     @operation_returns_collection_of(Interface)  # IQuestion.
     @export_read_operation()
@@ -57,6 +71,8 @@ class IQuestionCollection(Interface):
         status=list(QUESTION_STATUS_DEFAULT_SEARCH),
         language=None,
         sort=None,
+        created_before=None,
+        created_since=None,
     ):
         """Return the questions from the collection matching search criteria.
 
@@ -74,6 +90,12 @@ class IQuestionCollection(Interface):
         :param sort: An attribute of QuestionSort. If None, a default value is
             used. When there is a search_text value, the default is to sort by
             RELEVANCY, otherwise results are sorted NEWEST_FIRST.
+
+        :param created_since: Only return results whose `datecreated` property
+            is greater than or equal to this date.
+
+        :param created_before: Only return results whose `datecreated` property
+            is smaller than this date.
         """
 
     def getQuestionLanguages():
@@ -118,6 +140,8 @@ class ISearchableByQuestionOwner(IQuestionCollection):
         sort=None,
         owner=None,
         needs_attention_from=None,
+        created_before=None,
+        created_since=None,
     ):
         """Return the questions from the collection matching search criteria.
 
@@ -139,6 +163,10 @@ class ISearchableByQuestionOwner(IQuestionCollection):
         :param sort: An attribute of QuestionSort. If None, a default value is
             used. When there is a search_text value, the default is to sort by
             RELEVANCY, otherwise results are sorted NEWEST_FIRST.
+        :param created_since: Only return results whose `datecreated` property
+            is greater than or equal to this date.
+        :param created_before: Only return results whose `datecreated` property
+            is smaller than this date.
         """
 
 

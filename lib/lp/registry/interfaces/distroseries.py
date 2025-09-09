@@ -1000,7 +1000,14 @@ class IDistroSeriesPublic(
         :return: A new `PackageUpload`.
         """
 
-    def newArch(architecturetag, processor, official, owner, enabled=True):
+    def newArch(
+        architecturetag,
+        processor,
+        official,
+        owner,
+        enabled=True,
+        underlying_architecturetag=None,
+    ):
         """Create a new port or DistroArchSeries for this DistroSeries."""
 
     def getPOFileContributorsByLanguage(language):

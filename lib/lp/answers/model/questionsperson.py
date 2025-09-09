@@ -28,6 +28,8 @@ class QuestionsPersonMixin:
         sort=None,
         participation=None,
         needs_attention=None,
+        created_before=None,
+        created_since=None,
     ):
         """See `IQuestionsPerson`."""
         return QuestionPersonSearch(
@@ -38,6 +40,8 @@ class QuestionsPersonMixin:
             sort=sort,
             participation=participation,
             needs_attention=needs_attention,
+            created_before=created_before,
+            created_since=created_since,
         ).getResults()
 
     def getQuestionLanguages(self):

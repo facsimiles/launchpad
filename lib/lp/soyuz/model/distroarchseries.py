@@ -56,6 +56,7 @@ class DistroArchSeries(StormBase):
     processor_id = Int(name="processor", allow_none=False)
     processor = Reference(processor_id, Processor.id)
     architecturetag = Unicode(allow_none=False)
+    underlying_architecturetag = Unicode(allow_none=True)
     official = Bool(allow_none=False)
     owner_id = Int(
         name="owner", validator=validate_public_person, allow_none=False
@@ -79,6 +80,7 @@ class DistroArchSeries(StormBase):
         official,
         owner,
         enabled=True,
+        underlying_architecturetag=None,
     ):
         super().__init__()
         self.distroseries = distroseries
@@ -87,6 +89,7 @@ class DistroArchSeries(StormBase):
         self.official = official
         self.owner = owner
         self.enabled = enabled
+        self.underlying_architecturetag = underlying_architecturetag
 
     def __getitem__(self, name):
         return self.getBinaryPackage(name)

@@ -43,25 +43,25 @@ class BuildInfoFile(PackageUploadFile, SignableTagFile):
         )
         self.parse(verify_signature=not policy.unsigned_buildinfo_ok)
         arch_match = re_isbuildinfo.match(self.filename)
-        self.architecture = arch_match.group(3)
+        self.filename_archtag = arch_match.group(3)
 
     @property
     def is_sourceful(self):
         # XXX cjwatson 2017-03-29: We should get this from the parsed
         # Architecture field instead.
-        return self.architecture == "source"
+        return self.filename_archtag == "source"
 
     @property
     def is_binaryful(self):
         # XXX cjwatson 2017-03-29: We should get this from the parsed
         # Architecture field instead.
-        return self.architecture != "source"
+        return self.filename_archtag != "source"
 
     @property
     def is_archindep(self):
         # XXX cjwatson 2017-03-29: We should get this from the parsed
         # Architecture field instead.
-        return self.architecture == "all"
+        return self.filename_archtag == "all"
 
     def verify(self):
         """Verify the uploaded buildinfo file.
@@ -82,11 +82,11 @@ class BuildInfoFile(PackageUploadFile, SignableTagFile):
     def checkBuild(self, build):
         """See `PackageUploadFile`."""
         try:
-            das = self.policy.distroseries[self.architecture]
+            das = self.policy.distroseries[self.filename_archtag]
         except NotFoundError:
             raise UploadError(
                 "Upload to unknown architecture %s for distroseries %s"
-                % (self.architecture, self.policy.distroseries)
+                % (self.filename_archtag, self.policy.distroseries)
             )
 
         # Sanity check; raise an error if the build we've been

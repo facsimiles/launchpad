@@ -13,7 +13,7 @@ from lazr.restful.declarations import (
 )
 from lazr.restful.fields import ReferenceChoice
 from zope.interface import Interface
-from zope.schema import Bool, Choice, List, TextLine
+from zope.schema import Bool, Choice, Datetime, List, TextLine
 
 from lp import _
 from lp.answers.enums import (
@@ -67,6 +67,20 @@ class IQuestionsPerson(IQuestionCollection):
             title=_("Needs attentions from"), default=False, required=False
         ),
         sort=Choice(title=_("Sort"), required=False, vocabulary=QuestionSort),
+        created_before=Datetime(
+            title=_(
+                "Search for questions that were created "
+                "before the given date."
+            ),
+            required=False,
+        ),
+        created_since=Datetime(
+            title=_(
+                "Search for questions that were created "
+                "since the given date."
+            ),
+            required=False,
+        ),
     )
     @operation_returns_collection_of(Interface)  # IQuestion.
     @export_read_operation()
@@ -80,6 +94,8 @@ class IQuestionsPerson(IQuestionCollection):
         sort=None,
         participation=None,
         needs_attention=None,
+        created_before=None,
+        created_since=None,
     ):
         """Search the person's questions.
 
@@ -104,4 +120,8 @@ class IQuestionsPerson(IQuestionCollection):
         :param sort: An attribute of QuestionSort. If None, a default value is
             used. When there is a search_text value, the default is to sort by
             RELEVANCY, otherwise results are sorted NEWEST_FIRST.
+        :param created_since: Only return results whose `datecreated` property
+            is greater than or equal to this date.
+        :param created_before: Only return results whose `datecreated` property
+            is smaller than this date.
         """

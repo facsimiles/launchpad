@@ -6,6 +6,7 @@
 import os
 import shutil
 from datetime import datetime, timedelta, timezone
+from resource import RLIMIT_AS  # Maximum memory that can be taken by a process
 from typing import Optional
 
 import transaction
@@ -63,7 +64,7 @@ from lp.services.job.interfaces.job import JobStatus
 from lp.services.job.model.job import Job
 from lp.services.job.runner import JobRunner
 from lp.services.job.tests import block_on_job
-from lp.services.osutils import override_environ
+from lp.services.osutils import override_environ, preserve_rlimit
 from lp.services.webapp import canonical_url
 from lp.testing import TestCaseWithFactory, person_logged_in
 from lp.testing.dbuser import dbuser, switch_dbuser
@@ -210,7 +211,11 @@ class TestBranchScanJob(TestCaseWithFactory):
             MockPatch("lp.code.model.branchjob.BranchScanJob.run", mock_run)
         )
         runner = JobRunner([job])
-        with dbuser("branchscanner"):
+
+        # Preserve the virtual memory resource limit because runJobHandleError
+        # changes it which causes the whole test worker process to have
+        # limited memory
+        with dbuser("branchscanner"), preserve_rlimit(RLIMIT_AS):
             runner.runJobHandleError(job)
         self.assertEqual(1, len(self.oopses))
         actions = [action[2:4] for action in self.oopses[0]["timeline"]]

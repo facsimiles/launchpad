@@ -2893,6 +2893,64 @@ class TestUploadHandler(TestUploadProcessorBase):
         # Upon full build the upload log is unset.
         self.assertIs(None, build.upload_log)
 
+    def testBinaryPackageBuilds_variant(self):
+        # Properly uploaded binaries should result in the
+        # build status changing to FULLYBUILT.
+        # Upload a source package
+        self.switchToAdmin()
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.breezy, architecturetag="amd64"
+        )
+        das_amd64v3 = self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.breezy,
+            architecturetag="amd64v3",
+            underlying_architecturetag="amd64",
+        )
+        archive = self.breezy.distribution.main_archive
+        procs = list(archive.processors)
+        procs.append(das_amd64v3.processor)
+        removeSecurityProxy(archive).processors = procs
+
+        self.switchToUploader()
+        source_upload_dir = self.queueUpload("bar_1.0-1")
+        self.processUpload(self.uploadprocessor, source_upload_dir)
+        source_pub = self.publishPackage("bar", "1.0-1")
+        builds = source_pub.createMissingBuilds()
+        for b in builds:
+            if b.distro_arch_series.architecturetag == "amd64v3":
+                build = b
+
+        # Move the source from the accepted queue.
+        self.switchToAdmin()
+        [queue_item] = self.breezy.getPackageUploads(
+            status=PackageUploadStatus.ACCEPTED, name="bar", version="1.0-1"
+        )
+        queue_item.setDone()
+
+        build.buildqueue_record.markAsBuilding(self.factory.makeBuilder())
+        build.updateStatus(BuildStatus.UPLOADING)
+        self.switchToUploader()
+
+        # Upload and accept a binary for the primary archive source.
+
+        # Commit so the build cookie has the right ids.
+        self.layer.txn.commit()
+        behaviour = IBuildFarmJobBehaviour(build)
+        leaf_name = behaviour.getUploadDirLeaf(build.build_cookie)
+        build_upload_dir = self.queueUpload(
+            "bar_1.0-1_variant", queue_entry=leaf_name
+        )
+        self.options.context = "buildd"
+        self.options.builds = True
+        pop_notifications()
+        self.processUpload(self.uploadprocessor, build_upload_dir)
+        self.layer.txn.commit()
+        # No emails are sent on success
+        self.assertEmailQueueLength(0)
+        self.assertEqual(BuildStatus.FULLYBUILT, build.status)
+        # Upon full build the upload log is unset.
+        self.assertIs(None, build.upload_log)
+
     def doSuccessRecipeBuild(self):
         # Upload a source package
         self.switchToAdmin()

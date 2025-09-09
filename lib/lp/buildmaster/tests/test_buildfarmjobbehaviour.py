@@ -13,6 +13,7 @@ from datetime import datetime
 import six
 from fixtures import MockPatchObject
 from testtools import ExpectedException
+from testtools.matchers import ContainsAll
 from testtools.twistedsupport import AsynchronousDeferredRunTest
 from twisted.internet import defer
 from zope.component import getUtility
@@ -108,11 +109,13 @@ class TestBuildFarmJobBehaviourBase(TestCaseWithFactory):
             buildfarmjob = removeSecurityProxy(buildfarmjob)
         return BuildFarmJobBehaviourBase(buildfarmjob)
 
-    def _makeBuild(self):
+    def _makeBuild(self, arch="x86", underlying_arch=None):
         """Create a `Build` object."""
         x86 = getUtility(IProcessorSet).getByName("386")
         distroarchseries = self.factory.makeDistroArchSeries(
-            architecturetag="x86", processor=x86
+            architecturetag=arch,
+            processor=x86,
+            underlying_architecturetag=underlying_arch,
         )
         distroseries = distroarchseries.distroseries
         archive = self.factory.makeArchive(
@@ -152,6 +155,40 @@ class TestBuildFarmJobBehaviourBase(TestCaseWithFactory):
         behaviour = self._makeBehaviour(self._makeBuild())
         behaviour.setBuilder(self.factory.makeBuilder(virtualized=False), None)
         self.assertIs(False, behaviour.extraBuildArgs()["fast_cleanup"])
+
+    def test_extraBuildArgs_arch(self):
+        # If the builder is virtualized, extraBuildArgs sends
+        # fast_cleanup: True.
+        behaviour = self._makeBehaviour(self._makeBuild(arch="riscv64"))
+        behaviour.setBuilder(self.factory.makeBuilder(virtualized=True), None)
+        self.assertThat(
+            behaviour.extraBuildArgs().items(),
+            ContainsAll(
+                [
+                    ("arch_tag", "riscv64"),
+                    ("abi_tag", "riscv64"),
+                    ("isa_tag", "riscv64"),
+                ]
+            ),
+        )
+
+    def test_extraBuildArgs_arch_variant(self):
+        # If the builder is virtualized, extraBuildArgs sends
+        # fast_cleanup: True.
+        behaviour = self._makeBehaviour(
+            self._makeBuild(arch="riscv64rva23", underlying_arch="riscv64")
+        )
+        behaviour.setBuilder(self.factory.makeBuilder(virtualized=True), None)
+        self.assertThat(
+            behaviour.extraBuildArgs().items(),
+            ContainsAll(
+                [
+                    ("arch_tag", "riscv64rva23"),
+                    ("abi_tag", "riscv64"),
+                    ("isa_tag", "riscv64rva23"),
+                ]
+            ),
+        )
 
     def test_extractBuildStatus_baseline(self):
         # extractBuildStatus picks the name of the build status out of a
