@@ -3650,6 +3650,7 @@ class LaunchpadObjectFactory(ObjectFactory):
         processor=None,
         supports_virtualized=True,
         supports_nonvirtualized=True,
+        add_proc_to_archive_processors=False,
         **kwargs,
     ):
         if architecturetag is None:
@@ -3668,6 +3669,12 @@ class LaunchpadObjectFactory(ObjectFactory):
         das = self.makeDistroArchSeries(
             architecturetag=architecturetag, processor=processor, **kwargs
         )
+        if add_proc_to_archive_processors:
+            archive = das.distroseries.main_archive
+            if processor not in archive.processors:
+                procs = list(archive.processors)
+                procs.append(processor)
+                removeSecurityProxy(archive).processors = procs
         # Add both a chroot and a LXD image to test that
         # getAllowedArchitectures doesn't get confused by multiple
         # PocketChroot rows for a single DistroArchSeries.

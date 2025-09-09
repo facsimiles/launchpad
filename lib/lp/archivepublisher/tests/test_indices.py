@@ -205,6 +205,69 @@ class TestNativeArchiveIndexes(TestNativePublishingBase):
             build_bpph_stanza(pub_binary).makeOutput().splitlines(),
         )
 
+    def testBinaryStanzaArchSpecific(self):
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries,
+            architecturetag="mips",
+            add_proc_to_archive_processors=True,
+        )
+        pub_binaries = self.getPubBinaries(
+            architecturespecific=True,
+        )
+        index_architectures = {
+            get_field(build_bpph_stanza(pub_binary), "Architecture")
+            for pub_binary in pub_binaries
+        }
+        self.assertIn("mips", index_architectures)
+
+    def testBinaryStanzaVariant(self):
+        for das in self.distroseries.architectures:
+            das.enabled = False
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries,
+            architecturetag="amd64",
+            add_proc_to_archive_processors=True,
+        )
+
+        pub_source = self.getPubSource(architecturehintlist="any")
+
+        [amd64_binary] = self.getPubBinaries(
+            pub_source=pub_source,
+        )
+
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries,
+            architecturetag="amd64v3",
+            underlying_architecturetag="amd64",
+            add_proc_to_archive_processors=True,
+        )
+
+        [amd64v3_binary] = self.getPubBinaries(
+            pub_source=pub_source,
+            user_defined_fields=[("Architecture-Variant", "amd64v3")],
+        )
+
+        architecture_fields = {
+            pub_binary.distroarchseries.architecturetag: get_field(
+                build_bpph_stanza(pub_binary), "Architecture"
+            )
+            for pub_binary in [amd64_binary, amd64v3_binary]
+        }
+        architecture_variant_fields = {
+            pub_binary.distroarchseries.architecturetag: get_field(
+                build_bpph_stanza(pub_binary), "Architecture-Variant"
+            )
+            for pub_binary in [amd64_binary, amd64v3_binary]
+        }
+        self.assertEqual(
+            {"amd64": "amd64", "amd64v3": "amd64"},
+            architecture_fields,
+        )
+        self.assertEqual(
+            {"amd64": None, "amd64v3": "amd64v3"},
+            architecture_variant_fields,
+        )
+
     def testBinaryStanzaWithCustomFields(self):
         """Check just-created binary publication Index stanza with
         custom fields (Python-Version).
