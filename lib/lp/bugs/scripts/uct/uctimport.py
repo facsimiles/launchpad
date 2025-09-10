@@ -101,7 +101,7 @@ class UCTImporter:
                 cve.sequence,
                 cve_sequence,
             )
-            return None
+            return None, None
 
         return self.import_cve(cve)
 
@@ -184,15 +184,17 @@ class UCTImporter:
         distro_package = cve.distro_packages[0]
 
         # Create the bug
-        bug: BugModel = getUtility(IBugSet).createBug(
-            CreateBugParams(
-                comment=self._make_bug_description(cve),
-                title=cve.sequence,
-                information_type=InformationType.PUBLICSECURITY,
-                owner=self.bug_importer,
-                target=distro_package.target,
-                importance=distro_package.importance,
-                cve=lp_cve,
+        bug: BugModel = removeSecurityProxy(
+            getUtility(IBugSet).createBug(
+                CreateBugParams(
+                    comment=self._make_bug_description(cve),
+                    title=cve.sequence,
+                    information_type=InformationType.PUBLICSECURITY,
+                    owner=self.bug_importer,
+                    target=distro_package.target,
+                    importance=distro_package.importance,
+                    cve=lp_cve,
+                )
             )
         )
 
@@ -311,7 +313,8 @@ class UCTImporter:
         if not lp_cve:
             return None
 
-        return lp_cve.getDistributionVulnerability(distribution)
+        vulnerability = lp_cve.getDistributionVulnerability(distribution)
+        return removeSecurityProxy(vulnerability)
 
     def _create_bug_tasks(
         self,
@@ -360,14 +363,16 @@ class UCTImporter:
         :param distribution: a `Distribution` affected by the vulnerability
         :return: a Vulnerability
         """
-        vulnerability: Vulnerability = getUtility(IVulnerabilitySet).new(
-            distribution=distribution,
-            status=cve.status,
-            importance=cve.importance,
-            importance_explanation=cve.importance_explanation,
-            creator=bug.owner,
-            information_type=InformationType.PUBLICSECURITY,
-            cve=lp_cve,
+        vulnerability: Vulnerability = removeSecurityProxy(
+            getUtility(IVulnerabilitySet).new(
+                distribution=distribution,
+                status=cve.status,
+                importance=cve.importance,
+                importance_explanation=cve.importance_explanation,
+                creator=bug.owner,
+                information_type=InformationType.PUBLICSECURITY,
+                cve=lp_cve,
+            )
         )
         self._update_vulnerability(vulnerability, cve)
 
