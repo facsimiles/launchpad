@@ -866,7 +866,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             ],
             global_tags={"cisa-kev"},
         )
-        self.importer = UCTImporter()
+        self.importer = UCTImporter(self.ubuntu)
         self.exporter = UCTExporter()
 
     def checkBug(self, bug: Bug, cve: CVE):
@@ -1064,36 +1064,35 @@ class TestUCTImporterExporter(TestCaseWithFactory):
     def checkVulnerabilities(self, bug: Bug, cve: CVE):
         vulnerabilities = bug.vulnerabilities
 
-        self.assertEqual(len(cve.affected_distributions), len(vulnerabilities))
+        self.assertEqual(1, len(vulnerabilities))
 
         vulnerabilities_by_distro = {
             v.distribution: v for v in vulnerabilities
         }
-        for distro in cve.affected_distributions:
-            self.assertIn(distro, vulnerabilities_by_distro)
-            vulnerability = vulnerabilities_by_distro[distro]
 
-            self.assertEqual(self.bug_importer, vulnerability.creator)
-            self.assertEqual(self.lp_cve, vulnerability.cve)
-            self.assertEqual(cve.status, vulnerability.status)
-            self.assertEqual(cve.ubuntu_description, vulnerability.description)
-            self.assertEqual(cve.notes, vulnerability.notes)
-            self.assertEqual(cve.mitigation, vulnerability.mitigation)
-            self.assertEqual(cve.importance, vulnerability.importance)
-            self.assertEqual(
-                InformationType.PUBLICSECURITY, vulnerability.information_type
-            )
-            self.assertEqual(
-                cve.date_made_public, vulnerability.date_made_public
-            )
-            self.assertEqual(
-                cve.date_notice_issued, vulnerability.date_notice_issued
-            )
-            self.assertEqual(
-                cve.date_coordinated_release,
-                vulnerability.date_coordinated_release,
-            )
-            self.assertEqual([bug], vulnerability.bugs)
+        distro = self.ubuntu
+        self.assertIn(distro, vulnerabilities_by_distro)
+        vulnerability = vulnerabilities_by_distro[distro]
+
+        self.assertEqual(self.bug_importer, vulnerability.creator)
+        self.assertEqual(self.lp_cve, vulnerability.cve)
+        self.assertEqual(cve.status, vulnerability.status)
+        self.assertEqual(cve.ubuntu_description, vulnerability.description)
+        self.assertEqual(cve.notes, vulnerability.notes)
+        self.assertEqual(cve.mitigation, vulnerability.mitigation)
+        self.assertEqual(cve.importance, vulnerability.importance)
+        self.assertEqual(
+            InformationType.PUBLICSECURITY, vulnerability.information_type
+        )
+        self.assertEqual(cve.date_made_public, vulnerability.date_made_public)
+        self.assertEqual(
+            cve.date_notice_issued, vulnerability.date_notice_issued
+        )
+        self.assertEqual(
+            cve.date_coordinated_release,
+            vulnerability.date_coordinated_release,
+        )
+        self.assertEqual([bug], vulnerability.bugs)
 
     def checkLaunchpadCve(self, lp_cve: CveModel, cve: CVE):
         cvss = defaultdict(list)
@@ -1139,7 +1138,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.assertEqual(expected.global_tags, actual.global_tags)
 
     def test_create_bug(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
 
         self.checkBug(bug, self.cve)
         self.checkBugTasks(bug, self.cve)
@@ -1238,32 +1237,39 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             global_tags={"cisa-kev"},
         )
         lp_cve = self.factory.makeCVE(sequence="2022-1234")
-        bug = self.importer.create_bug(cve, lp_cve)
+        bug, _ = self.importer.create_bug(cve, lp_cve)
         self.checkBug(bug, cve)
         self.checkBugTasks(bug, cve)
         self.assertEqual([lp_cve], bug.cves)
 
     def test_find_existing_bug(self):
         self.assertIsNone(
-            self.importer._find_existing_bug(self.cve, self.lp_cve)
+            self.importer._find_existing_bug(
+                self.cve, self.lp_cve, self.ubuntu
+            )
         )
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         self.assertEqual(
-            self.importer._find_existing_bug(self.cve, self.lp_cve), bug
+            self.importer._find_existing_bug(
+                self.cve, self.lp_cve, self.ubuntu
+            ),
+            bug,
         )
 
     def test_find_existing_bug_multiple_bugs(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         another_bug = self.factory.makeBug(bug.bugtasks[0].target)
-        self.assertGreater(len(bug.vulnerabilities), 1)
+        self.assertEqual(len(bug.vulnerabilities), 1)
         vulnerability = bug.vulnerabilities[0]
-        vulnerability.unlinkBug(bug)
+
+        # Link another_bug so same vulnerability has more than one
         vulnerability.linkBug(another_bug)
         self.assertRaises(
             UCTImportError,
             self.importer._find_existing_bug,
             self.cve,
             self.lp_cve,
+            self.ubuntu,
         )
 
     def test_update_bug_new_package(self):
@@ -1279,7 +1285,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         )
 
         cve = self.cve
-        bug = self.importer.create_bug(cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(cve, self.lp_cve)
 
         cve.distro_packages.append(
             CVE.DistroPackage(
@@ -1318,7 +1324,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             )
 
         cve = self.cve
-        bug = self.importer.create_bug(cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(cve, self.lp_cve)
 
         cve.series_packages.append(
             CVE.SeriesPackage(
@@ -1352,7 +1358,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         )
 
         cve = self.cve
-        bug = self.importer.create_bug(cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(cve, self.lp_cve)
 
         cve.distro_packages.append(
             CVE.DistroPackage(
@@ -1381,14 +1387,14 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkVulnerabilities(bug, cve)
 
     def test_update_bug_assignee_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         cve.assignee = self.factory.makePerson()
         self.importer.update_bug(bug, cve, self.lp_cve)
         self.checkBugTasks(bug, cve)
 
     def test_update_bug_cve_importance_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         self.assertNotEqual(cve.importance, BugTaskImportance.CRITICAL)
         cve.importance = BugTaskImportance.CRITICAL
@@ -1396,7 +1402,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkVulnerabilities(bug, cve)
 
     def test_update_bug_cve_status_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         self.assertNotEqual(cve.status, VulnerabilityStatus.IGNORED)
         cve.status = VulnerabilityStatus.IGNORED
@@ -1404,7 +1410,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkVulnerabilities(bug, cve)
 
     def test_update_bug_package_importance_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         self.assertNotEqual(
             cve.distro_packages[0].importance, BugTaskImportance.CRITICAL
@@ -1422,7 +1428,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBugTasks(bug, cve)
 
     def test_update_bug_package_status_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         self.assertNotEqual(
             cve.series_packages[0].status, BugTaskStatus.DOESNOTEXIST
@@ -1438,7 +1444,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBugTasks(bug, cve)
 
     def test_update_bug_external_bugs_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new URL
@@ -1452,7 +1458,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_bug_global_tags_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         cve.global_tags.add("another-tag")
@@ -1460,7 +1466,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_bug_ubuntu_description_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         cve.ubuntu_description += "new"
@@ -1468,7 +1474,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_bug_references(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new URL
@@ -1482,7 +1488,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_patch_urls(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new patch URL
@@ -1513,7 +1519,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_break_fix(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new break_fix
@@ -1544,7 +1550,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_tags(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new tags
@@ -1558,14 +1564,18 @@ class TestUCTImporterExporter(TestCaseWithFactory):
     def test_import_cve(self):
         self.importer.import_cve(self.cve)
         self.assertIsNotNone(
-            self.importer._find_existing_bug(self.cve, self.lp_cve)
+            self.importer._find_existing_bug(
+                self.cve, self.lp_cve, self.ubuntu
+            )
         )
         self.checkLaunchpadCve(self.lp_cve, self.cve)
 
     def test_import_cve_dry_run(self):
-        importer = UCTImporter(dry_run=True)
+        importer = UCTImporter(self.ubuntu, dry_run=True)
         importer.import_cve(self.cve)
-        self.assertIsNone(importer._find_existing_bug(self.cve, self.lp_cve))
+        self.assertIsNone(
+            importer._find_existing_bug(self.cve, self.lp_cve, self.ubuntu)
+        )
 
     def test_naive_dates(self):
         cve = self.cve
@@ -1574,7 +1584,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         cve.date_coordinated_release = cve.date_coordinated_release.replace(
             tzinfo=None
         )
-        bug = self.importer.create_bug(cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(cve, self.lp_cve)
         for date in (
             bug.vulnerabilities[0].date_made_public,
             bug.vulnerabilities[0].date_notice_issued,
@@ -1591,13 +1601,17 @@ class TestUCTImporterExporter(TestCaseWithFactory):
 
     def test_make_cve_from_bug(self):
         self.importer.import_cve(self.cve)
-        bug = self.importer._find_existing_bug(self.cve, self.lp_cve)
+        bug = self.importer._find_existing_bug(
+            self.cve, self.lp_cve, self.ubuntu
+        )
         cve = self.exporter._make_cve_from_bug(bug)
         self.checkCVE(self.cve, cve)
 
     def test_export_bug_to_uct_file(self):
         self.importer.import_cve(self.cve)
-        bug = self.importer._find_existing_bug(self.cve, self.lp_cve)
+        bug = self.importer._find_existing_bug(
+            self.cve, self.lp_cve, self.ubuntu
+        )
         output_dir = Path(self.makeTemporaryDirectory())
         cve_path = self.exporter.export_bug_to_uct_file(bug.id, output_dir)
         uct_record = UCTRecord.load(cve_path)
