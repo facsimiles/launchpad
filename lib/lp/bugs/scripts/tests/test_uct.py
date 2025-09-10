@@ -35,135 +35,139 @@ TAG_SEPARATOR = UCTImporter.TAG_SEPARATOR
 class TestUCTRecord(TestCase):
     maxDiff = None
 
+    def setUp(self):
+        super().setUp()
+        self.record = UCTRecord(
+            parent_dir="sampledata",
+            assigned_to="",
+            bugs=[
+                "https://github.com/mm2/Little-CMS/issues/29",
+                "https://github.com/mm2/Little-CMS/issues/30",
+                "https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=745471",
+            ],
+            cvss=[
+                CVSS(
+                    authority="nvd",
+                    vector_string=(
+                        "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
+                        "[7.8 HIGH]"
+                    ),
+                ),
+            ],
+            candidate="CVE-2022-23222",
+            crd=None,
+            public_date_at_USN=datetime(
+                2022, 1, 14, 8, 15, tzinfo=timezone.utc
+            ),
+            public_date=datetime(2022, 1, 14, 8, 15, tzinfo=timezone.utc),
+            description=(
+                "kernel/bpf/verifier.c in the Linux kernel through "
+                "5.15.14 allows local\nusers to gain privileges because "
+                "of the availability of pointer arithmetic\nvia certain "
+                "*_OR_NULL pointer types."
+            ),
+            discovered_by="tr3e wang",
+            mitigation=(
+                "seth-arnold> set kernel.unprivileged_bpf_disabled to 1"
+            ),
+            notes=(
+                "sbeattie> Ubuntu 21.10 / 5.13+ kernels disable "
+                "unprivileged BPF by default.\n  kernels 5.8 and "
+                "older are not affected, priority high is "
+                "for\n  5.10 and 5.11 based kernels only"
+            ),
+            priority=UCTRecord.Priority.CRITICAL,
+            references=["https://ubuntu.com/security/notices/USN-5368-1"],
+            ubuntu_description=(
+                "It was discovered that the BPF verifier in the Linux "
+                "kernel did not\nproperly restrict pointer types in "
+                "certain situations. A local attacker\ncould use this to "
+                "cause a denial of service (system crash) or possibly\n"
+                "execute arbitrary code."
+            ),
+            packages=[
+                UCTRecord.Package(
+                    name="linux",
+                    statuses=[
+                        UCTRecord.SeriesPackageStatus(
+                            series="upstream",
+                            status=UCTRecord.PackageStatus.RELEASED,
+                            reason="5.17~rc1",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="impish",
+                            status=UCTRecord.PackageStatus.RELEASED,
+                            reason="5.13.0-37.42",
+                            priority=UCTRecord.Priority.MEDIUM,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="devel",
+                            status=UCTRecord.PackageStatus.NOT_AFFECTED,
+                            reason="5.15.0-25.25",
+                            priority=UCTRecord.Priority.MEDIUM,
+                        ),
+                    ],
+                    priority=None,
+                    tags={"not-ue"},
+                    patches=[
+                        UCTRecord.Patch(
+                            patch_type="break-fix",
+                            entry=(
+                                "457f44363a8894135c85b7a9afd2bd8196db24ab "
+                                "c25b2ae136039ffa820c26138ed4a5e5f3ab3841|"
+                                "local-CVE-2022-23222-fix"
+                            ),
+                        ),
+                        UCTRecord.Patch(
+                            patch_type="upstream",
+                            entry=(
+                                "https://github.com/389ds/389-ds-base/commit/58dbf084a63e6dbbd999bf6a70475fad8255f26a (1.4.4)"  # noqa: 501
+                            ),
+                        ),
+                        UCTRecord.Patch(
+                            patch_type="upstream",
+                            entry=(
+                                "https://github.com/389ds/389-ds-base/commit/2e5b526012612d1d6ccace46398bee679a730271"  # noqa: 501
+                            ),
+                        ),
+                    ],
+                ),
+                UCTRecord.Package(
+                    name="linux-hwe",
+                    statuses=[
+                        UCTRecord.SeriesPackageStatus(
+                            series="upstream",
+                            status=UCTRecord.PackageStatus.RELEASED,
+                            reason="5.17~rc1",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="impish",
+                            status=UCTRecord.PackageStatus.DOES_NOT_EXIST,
+                            reason="",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="devel",
+                            status=UCTRecord.PackageStatus.DOES_NOT_EXIST,
+                            reason="",
+                            priority=None,
+                        ),
+                    ],
+                    priority=UCTRecord.Priority.HIGH,
+                    tags=set(),
+                    patches=[],
+                ),
+            ],
+            global_tags={"cisa-kev"},
+        )
+
     def test_load_save(self):
         load_from = Path(__file__).parent / "sampledata" / "CVE-2022-23222"
         uct_record = UCTRecord.load(load_from)
         self.assertDictEqual(
-            UCTRecord(
-                parent_dir="sampledata",
-                assigned_to="",
-                bugs=[
-                    "https://github.com/mm2/Little-CMS/issues/29",
-                    "https://github.com/mm2/Little-CMS/issues/30",
-                    "https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=745471",
-                ],
-                cvss=[
-                    CVSS(
-                        authority="nvd",
-                        vector_string=(
-                            "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
-                            "[7.8 HIGH]"
-                        ),
-                    ),
-                ],
-                candidate="CVE-2022-23222",
-                crd=None,
-                public_date_at_USN=datetime(
-                    2022, 1, 14, 8, 15, tzinfo=timezone.utc
-                ),
-                public_date=datetime(2022, 1, 14, 8, 15, tzinfo=timezone.utc),
-                description=(
-                    "kernel/bpf/verifier.c in the Linux kernel through "
-                    "5.15.14 allows local\nusers to gain privileges because "
-                    "of the availability of pointer arithmetic\nvia certain "
-                    "*_OR_NULL pointer types."
-                ),
-                discovered_by="tr3e wang",
-                mitigation=(
-                    "seth-arnold> set kernel.unprivileged_bpf_disabled to 1"
-                ),
-                notes=(
-                    "sbeattie> Ubuntu 21.10 / 5.13+ kernels disable "
-                    "unprivileged BPF by default.\n  kernels 5.8 and "
-                    "older are not affected, priority high is "
-                    "for\n  5.10 and 5.11 based kernels only"
-                ),
-                priority=UCTRecord.Priority.CRITICAL,
-                references=["https://ubuntu.com/security/notices/USN-5368-1"],
-                ubuntu_description=(
-                    "It was discovered that the BPF verifier in the Linux "
-                    "kernel did not\nproperly restrict pointer types in "
-                    "certain situations. A local attacker\ncould use this to "
-                    "cause a denial of service (system crash) or possibly\n"
-                    "execute arbitrary code."
-                ),
-                packages=[
-                    UCTRecord.Package(
-                        name="linux",
-                        statuses=[
-                            UCTRecord.SeriesPackageStatus(
-                                series="upstream",
-                                status=UCTRecord.PackageStatus.RELEASED,
-                                reason="5.17~rc1",
-                                priority=None,
-                            ),
-                            UCTRecord.SeriesPackageStatus(
-                                series="impish",
-                                status=UCTRecord.PackageStatus.RELEASED,
-                                reason="5.13.0-37.42",
-                                priority=UCTRecord.Priority.MEDIUM,
-                            ),
-                            UCTRecord.SeriesPackageStatus(
-                                series="devel",
-                                status=UCTRecord.PackageStatus.NOT_AFFECTED,
-                                reason="5.15.0-25.25",
-                                priority=UCTRecord.Priority.MEDIUM,
-                            ),
-                        ],
-                        priority=None,
-                        tags={"not-ue"},
-                        patches=[
-                            UCTRecord.Patch(
-                                patch_type="break-fix",
-                                entry=(
-                                    "457f44363a8894135c85b7a9afd2bd8196db24ab "
-                                    "c25b2ae136039ffa820c26138ed4a5e5f3ab3841|"
-                                    "local-CVE-2022-23222-fix"
-                                ),
-                            ),
-                            UCTRecord.Patch(
-                                patch_type="upstream",
-                                entry=(
-                                    "https://github.com/389ds/389-ds-base/commit/58dbf084a63e6dbbd999bf6a70475fad8255f26a (1.4.4)"  # noqa: 501
-                                ),
-                            ),
-                            UCTRecord.Patch(
-                                patch_type="upstream",
-                                entry=(
-                                    "https://github.com/389ds/389-ds-base/commit/2e5b526012612d1d6ccace46398bee679a730271"  # noqa: 501
-                                ),
-                            ),
-                        ],
-                    ),
-                    UCTRecord.Package(
-                        name="linux-hwe",
-                        statuses=[
-                            UCTRecord.SeriesPackageStatus(
-                                series="upstream",
-                                status=UCTRecord.PackageStatus.RELEASED,
-                                reason="5.17~rc1",
-                                priority=None,
-                            ),
-                            UCTRecord.SeriesPackageStatus(
-                                series="impish",
-                                status=UCTRecord.PackageStatus.DOES_NOT_EXIST,
-                                reason="",
-                                priority=None,
-                            ),
-                            UCTRecord.SeriesPackageStatus(
-                                series="devel",
-                                status=UCTRecord.PackageStatus.DOES_NOT_EXIST,
-                                reason="",
-                                priority=None,
-                            ),
-                        ],
-                        priority=UCTRecord.Priority.HIGH,
-                        tags=set(),
-                        patches=[],
-                    ),
-                ],
-                global_tags={"cisa-kev"},
-            ).__dict__,
+            self.record.__dict__,
             uct_record.__dict__,
         )
 
@@ -262,6 +266,17 @@ class TestUCTRecord(TestCase):
             output_dir / "sampledata" / "CVE-2023-32637", saved_to_path
         )
         self.assertEqual(load_from.read_text(), saved_to_path.read_text())
+
+    def test_from_blob(self):
+        load_from = Path(__file__).parent / "sampledata" / "CVE-2022-23222"
+        with open(load_from) as f:
+            blob = f.read()
+
+        record = UCTRecord.from_blob(blob)
+
+        # We are importing a blob, creating a temp file
+        self.record.parent_dir = "tmp"
+        self.assertEqual(record.__dict__, self.record.__dict__)
 
 
 class TestCVE(TestCaseWithFactory):

@@ -3,6 +3,7 @@
 
 import logging
 import re
+import tempfile
 from collections import OrderedDict, defaultdict
 from datetime import datetime
 from enum import Enum
@@ -146,6 +147,13 @@ class UCTRecord:
         if not isinstance(other, UCTRecord):
             raise ValueError("UCTRecord can only be compared to UCTRecord")
         return self.__dict__ == other.__dict__
+
+    @classmethod
+    def from_blob(self, blob: bytes) -> "UCTRecord":
+        with tempfile.NamedTemporaryFile("w") as fp:
+            fp.write(blob)
+            fp.flush()
+            return self.load(Path(fp.name))
 
     @classmethod
     def load(cls, cve_path: Path) -> "UCTRecord":
