@@ -181,3 +181,13 @@ class VulnerabilityHandlerEnum(DBEnumeratedType):
         exports.
         """,
     )
+
+    UCT = DBItem(
+        2,
+        """
+        UCT Handler
+
+        Specific handler to use for UCT vulnerability data imports and
+        exports.
+        """,
+    )
