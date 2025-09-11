@@ -74,10 +74,16 @@ class UCTImporter:
 
     TAG_SEPARATOR = "."
 
-    def __init__(self, ubuntu, dry_run=False):
+    def __init__(
+        self,
+        ubuntu,
+        information_type=InformationType.PUBLICSECURITY,
+        dry_run=False,
+    ):
         self.dry_run = dry_run
         self.bug_importer = getUtility(ILaunchpadCelebrities).bug_importer
         self.ubuntu = ubuntu
+        self.information_type = information_type
 
     def import_cve_from_file(self, cve_path: Path) -> None:
         """
@@ -189,11 +195,12 @@ class UCTImporter:
                 CreateBugParams(
                     comment=self._make_bug_description(cve),
                     title=cve.sequence,
-                    information_type=InformationType.PUBLICSECURITY,
+                    information_type=self.information_type,
                     owner=self.bug_importer,
                     target=distro_package.target,
                     importance=distro_package.importance,
                     cve=lp_cve,
+                    check_permissions=False,
                 )
             )
         )
@@ -370,7 +377,7 @@ class UCTImporter:
                 importance=cve.importance,
                 importance_explanation=cve.importance_explanation,
                 creator=bug.owner,
-                information_type=InformationType.PUBLICSECURITY,
+                information_type=self.information_type,
                 cve=lp_cve,
             )
         )
