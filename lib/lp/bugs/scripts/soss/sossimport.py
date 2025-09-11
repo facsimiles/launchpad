@@ -495,6 +495,7 @@ class SOSSImporter(SVTImporter):
         return packagetype, package
 
     def checkUserPermissions(self, user):
+        """See `SVTImporter`."""
         return SecurityAdminDistribution(self.soss).checkAuthenticated(
             IPersonRoles(user)
         )

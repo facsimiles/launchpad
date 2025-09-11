@@ -52,8 +52,10 @@ from lp.bugs.model.cve import Cve as CveModel
 from lp.bugs.model.vulnerability import Vulnerability
 from lp.bugs.scripts.svthandler import SVTImporter
 from lp.bugs.scripts.uct.models import CVE, UCTRecord
+from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.model.distribution import Distribution
 from lp.registry.model.person import Person
+from lp.registry.security import SecurityAdminDistribution
 from lp.services.database.constants import UTC_NOW
 
 __all__ = [
@@ -599,3 +601,9 @@ class UCTImporter(SVTImporter):
         """
         lp_cve.setCVSSVectorForAuthority(cve.cvss)
         lp_cve.discovered_by = cve.discovered_by
+
+    def checkUserPermissions(self, user):
+        """See `SVTImporter`."""
+        return SecurityAdminDistribution(self.ubuntu).checkAuthenticated(
+            IPersonRoles(user)
+        )

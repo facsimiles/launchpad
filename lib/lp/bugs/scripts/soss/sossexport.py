@@ -18,8 +18,8 @@ from lp.bugs.scripts.soss.sossimport import (
     PACKAGE_TYPE_MAP,
     PRIORITY_ENUM_MAP,
 )
-from lp.registry.interfaces.role import IPersonRoles
 from lp.bugs.scripts.svthandler import SVTExporter
+from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.model.distribution import Distribution
 from lp.registry.security import SecurityAdminDistribution
 
