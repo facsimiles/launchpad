@@ -129,21 +129,23 @@ class SOSSImporter:
         if lp_cve is None:
             return None, None
 
+        vulnerability = self._find_existing_vulnerability(lp_cve, self.soss)
+        if not vulnerability:
+            vulnerability = self._create_vulnerability(
+                soss_record, lp_cve, self.soss
+            )
+        else:
+            vulnerability = self._update_vulnerability(
+                vulnerability, soss_record
+            )
+
         bug = self._find_existing_bug(soss_record, lp_cve, self.soss)
         if not bug:
             bug = self._create_bug(soss_record, lp_cve)
         else:
             bug = self._update_bug(bug, soss_record, lp_cve)
 
-        vulnerability = self._find_existing_vulnerability(lp_cve, self.soss)
-        if not vulnerability:
-            vulnerability = self._create_vulnerability(
-                bug, soss_record, lp_cve, self.soss
-            )
-        else:
-            vulnerability = self._update_vulnerability(
-                vulnerability, soss_record
-            )
+        vulnerability.linkBug(bug, check_permissions=False)
 
         if not self.dry_run:
             transaction.commit()
@@ -194,6 +196,9 @@ class SOSSImporter:
             )
         )
 
+        if not bug:
+            raise ValueError(f"Error creating bug for {lp_cve.sequence}")
+
         # Create next bugtasks
         self._create_or_update_bugtasks(bug, soss_record)
 
@@ -222,7 +227,6 @@ class SOSSImporter:
 
     def _create_vulnerability(
         self,
-        bug: BugModel,
         soss_record: SOSSRecord,
         lp_cve: CveModel,
         distribution: Distribution,
@@ -232,7 +236,6 @@ class SOSSImporter:
         the given SOSSRecord instance and link to the specified Bug
         and LP's Cve model.
 
-        :param bug: Bug model associated with the vulnerability
         :param soss_record: SOSSRecord with information from a SOSS cve
         :param lp_cve: Launchpad Cve model
         :param distribution: a Distribution affected by the vulnerability
@@ -243,7 +246,7 @@ class SOSSImporter:
                 distribution=distribution,
                 status=VulnerabilityStatus.NEEDS_TRIAGE,
                 importance=PRIORITY_ENUM_MAP[soss_record.priority],
-                creator=bug.owner,
+                creator=self.bug_importer,
                 information_type=self.information_type,
                 cve=lp_cve,
                 description=soss_record.description,
@@ -258,7 +261,12 @@ class SOSSImporter:
                 cvss=self._prepare_cvss_data(soss_record),
             )
         )
-        vulnerability.linkBug(bug, bug.owner)
+
+        if not vulnerability:
+            raise ValueError(
+                f"[SOSSImporter] Error creating vulnerability for "
+                f"{lp_cve.sequence}"
+            )
 
         logger.info(
             "[SOSSImporter] Created vulnerability with ID: "

@@ -299,8 +299,9 @@ class TestSOSSImporter(TestCaseWithFactory):
         soss_importer = SOSSImporter()
         bug = soss_importer._create_bug(self.soss_record, self.cve)
         vulnerability = soss_importer._create_vulnerability(
-            bug, self.soss_record, self.cve, self.soss
+            self.soss_record, self.cve, self.soss
         )
+        vulnerability.linkBug(bug, check_permissions=False)
 
         self.assertEqual(vulnerability.distribution, self.soss)
         self.assertEqual(
