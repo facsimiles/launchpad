@@ -2277,12 +2277,17 @@ class Distribution(
             .is_empty()
         )
 
-    def getVulnerabilitiesVisibleToUser(self, user):
+    def getVulnerabilitiesVisibleToUser(self, user, check_permissions=True):
         """See `IDistribution`."""
+
+        privacy_filter = True
+        if check_permissions:
+            privacy_filter = get_vulnerability_privacy_filter(user)
+
         vulnerabilities = Store.of(self).find(
             Vulnerability,
             Vulnerability.distribution == self,
-            get_vulnerability_privacy_filter(user),
+            privacy_filter,
         )
         vulnerabilities.order_by(Desc(Vulnerability.date_created))
 
