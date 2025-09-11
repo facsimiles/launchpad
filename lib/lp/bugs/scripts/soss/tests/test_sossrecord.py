@@ -30,8 +30,20 @@ class TestSOSSRecord(TestCase):
                 "show_hidden=true",
             ],
             notes=[
-                "This is a sample soss cve with all the fields filled for "
-                "testing",
+                {
+                    "username": (
+                        "since 1.0, a package issues a warning when text() is "
+                        "omitted this fix is not important, marking priority "
+                        "as low"
+                    )
+                },
+                {
+                    "username": (
+                        "since 1.0, a package issues a warning when text() is "
+                        "omitted this fix is not important, marking priority "
+                        "as low"
+                    )
+                },
                 "sample note 2",
             ],
             priority=SOSSRecord.PriorityEnum.LOW,
@@ -142,8 +154,20 @@ class TestSOSSRecord(TestCase):
                 "show_hidden=true",
             ],
             "Notes": [
-                "This is a sample soss cve with all the fields filled for "
-                "testing",
+                {
+                    "username": (
+                        "since 1.0, a package issues a warning when text() is "
+                        "omitted this fix is not important, marking priority "
+                        "as low"
+                    )
+                },
+                {
+                    "username": (
+                        "since 1.0, a package issues a warning when text() is "
+                        "omitted this fix is not important, marking priority "
+                        "as low"
+                    )
+                },
                 "sample note 2",
             ],
             "Priority": "Low",

@@ -6,7 +6,7 @@ import logging
 import os
 from collections import defaultdict
 from datetime import timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import transaction
 from zope.component import getUtility
@@ -246,7 +246,7 @@ class SOSSImporter:
                 information_type=self.information_type,
                 cve=lp_cve,
                 description=soss_record.description,
-                notes="\n".join(soss_record.notes),
+                notes=self._format_notes(soss_record.notes),
                 mitigation=None,
                 importance_explanation=soss_record.priority_reason,
                 date_made_public=self._normalize_date_with_timezone(
@@ -283,7 +283,7 @@ class SOSSImporter:
         """
         vulnerability.status = VulnerabilityStatus.NEEDS_TRIAGE
         vulnerability.description = soss_record.description
-        vulnerability.notes = "\n".join(soss_record.notes)
+        vulnerability.notes = self._format_notes(soss_record.notes)
         vulnerability.mitigation = None
         vulnerability.importance = PRIORITY_ENUM_MAP[soss_record.priority]
         vulnerability.importance_explanation = soss_record.priority_reason
@@ -504,3 +504,17 @@ class SOSSImporter:
         return SecurityAdminDistribution(self.soss).checkAuthenticated(
             IPersonRoles(user)
         )
+
+    def _format_notes(self, notes: List[Union[Dict, str]]) -> str:
+        """Return a string from a list of notes. Notes can contain dicts or
+        strings.
+        """
+        formatted_notes = []
+        for note in notes:
+            if isinstance(note, dict):
+                for key, value in note.items():
+                    value = value.replace("\n", " ")
+                    formatted_notes.append(f"{key}: {value}")
+            else:
+                formatted_notes.append(str(note))
+        return "\n\n".join(formatted_notes)

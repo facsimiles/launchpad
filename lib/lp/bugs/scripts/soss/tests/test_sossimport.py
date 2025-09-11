@@ -164,8 +164,11 @@ class TestSOSSImporter(TestCaseWithFactory):
         )
 
         self.notes = (
-            "This is a sample soss cve with all the fields filled for "
-            "testing\nsample note 2"
+            "username: since 1.0, a package issues a warning when text() is "
+            "omitted this fix is not important, marking priority as low\n\n"
+            "username: since 1.0, a package issues a warning when text() is "
+            "omitted this fix is not important, marking priority as low\n\n"
+            "sample note 2"
         )
 
     def _check_bugtasks(
@@ -220,10 +223,7 @@ class TestSOSSImporter(TestCaseWithFactory):
             self.importance_explanation,
         )
         self.assertEqual(vulnerability.creator, self.bug_importer)
-        self.assertEqual(
-            vulnerability.notes,
-            self.notes,
-        )
+        self.assertEqual(vulnerability.notes, self.notes)
         self.assertEqual(vulnerability.mitigation, None)
         self.assertEqual(vulnerability.cve, self.cve)
 
