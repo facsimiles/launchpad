@@ -122,12 +122,8 @@ class SOSSImporter:
         self, soss_record: SOSSRecord, cve_sequence: str
     ) -> Tuple[BugModel, Vulnerability]:
         """Import CVE from SOSS record."""
-        if not self._validate_soss_record(soss_record, cve_sequence):
-            return None, None
-
+        self._validate_soss_record(soss_record, cve_sequence)
         lp_cve = self._get_launchpad_cve(cve_sequence)
-        if lp_cve is None:
-            return None, None
 
         vulnerability = self._find_existing_vulnerability(lp_cve, self.soss)
         if not vulnerability:
@@ -147,7 +143,7 @@ class SOSSImporter:
 
         vulnerability.linkBug(bug, check_permissions=False)
 
-        if not self.dry_run:
+        if not self.dry_run and vulnerability and bug:
             transaction.commit()
             logger.info(
                 "[SOSSImporter] Successfully committed changes for "
@@ -330,9 +326,6 @@ class SOSSImporter:
         self, lp_cve: CveModel, distribution: Distribution
     ) -> Optional[Vulnerability]:
         """Find existing vulnerability for the current distribution"""
-        if not lp_cve:
-            return None
-
         vulnerability = lp_cve.getDistributionVulnerability(distribution)
         return removeSecurityProxy(vulnerability)
 
@@ -415,6 +408,7 @@ class SOSSImporter:
                 cve_sequence,
                 cve_sequence,
             )
+            raise NotFoundError(f"Could not find {cve_sequence} in LP")
         return lp_cve
 
     def _make_bug_description(self, soss_record: SOSSRecord) -> str:
@@ -481,7 +475,10 @@ class SOSSImporter:
                 soss_record.candidate,
                 cve_sequence,
             )
-            return False
+            raise ValueError(
+                f"CVE sequence mismatch: {soss_record.candidate} != "
+                f"{cve_sequence}"
+            )
 
         if not soss_record.packages:
             logger.warning(
@@ -490,7 +487,7 @@ class SOSSImporter:
                 cve_sequence,
                 cve_sequence,
             )
-            return False
+            raise ValueError(f"{cve_sequence}: has no affected packages")
 
         return True
 

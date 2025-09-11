@@ -5,6 +5,7 @@ import transaction
 from zope.component import getUtility
 
 from lp.app.enums import InformationType
+from lp.app.errors import NotFoundError
 from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.bugs.interfaces.bugtask import BugTaskImportance, BugTaskStatus
 from lp.bugs.scripts.soss import SOSSRecord
@@ -391,7 +392,12 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(
             soss_importer._get_launchpad_cve("2025-1979"), self.cve
         )
-        self.assertEqual(soss_importer._get_launchpad_cve("2000-1111"), None)
+        self.assertRaisesWithContent(
+            NotFoundError,
+            "'Could not find 2000-1111 in LP'",
+            soss_importer._get_launchpad_cve,
+            "2000-1111",
+        )
 
     def test_make_bug_description(self):
         """Test make a bug description from a SOSSRecord"""
@@ -446,17 +452,23 @@ class TestSOSSImporter(TestCaseWithFactory):
 
         # SOSSRecord without packages is not valid
         self.soss_record.packages = {}
-        valid = soss_importer._validate_soss_record(
-            self.soss_record, f"CVE-{self.cve.sequence}"
+        self.assertRaisesWithContent(
+            ValueError,
+            "CVE-2025-1979: has no affected packages",
+            soss_importer._validate_soss_record,
+            self.soss_record,
+            f"CVE-{self.cve.sequence}",
         )
-        self.assertEqual(valid, False)
 
         # SOSSRecord with candidate != sequence is not valid
         self.soss_record.candidate = "nonvalid"
-        valid = soss_importer._validate_soss_record(
-            self.soss_record, f"CVE-{self.cve.sequence}"
+        self.assertRaisesWithContent(
+            ValueError,
+            "CVE sequence mismatch: nonvalid != CVE-2025-1979",
+            soss_importer._validate_soss_record,
+            self.soss_record,
+            f"CVE-{self.cve.sequence}",
         )
-        self.assertEqual(valid, False)
 
     def test_checkUserPermissions(self):
         soss_importer = SOSSImporter()
