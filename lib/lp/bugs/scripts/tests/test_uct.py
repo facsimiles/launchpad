@@ -267,12 +267,12 @@ class TestUCTRecord(TestCase):
         )
         self.assertEqual(load_from.read_text(), saved_to_path.read_text())
 
-    def test_from_blob(self):
+    def test_from_str(self):
         load_from = Path(__file__).parent / "sampledata" / "CVE-2022-23222"
         with open(load_from) as f:
-            blob = f.read()
+            string = f.read()
 
-        record = UCTRecord.from_blob(blob)
+        record = UCTRecord.from_str(string)
 
         # We are importing a blob, creating a temp file
         self.record.parent_dir = "tmp"

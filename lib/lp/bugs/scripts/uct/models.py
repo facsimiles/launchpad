@@ -29,6 +29,7 @@ from zope.schema.interfaces import InvalidURI
 
 from lp.bugs.enums import VulnerabilityStatus
 from lp.bugs.interfaces.bugtask import BugTaskImportance, BugTaskStatus
+from lp.bugs.scripts.svthandler import SVTRecord
 from lp.registry.interfaces.distribution import IDistributionSet
 from lp.registry.interfaces.distroseries import IDistroSeriesSet
 from lp.registry.interfaces.person import IPersonSet
@@ -59,7 +60,7 @@ class CVSS(NamedTuple):
     vector_string: str
 
 
-class UCTRecord:
+class UCTRecord(SVTRecord):
     """
     UCTRecord represents a single CVE record (file) in the ubuntu-cve-tracker.
 
@@ -149,9 +150,9 @@ class UCTRecord:
         return self.__dict__ == other.__dict__
 
     @classmethod
-    def from_blob(self, blob: bytes) -> "UCTRecord":
+    def from_str(self, string: str) -> "UCTRecord":
         with tempfile.NamedTemporaryFile("w") as fp:
-            fp.write(blob)
+            fp.write(string)
             fp.flush()
             return self.load(Path(fp.name))
 

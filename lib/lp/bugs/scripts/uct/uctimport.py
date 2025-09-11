@@ -50,6 +50,7 @@ from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.bugtask import BugTask
 from lp.bugs.model.cve import Cve as CveModel
 from lp.bugs.model.vulnerability import Vulnerability
+from lp.bugs.scripts.svthandler import SVTImporter
 from lp.bugs.scripts.uct.models import CVE, UCTRecord
 from lp.registry.model.distribution import Distribution
 from lp.registry.model.person import Person
@@ -67,7 +68,7 @@ class UCTImportError(Exception):
     pass
 
 
-class UCTImporter:
+class UCTImporter(SVTImporter):
     """
     `UCTImporter` is used to import UCT CVE files to Launchpad database.
     """

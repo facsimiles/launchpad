@@ -10,6 +10,7 @@ import yaml
 from packaging.version import Version
 
 from lp.app.validators.name import valid_name
+from lp.bugs.scripts.svthandler import SVTRecord
 
 __all__ = [
     "SOSSRecord",
@@ -20,7 +21,7 @@ VALID_CHANNEL_REGEX = re.compile(r"^(focal|jammy|noble):[^/]+/stable$")
 
 
 @dataclass
-class SOSSRecord:
+class SOSSRecord(SVTRecord):
 
     class PriorityEnum(Enum):
         NEEDS_TRIAGE = "Needs-triage"
@@ -122,6 +123,10 @@ class SOSSRecord:
     description: Optional[str] = None
     cvss: Optional[List[CVSS]] = None
     public_date: Optional[datetime] = None
+
+    @classmethod
+    def from_str(cls, string: str) -> "SOSSRecord":
+        return cls.from_yaml(string)
 
     @classmethod
     def from_yaml(cls, yaml_str: str) -> "SOSSRecord":

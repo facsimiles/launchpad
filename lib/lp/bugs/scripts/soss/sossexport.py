@@ -19,6 +19,7 @@ from lp.bugs.scripts.soss.sossimport import (
     PRIORITY_ENUM_MAP,
 )
 from lp.registry.interfaces.role import IPersonRoles
+from lp.bugs.scripts.svthandler import SVTExporter
 from lp.registry.model.distribution import Distribution
 from lp.registry.security import SecurityAdminDistribution
 
@@ -36,7 +37,7 @@ PACKAGE_TYPE_MAP_REVERSE = {v: k for k, v in PACKAGE_TYPE_MAP.items()}
 PACKAGE_STATUS_MAP_REVERSE = {v: k for k, v in PACKAGE_STATUS_MAP.items()}
 
 
-class SOSSExporter:
+class SOSSExporter(SVTExporter):
     """
     SOSSExporter is used to export Launchpad Vulnerability data to SOSS CVE
     files.
