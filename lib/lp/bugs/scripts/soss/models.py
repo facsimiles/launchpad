@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 import yaml
 from packaging.version import Version
 
+from lp.app.validators.name import valid_name
+
 __all__ = [
     "SOSSRecord",
 ]
@@ -149,6 +151,7 @@ class SOSSRecord:
                     note=package["Note"],
                 )
                 for package in pkgs
+                if valid_name(package["Name"])
             ]
             packages[package_type] = package_list
 

@@ -294,6 +294,25 @@ class TestSOSSRecord(TestCase):
             ValueError, SOSSRecord.from_dict, self.soss_record_dict
         )
 
+    def test_from_dict_bad_package_name(self):
+        """LP source packages can't contain some special characters. If there
+        is a package that does it, we ignore.
+        """
+        # Add a package that we will ignore
+        self.soss_record_dict["Packages"]["unpackaged"].append(
+            {
+                "Name": "wrong_name",
+                "Channel": "noble:0.7.3/stable",
+                "Repositories": ["soss-src-stable-local"],
+                "Status": "needed",
+                "Note": "",
+            }
+        )
+
+        # Output is still the same
+        soss_record = SOSSRecord.from_dict(self.soss_record_dict)
+        self.assertEqual(self.soss_record, soss_record)
+
     def test_from_yaml(self):
         load_from = Path(__file__).parent / "sampledata" / "CVE-2025-1979"
 
