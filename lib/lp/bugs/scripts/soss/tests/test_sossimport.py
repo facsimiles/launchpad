@@ -254,7 +254,9 @@ class TestSOSSImporter(TestCaseWithFactory):
 
     def test_create_update_bug(self):
         """Test create and update a bug from a SOSS cve file"""
-        bug = SOSSImporter()._create_bug(self.soss_record, self.cve)
+        soss_importer = SOSSImporter()
+        bug = soss_importer._create_bug(self.soss_record, self.cve)
+        soss_importer._create_or_update_bugtasks(bug, self.soss_record)
 
         self._check_bug_fields(bug, self.bugtask_reference)
 
@@ -278,9 +280,11 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.MAVEN)
         self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.RUST)
 
-        bug = SOSSImporter(
+        soss_importer = SOSSImporter(
             information_type=InformationType.PROPRIETARY
-        )._update_bug(bug, self.soss_record, new_cve)
+        )
+        bug = soss_importer._update_bug(bug, self.soss_record, new_cve)
+        soss_importer._create_or_update_bugtasks(bug, self.soss_record)
         transaction.commit()
 
         # Check bug fields
@@ -339,6 +343,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         """Test update bugtasks"""
         soss_importer = SOSSImporter()
         bug = soss_importer._create_bug(self.soss_record, self.cve)
+        soss_importer._create_or_update_bugtasks(bug, self.soss_record)
 
         self._check_bugtasks(
             bug.bugtasks,

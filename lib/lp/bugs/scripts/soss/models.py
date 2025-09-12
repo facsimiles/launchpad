@@ -140,8 +140,9 @@ class SOSSRecord:
         packages = {}
         for enum_key, pkgs in raw.get("Packages", {}).items():
             package_type = SOSSRecord.PackageTypeEnum(enum_key.lower())
-            package_list = [
-                SOSSRecord.Package(
+            # Use dict comprehension to deduplicate by (name, channel) key
+            unique_packages = {
+                (package["Name"], package["Channel"]): SOSSRecord.Package(
                     name=package["Name"],
                     channel=SOSSRecord.Channel(package["Channel"]),
                     repositories=package["Repositories"],
@@ -152,8 +153,8 @@ class SOSSRecord:
                 )
                 for package in pkgs
                 if valid_name(package["Name"])
-            ]
-            packages[package_type] = package_list
+            }
+            packages[package_type] = list(unique_packages.values())
 
         cvss_list = [
             SOSSRecord.CVSS(

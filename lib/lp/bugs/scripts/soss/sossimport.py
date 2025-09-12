@@ -143,6 +143,9 @@ class SOSSImporter:
 
         vulnerability.linkBug(bug, check_permissions=False)
 
+        # Creating a bug only creates the first bugtask
+        self._create_or_update_bugtasks(bug, soss_record)
+
         if not self.dry_run and vulnerability and bug:
             transaction.commit()
             logger.info(
@@ -195,9 +198,6 @@ class SOSSImporter:
         if not bug:
             raise ValueError(f"Error creating bug for {lp_cve.sequence}")
 
-        # Create next bugtasks
-        self._create_or_update_bugtasks(bug, soss_record)
-
         logger.info(f"[SOSSImporter] Created bug with ID: {bug.id}")
         return bug
 
@@ -216,7 +216,6 @@ class SOSSImporter:
         bug.transitionToInformationType(
             self.information_type, self.bug_importer
         )
-        self._create_or_update_bugtasks(bug, soss_record)
 
         logger.info(f"[SOSSImporter] Updated Bug with ID: {bug.id}")
         return bug

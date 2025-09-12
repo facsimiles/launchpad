@@ -313,6 +313,16 @@ class TestSOSSRecord(TestCase):
         soss_record = SOSSRecord.from_dict(self.soss_record_dict)
         self.assertEqual(self.soss_record, soss_record)
 
+    def test_from_dict_duplicated_package(self):
+        # Add a package that we will ignore
+        self.soss_record_dict["Packages"]["unpackaged"].append(
+            self.soss_record_dict["Packages"]["unpackaged"][0]
+        )
+
+        # Output is still the same
+        soss_record = SOSSRecord.from_dict(self.soss_record_dict)
+        self.assertEqual(self.soss_record, soss_record)
+
     def test_from_yaml(self):
         load_from = Path(__file__).parent / "sampledata" / "CVE-2025-1979"
 
