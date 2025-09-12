@@ -5,6 +5,7 @@ import transaction
 from zope.component import getUtility
 
 from lp.app.enums import InformationType
+from lp.app.errors import NotFoundError
 from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.bugs.interfaces.bugtask import BugTaskImportance, BugTaskStatus
 from lp.bugs.scripts.soss import SOSSRecord
@@ -163,8 +164,11 @@ class TestSOSSImporter(TestCaseWithFactory):
         )
 
         self.notes = (
-            "This is a sample soss cve with all the fields filled for "
-            "testing\nsample note 2"
+            "username: since 1.0, a package issues a warning when text() is "
+            "omitted this fix is not important, marking priority as low\n\n"
+            "username: since 1.0, a package issues a warning when text() is "
+            "omitted this fix is not important, marking priority as low\n\n"
+            "sample note 2"
         )
 
     def _check_bugtasks(
@@ -219,10 +223,7 @@ class TestSOSSImporter(TestCaseWithFactory):
             self.importance_explanation,
         )
         self.assertEqual(vulnerability.creator, self.bug_importer)
-        self.assertEqual(
-            vulnerability.notes,
-            self.notes,
-        )
+        self.assertEqual(vulnerability.notes, self.notes)
         self.assertEqual(vulnerability.mitigation, None)
         self.assertEqual(vulnerability.cve, self.cve)
 
@@ -253,7 +254,9 @@ class TestSOSSImporter(TestCaseWithFactory):
 
     def test_create_update_bug(self):
         """Test create and update a bug from a SOSS cve file"""
-        bug = SOSSImporter()._create_bug(self.soss_record, self.cve)
+        soss_importer = SOSSImporter()
+        bug = soss_importer._create_bug(self.soss_record, self.cve)
+        soss_importer._create_or_update_bugtasks(bug, self.soss_record)
 
         self._check_bug_fields(bug, self.bugtask_reference)
 
@@ -277,9 +280,11 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.MAVEN)
         self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.RUST)
 
-        bug = SOSSImporter(
+        soss_importer = SOSSImporter(
             information_type=InformationType.PROPRIETARY
-        )._update_bug(bug, self.soss_record, new_cve)
+        )
+        bug = soss_importer._update_bug(bug, self.soss_record, new_cve)
+        soss_importer._create_or_update_bugtasks(bug, self.soss_record)
         transaction.commit()
 
         # Check bug fields
@@ -299,8 +304,9 @@ class TestSOSSImporter(TestCaseWithFactory):
         soss_importer = SOSSImporter()
         bug = soss_importer._create_bug(self.soss_record, self.cve)
         vulnerability = soss_importer._create_vulnerability(
-            bug, self.soss_record, self.cve, self.soss
+            self.soss_record, self.cve, self.soss
         )
+        vulnerability.linkBug(bug, check_permissions=False)
 
         self.assertEqual(vulnerability.distribution, self.soss)
         self.assertEqual(
@@ -337,6 +343,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         """Test update bugtasks"""
         soss_importer = SOSSImporter()
         bug = soss_importer._create_bug(self.soss_record, self.cve)
+        soss_importer._create_or_update_bugtasks(bug, self.soss_record)
 
         self._check_bugtasks(
             bug.bugtasks,
@@ -390,7 +397,12 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(
             soss_importer._get_launchpad_cve("2025-1979"), self.cve
         )
-        self.assertEqual(soss_importer._get_launchpad_cve("2000-1111"), None)
+        self.assertRaisesWithContent(
+            NotFoundError,
+            "'Could not find 2000-1111 in LP'",
+            soss_importer._get_launchpad_cve,
+            "2000-1111",
+        )
 
     def test_make_bug_description(self):
         """Test make a bug description from a SOSSRecord"""
@@ -445,17 +457,23 @@ class TestSOSSImporter(TestCaseWithFactory):
 
         # SOSSRecord without packages is not valid
         self.soss_record.packages = {}
-        valid = soss_importer._validate_soss_record(
-            self.soss_record, f"CVE-{self.cve.sequence}"
+        self.assertRaisesWithContent(
+            ValueError,
+            "CVE-2025-1979: has no affected packages",
+            soss_importer._validate_soss_record,
+            self.soss_record,
+            f"CVE-{self.cve.sequence}",
         )
-        self.assertEqual(valid, False)
 
         # SOSSRecord with candidate != sequence is not valid
         self.soss_record.candidate = "nonvalid"
-        valid = soss_importer._validate_soss_record(
-            self.soss_record, f"CVE-{self.cve.sequence}"
+        self.assertRaisesWithContent(
+            ValueError,
+            "CVE sequence mismatch: nonvalid != CVE-2025-1979",
+            soss_importer._validate_soss_record,
+            self.soss_record,
+            f"CVE-{self.cve.sequence}",
         )
-        self.assertEqual(valid, False)
 
     def test_checkUserPermissions(self):
         soss_importer = SOSSImporter()

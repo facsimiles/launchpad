@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 import yaml
 from packaging.version import Version
 
+from lp.app.validators.name import valid_name
+
 __all__ = [
     "SOSSRecord",
 ]
@@ -138,8 +140,9 @@ class SOSSRecord:
         packages = {}
         for enum_key, pkgs in raw.get("Packages", {}).items():
             package_type = SOSSRecord.PackageTypeEnum(enum_key.lower())
-            package_list = [
-                SOSSRecord.Package(
+            # Use dict comprehension to deduplicate by (name, channel) key
+            unique_packages = {
+                (package["Name"], package["Channel"]): SOSSRecord.Package(
                     name=package["Name"],
                     channel=SOSSRecord.Channel(package["Channel"]),
                     repositories=package["Repositories"],
@@ -149,8 +152,9 @@ class SOSSRecord:
                     note=package["Note"],
                 )
                 for package in pkgs
-            ]
-            packages[package_type] = package_list
+                if valid_name(package["Name"])
+            }
+            packages[package_type] = list(unique_packages.values())
 
         cvss_list = [
             SOSSRecord.CVSS(
