@@ -6,6 +6,7 @@
 __all__ = [
     "GitHostingClient",
     "RefCopyOperation",
+    "RequestExceptionWrapper",
 ]
 
 import base64
