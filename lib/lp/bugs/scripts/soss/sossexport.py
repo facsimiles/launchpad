@@ -18,7 +18,9 @@ from lp.bugs.scripts.soss.sossimport import (
     PACKAGE_TYPE_MAP,
     PRIORITY_ENUM_MAP,
 )
+from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.model.distribution import Distribution
+from lp.registry.security import SecurityAdminDistribution
 
 __all__ = [
     "SOSSExporter",
@@ -160,3 +162,8 @@ class SOSSExporter:
         if date_obj and date_obj.tzinfo is not None:
             return date_obj.replace(tzinfo=None)
         return date_obj
+
+    def checkUserPermissions(self, user, distribution):
+        return SecurityAdminDistribution(distribution).checkAuthenticated(
+            IPersonRoles(user)
+        )
