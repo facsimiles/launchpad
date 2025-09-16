@@ -1,7 +1,7 @@
 # Copyright 2009-2017 Canonical Ltd.  This software is licensed under the
 # GNU Affero General Public License version 3 (see the file LICENSE).
 
-""" ChangesFile class
+"""ChangesFile class
 
 Classes representing Changes and DSC files, which encapsulate collections of
 files uploaded.
@@ -337,7 +337,8 @@ class ChangesFile(SignableTagFile):
 
     @property
     def architecture_variants(self):
-        """Return set of strings specifying architecture variants listed in file.
+        """Return set of strings specifying architecture variants listed in
+        file.
 
         Can be empty.
 
