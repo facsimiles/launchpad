@@ -43,14 +43,8 @@ from lp.soyuz.enums import (
     PackagePublishingStatus,
     PackageUploadCustomFormat,
 )
-from lp.testing import (
-    TestCase,
-    TestCaseWithFactory,
-)
-from lp.testing.layers import (
-    LaunchpadZopelessLayer,
-    ZopelessDatabaseLayer,
-)
+from lp.testing import TestCase, TestCaseWithFactory
+from lp.testing.layers import LaunchpadZopelessLayer, ZopelessDatabaseLayer
 
 
 class NascentUploadFileTestCase(TestCaseWithFactory):
