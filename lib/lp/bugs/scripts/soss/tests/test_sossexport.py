@@ -31,7 +31,7 @@ class TestSOSSExporter(TestCaseWithFactory):
         )
         self._makeCves()
 
-        self.soss_importer = SOSSImporter()
+        self.soss_importer = SOSSImporter(self.soss)
         self.soss_exporter = SOSSExporter()
 
     def _makeCves(self):
@@ -71,7 +71,7 @@ class TestSOSSExporter(TestCaseWithFactory):
     def test_to_record(self):
         """Test that imported and exported SOSSRecords match."""
         soss_importer = SOSSImporter(
-            information_type=InformationType.PROPRIETARY
+            self.soss, information_type=InformationType.PROPRIETARY
         )
 
         for file in self.sampledata.iterdir():
@@ -92,7 +92,7 @@ class TestSOSSExporter(TestCaseWithFactory):
         """Integration test that checks that cve files imported and exported
         match."""
         soss_importer = SOSSImporter(
-            information_type=InformationType.PROPRIETARY
+            self.soss, information_type=InformationType.PROPRIETARY
         )
 
         for file in self.sampledata.iterdir():

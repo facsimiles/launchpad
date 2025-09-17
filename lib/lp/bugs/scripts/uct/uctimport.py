@@ -9,8 +9,10 @@ Launchpad.
 For each entry in UCT we:
 
 1. Create a Bug instance
-2. Create a Vulnerability instance for each affected distribution and link it
-   to the bug
+2. Create a Vulnerability instance for Ubuntu and link it to the bug. Although
+we are using distributions as fips, esm, etc. we store that information using
+bugtasks for each distropackage. One Ubuntu Vulnerability is enough to store
+all the information we need.
 3. Create a Bug Task for each distribution/series package in the CVE entry
 4. Update the statuses of Bug Tasks based on the information in the CVE entry
 5. Update the information the related Launchpad's `Cve` model, if necessary
@@ -29,7 +31,7 @@ from collections import defaultdict
 from datetime import timezone
 from itertools import chain
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import transaction
 from zope.component import getUtility
@@ -48,9 +50,12 @@ from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.bugtask import BugTask
 from lp.bugs.model.cve import Cve as CveModel
 from lp.bugs.model.vulnerability import Vulnerability
+from lp.bugs.scripts.svthandler import SVTImporter
 from lp.bugs.scripts.uct.models import CVE, UCTRecord
+from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.model.distribution import Distribution
 from lp.registry.model.person import Person
+from lp.registry.security import SecurityAdminDistribution
 from lp.services.database.constants import UTC_NOW
 
 __all__ = [
@@ -65,16 +70,23 @@ class UCTImportError(Exception):
     pass
 
 
-class UCTImporter:
+class UCTImporter(SVTImporter):
     """
     `UCTImporter` is used to import UCT CVE files to Launchpad database.
     """
 
     TAG_SEPARATOR = "."
 
-    def __init__(self, dry_run=False):
+    def __init__(
+        self,
+        ubuntu,
+        information_type=InformationType.PUBLICSECURITY,
+        dry_run=False,
+    ):
         self.dry_run = dry_run
         self.bug_importer = getUtility(ILaunchpadCelebrities).bug_importer
+        self.ubuntu = ubuntu
+        self.information_type = information_type
 
     def import_cve_from_file(self, cve_path: Path) -> None:
         """
@@ -87,7 +99,22 @@ class UCTImporter:
         cve = CVE.make_from_uct_record(uct_record)
         self.import_cve(cve)
 
-    def import_cve(self, cve: CVE) -> None:
+    def from_record(
+        self, record: UCTRecord, cve_sequence: str
+    ) -> Optional[Tuple[BugModel, Vulnerability]]:
+        cve = CVE.make_from_uct_record(record)
+
+        if cve.sequence != cve_sequence:
+            logger.error(
+                "[UCTImporter] CVE sequence mismatch: %s != %s",
+                cve.sequence,
+                cve_sequence,
+            )
+            return None, None
+
+        return self.import_cve(cve)
+
+    def import_cve(self, cve: CVE) -> Optional[Tuple[BugModel, Vulnerability]]:
         """
         Import a `CVE` instance to Launchpad database.
 
@@ -101,7 +128,7 @@ class UCTImporter:
                 cve.sequence,
                 cve.sequence,
             )
-            return
+            return None, None
         if not cve.series_packages:
             logger.warning(
                 "%s: could not find any affected packages, aborting."
@@ -109,7 +136,7 @@ class UCTImporter:
                 cve.series_packages,
                 cve.sequence,
             )
-            return
+            return None, None
         lp_cve: CveModel = removeSecurityProxy(
             getUtility(ICveSet)[cve.sequence]
         )
@@ -120,11 +147,11 @@ class UCTImporter:
                 cve.sequence,
                 cve.sequence,
             )
-            return
-        bug = self._find_existing_bug(cve, lp_cve)
+            return None, None
+        bug = self._find_existing_bug(lp_cve, self.ubuntu)
         try:
             if bug is None:
-                bug = self.create_bug(cve, lp_cve)
+                bug, vulnerability = self.create_bug(cve, lp_cve)
                 logger.info(
                     "%s: created bug with ID: %s", cve.sequence, bug.id
                 )
@@ -134,7 +161,7 @@ class UCTImporter:
                     cve.sequence,
                     bug.id,
                 )
-                self.update_bug(bug, cve, lp_cve)
+                bug, vulnerability = self.update_bug(bug, cve, lp_cve)
                 logger.info(
                     "%s: updated bug with ID: %s", cve.sequence, bug.id
                 )
@@ -153,6 +180,7 @@ class UCTImporter:
             transaction.commit()
 
         logger.info("%s was imported successfully", cve.sequence)
+        return bug, vulnerability
 
     def create_bug(self, cve: CVE, lp_cve: CveModel) -> BugModel:
         """
@@ -165,15 +193,18 @@ class UCTImporter:
         distro_package = cve.distro_packages[0]
 
         # Create the bug
-        bug: BugModel = getUtility(IBugSet).createBug(
-            CreateBugParams(
-                comment=self._make_bug_description(cve),
-                title=cve.sequence,
-                information_type=InformationType.PUBLICSECURITY,
-                owner=self.bug_importer,
-                target=distro_package.target,
-                importance=distro_package.importance,
-                cve=lp_cve,
+        bug: BugModel = removeSecurityProxy(
+            getUtility(IBugSet).createBug(
+                CreateBugParams(
+                    comment=self._make_bug_description(cve),
+                    title=cve.sequence,
+                    information_type=self.information_type,
+                    owner=self.bug_importer,
+                    target=distro_package.target,
+                    importance=distro_package.importance,
+                    cve=lp_cve,
+                    check_permissions=False,
+                )
             )
         )
 
@@ -206,11 +237,13 @@ class UCTImporter:
             message=f"UCT CVE entry {cve.sequence}",
         )
 
-        # Create the Vulnerabilities
-        for distribution in cve.affected_distributions:
-            self._create_vulnerability(bug, cve, lp_cve, distribution)
-
-        return bug
+        # Bug with bugtasks will target packages in different distributions
+        # like we said for fips, esm, etc... But the real distribution is only
+        # Ubuntu so we will only create a vulnerability for ubuntu
+        vulnerability = self._create_vulnerability(
+            bug, cve, lp_cve, self.ubuntu
+        )
+        return bug, vulnerability
 
     def update_bug(self, bug: BugModel, cve: CVE, lp_cve: CveModel) -> None:
         """
@@ -241,16 +274,13 @@ class UCTImporter:
         self._update_break_fix(bug, cve.break_fix_data)
         self._update_tags(bug, cve.global_tags, cve.distro_packages)
 
-        # Update or add new Vulnerabilities
-        vulnerabilities_by_distro = {
-            v.distribution: v for v in bug.vulnerabilities
-        }
-        for distro in cve.affected_distributions:
-            vulnerability = vulnerabilities_by_distro.get(distro)
-            if vulnerability is None:
-                self._create_vulnerability(bug, cve, lp_cve, distro)
-            else:
-                self._update_vulnerability(vulnerability, cve)
+        vulnerability = self._find_existing_vulnerability(lp_cve, self.ubuntu)
+        if vulnerability is None:
+            self._create_vulnerability(bug, cve, lp_cve, self.ubuntu)
+        else:
+            self._update_vulnerability(vulnerability, cve)
+
+        return bug, vulnerability
 
     def _update_tags(
         self, bug: BugModel, global_tags: Set, distro_packages: List
@@ -266,21 +296,34 @@ class UCTImporter:
         bug.tags = tags
 
     def _find_existing_bug(
-        self, cve: CVE, lp_cve: CveModel
+        self,
+        lp_cve: CveModel,
+        distribution: Distribution,
     ) -> Optional[BugModel]:
-        bug = None
-        for vulnerability in lp_cve.vulnerabilities:
-            if vulnerability.distribution in cve.affected_distributions:
-                bugs = vulnerability.bugs
-                if bugs:
-                    if bug and bugs[0] != bug:
-                        raise UCTImportError(
-                            "Multiple existing bugs are found "
-                            "for CVE {}".format(cve.sequence)
-                        )
-                    else:
-                        bug = bugs[0]
-        return bug
+        """Find existing bug for the given CVE."""
+        vulnerability = self._find_existing_vulnerability(lp_cve, distribution)
+        if not vulnerability:
+            return None
+
+        bugs = vulnerability.bugs
+        if len(bugs) > 1:
+            raise UCTImportError(
+                f"Multiple existing bugs found for CVE {lp_cve.sequence}"
+            )
+        if bugs:
+            return removeSecurityProxy(bugs[0])
+
+        return None
+
+    def _find_existing_vulnerability(
+        self, lp_cve: CveModel, distribution: Distribution
+    ) -> Optional[Vulnerability]:
+        """Find existing vulnerability for the current distribution"""
+        if not lp_cve:
+            return None
+
+        vulnerability = lp_cve.getDistributionVulnerability(distribution)
+        return removeSecurityProxy(vulnerability)
 
     def _create_bug_tasks(
         self,
@@ -329,14 +372,16 @@ class UCTImporter:
         :param distribution: a `Distribution` affected by the vulnerability
         :return: a Vulnerability
         """
-        vulnerability: Vulnerability = getUtility(IVulnerabilitySet).new(
-            distribution=distribution,
-            status=cve.status,
-            importance=cve.importance,
-            importance_explanation=cve.importance_explanation,
-            creator=bug.owner,
-            information_type=InformationType.PUBLICSECURITY,
-            cve=lp_cve,
+        vulnerability: Vulnerability = removeSecurityProxy(
+            getUtility(IVulnerabilitySet).new(
+                distribution=distribution,
+                status=cve.status,
+                importance=cve.importance,
+                importance_explanation=cve.importance_explanation,
+                creator=bug.owner,
+                information_type=self.information_type,
+                cve=lp_cve,
+            )
         )
         self._update_vulnerability(vulnerability, cve)
 
@@ -555,3 +600,9 @@ class UCTImporter:
         """
         lp_cve.setCVSSVectorForAuthority(cve.cvss)
         lp_cve.discovered_by = cve.discovered_by
+
+    def checkUserPermissions(self, user):
+        """See `SVTImporter`."""
+        return SecurityAdminDistribution(self.ubuntu).checkAuthenticated(
+            IPersonRoles(user)
+        )

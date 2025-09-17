@@ -35,135 +35,139 @@ TAG_SEPARATOR = UCTImporter.TAG_SEPARATOR
 class TestUCTRecord(TestCase):
     maxDiff = None
 
+    def setUp(self):
+        super().setUp()
+        self.record = UCTRecord(
+            parent_dir="sampledata",
+            assigned_to="",
+            bugs=[
+                "https://github.com/mm2/Little-CMS/issues/29",
+                "https://github.com/mm2/Little-CMS/issues/30",
+                "https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=745471",
+            ],
+            cvss=[
+                CVSS(
+                    authority="nvd",
+                    vector_string=(
+                        "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
+                        "[7.8 HIGH]"
+                    ),
+                ),
+            ],
+            candidate="CVE-2022-23222",
+            crd=None,
+            public_date_at_USN=datetime(
+                2022, 1, 14, 8, 15, tzinfo=timezone.utc
+            ),
+            public_date=datetime(2022, 1, 14, 8, 15, tzinfo=timezone.utc),
+            description=(
+                "kernel/bpf/verifier.c in the Linux kernel through "
+                "5.15.14 allows local\nusers to gain privileges because "
+                "of the availability of pointer arithmetic\nvia certain "
+                "*_OR_NULL pointer types."
+            ),
+            discovered_by="tr3e wang",
+            mitigation=(
+                "seth-arnold> set kernel.unprivileged_bpf_disabled to 1"
+            ),
+            notes=(
+                "sbeattie> Ubuntu 21.10 / 5.13+ kernels disable "
+                "unprivileged BPF by default.\n  kernels 5.8 and "
+                "older are not affected, priority high is "
+                "for\n  5.10 and 5.11 based kernels only"
+            ),
+            priority=UCTRecord.Priority.CRITICAL,
+            references=["https://ubuntu.com/security/notices/USN-5368-1"],
+            ubuntu_description=(
+                "It was discovered that the BPF verifier in the Linux "
+                "kernel did not\nproperly restrict pointer types in "
+                "certain situations. A local attacker\ncould use this to "
+                "cause a denial of service (system crash) or possibly\n"
+                "execute arbitrary code."
+            ),
+            packages=[
+                UCTRecord.Package(
+                    name="linux",
+                    statuses=[
+                        UCTRecord.SeriesPackageStatus(
+                            series="upstream",
+                            status=UCTRecord.PackageStatus.RELEASED,
+                            reason="5.17~rc1",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="impish",
+                            status=UCTRecord.PackageStatus.RELEASED,
+                            reason="5.13.0-37.42",
+                            priority=UCTRecord.Priority.MEDIUM,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="devel",
+                            status=UCTRecord.PackageStatus.NOT_AFFECTED,
+                            reason="5.15.0-25.25",
+                            priority=UCTRecord.Priority.MEDIUM,
+                        ),
+                    ],
+                    priority=None,
+                    tags={"not-ue"},
+                    patches=[
+                        UCTRecord.Patch(
+                            patch_type="break-fix",
+                            entry=(
+                                "457f44363a8894135c85b7a9afd2bd8196db24ab "
+                                "c25b2ae136039ffa820c26138ed4a5e5f3ab3841|"
+                                "local-CVE-2022-23222-fix"
+                            ),
+                        ),
+                        UCTRecord.Patch(
+                            patch_type="upstream",
+                            entry=(
+                                "https://github.com/389ds/389-ds-base/commit/58dbf084a63e6dbbd999bf6a70475fad8255f26a (1.4.4)"  # noqa: 501
+                            ),
+                        ),
+                        UCTRecord.Patch(
+                            patch_type="upstream",
+                            entry=(
+                                "https://github.com/389ds/389-ds-base/commit/2e5b526012612d1d6ccace46398bee679a730271"  # noqa: 501
+                            ),
+                        ),
+                    ],
+                ),
+                UCTRecord.Package(
+                    name="linux-hwe",
+                    statuses=[
+                        UCTRecord.SeriesPackageStatus(
+                            series="upstream",
+                            status=UCTRecord.PackageStatus.RELEASED,
+                            reason="5.17~rc1",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="impish",
+                            status=UCTRecord.PackageStatus.DOES_NOT_EXIST,
+                            reason="",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="devel",
+                            status=UCTRecord.PackageStatus.DOES_NOT_EXIST,
+                            reason="",
+                            priority=None,
+                        ),
+                    ],
+                    priority=UCTRecord.Priority.HIGH,
+                    tags=set(),
+                    patches=[],
+                ),
+            ],
+            global_tags={"cisa-kev"},
+        )
+
     def test_load_save(self):
         load_from = Path(__file__).parent / "sampledata" / "CVE-2022-23222"
         uct_record = UCTRecord.load(load_from)
         self.assertDictEqual(
-            UCTRecord(
-                parent_dir="sampledata",
-                assigned_to="",
-                bugs=[
-                    "https://github.com/mm2/Little-CMS/issues/29",
-                    "https://github.com/mm2/Little-CMS/issues/30",
-                    "https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=745471",
-                ],
-                cvss=[
-                    CVSS(
-                        authority="nvd",
-                        vector_string=(
-                            "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
-                            "[7.8 HIGH]"
-                        ),
-                    ),
-                ],
-                candidate="CVE-2022-23222",
-                crd=None,
-                public_date_at_USN=datetime(
-                    2022, 1, 14, 8, 15, tzinfo=timezone.utc
-                ),
-                public_date=datetime(2022, 1, 14, 8, 15, tzinfo=timezone.utc),
-                description=(
-                    "kernel/bpf/verifier.c in the Linux kernel through "
-                    "5.15.14 allows local\nusers to gain privileges because "
-                    "of the availability of pointer arithmetic\nvia certain "
-                    "*_OR_NULL pointer types."
-                ),
-                discovered_by="tr3e wang",
-                mitigation=(
-                    "seth-arnold> set kernel.unprivileged_bpf_disabled to 1"
-                ),
-                notes=(
-                    "sbeattie> Ubuntu 21.10 / 5.13+ kernels disable "
-                    "unprivileged BPF by default.\n  kernels 5.8 and "
-                    "older are not affected, priority high is "
-                    "for\n  5.10 and 5.11 based kernels only"
-                ),
-                priority=UCTRecord.Priority.CRITICAL,
-                references=["https://ubuntu.com/security/notices/USN-5368-1"],
-                ubuntu_description=(
-                    "It was discovered that the BPF verifier in the Linux "
-                    "kernel did not\nproperly restrict pointer types in "
-                    "certain situations. A local attacker\ncould use this to "
-                    "cause a denial of service (system crash) or possibly\n"
-                    "execute arbitrary code."
-                ),
-                packages=[
-                    UCTRecord.Package(
-                        name="linux",
-                        statuses=[
-                            UCTRecord.SeriesPackageStatus(
-                                series="upstream",
-                                status=UCTRecord.PackageStatus.RELEASED,
-                                reason="5.17~rc1",
-                                priority=None,
-                            ),
-                            UCTRecord.SeriesPackageStatus(
-                                series="impish",
-                                status=UCTRecord.PackageStatus.RELEASED,
-                                reason="5.13.0-37.42",
-                                priority=UCTRecord.Priority.MEDIUM,
-                            ),
-                            UCTRecord.SeriesPackageStatus(
-                                series="devel",
-                                status=UCTRecord.PackageStatus.NOT_AFFECTED,
-                                reason="5.15.0-25.25",
-                                priority=UCTRecord.Priority.MEDIUM,
-                            ),
-                        ],
-                        priority=None,
-                        tags={"not-ue"},
-                        patches=[
-                            UCTRecord.Patch(
-                                patch_type="break-fix",
-                                entry=(
-                                    "457f44363a8894135c85b7a9afd2bd8196db24ab "
-                                    "c25b2ae136039ffa820c26138ed4a5e5f3ab3841|"
-                                    "local-CVE-2022-23222-fix"
-                                ),
-                            ),
-                            UCTRecord.Patch(
-                                patch_type="upstream",
-                                entry=(
-                                    "https://github.com/389ds/389-ds-base/commit/58dbf084a63e6dbbd999bf6a70475fad8255f26a (1.4.4)"  # noqa: 501
-                                ),
-                            ),
-                            UCTRecord.Patch(
-                                patch_type="upstream",
-                                entry=(
-                                    "https://github.com/389ds/389-ds-base/commit/2e5b526012612d1d6ccace46398bee679a730271"  # noqa: 501
-                                ),
-                            ),
-                        ],
-                    ),
-                    UCTRecord.Package(
-                        name="linux-hwe",
-                        statuses=[
-                            UCTRecord.SeriesPackageStatus(
-                                series="upstream",
-                                status=UCTRecord.PackageStatus.RELEASED,
-                                reason="5.17~rc1",
-                                priority=None,
-                            ),
-                            UCTRecord.SeriesPackageStatus(
-                                series="impish",
-                                status=UCTRecord.PackageStatus.DOES_NOT_EXIST,
-                                reason="",
-                                priority=None,
-                            ),
-                            UCTRecord.SeriesPackageStatus(
-                                series="devel",
-                                status=UCTRecord.PackageStatus.DOES_NOT_EXIST,
-                                reason="",
-                                priority=None,
-                            ),
-                        ],
-                        priority=UCTRecord.Priority.HIGH,
-                        tags=set(),
-                        patches=[],
-                    ),
-                ],
-                global_tags={"cisa-kev"},
-            ).__dict__,
+            self.record.__dict__,
             uct_record.__dict__,
         )
 
@@ -262,6 +266,17 @@ class TestUCTRecord(TestCase):
             output_dir / "sampledata" / "CVE-2023-32637", saved_to_path
         )
         self.assertEqual(load_from.read_text(), saved_to_path.read_text())
+
+    def test_from_str(self):
+        load_from = Path(__file__).parent / "sampledata" / "CVE-2022-23222"
+        with open(load_from) as f:
+            string = f.read()
+
+        record = UCTRecord.from_str(string)
+
+        # We are importing a blob, creating a temp file
+        self.record.parent_dir = "tmp"
+        self.assertEqual(record.__dict__, self.record.__dict__)
 
 
 class TestCVE(TestCaseWithFactory):
@@ -866,7 +881,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             ],
             global_tags={"cisa-kev"},
         )
-        self.importer = UCTImporter()
+        self.importer = UCTImporter(self.ubuntu)
         self.exporter = UCTExporter()
 
     def checkBug(self, bug: Bug, cve: CVE):
@@ -1064,36 +1079,35 @@ class TestUCTImporterExporter(TestCaseWithFactory):
     def checkVulnerabilities(self, bug: Bug, cve: CVE):
         vulnerabilities = bug.vulnerabilities
 
-        self.assertEqual(len(cve.affected_distributions), len(vulnerabilities))
+        self.assertEqual(1, len(vulnerabilities))
 
         vulnerabilities_by_distro = {
             v.distribution: v for v in vulnerabilities
         }
-        for distro in cve.affected_distributions:
-            self.assertIn(distro, vulnerabilities_by_distro)
-            vulnerability = vulnerabilities_by_distro[distro]
 
-            self.assertEqual(self.bug_importer, vulnerability.creator)
-            self.assertEqual(self.lp_cve, vulnerability.cve)
-            self.assertEqual(cve.status, vulnerability.status)
-            self.assertEqual(cve.ubuntu_description, vulnerability.description)
-            self.assertEqual(cve.notes, vulnerability.notes)
-            self.assertEqual(cve.mitigation, vulnerability.mitigation)
-            self.assertEqual(cve.importance, vulnerability.importance)
-            self.assertEqual(
-                InformationType.PUBLICSECURITY, vulnerability.information_type
-            )
-            self.assertEqual(
-                cve.date_made_public, vulnerability.date_made_public
-            )
-            self.assertEqual(
-                cve.date_notice_issued, vulnerability.date_notice_issued
-            )
-            self.assertEqual(
-                cve.date_coordinated_release,
-                vulnerability.date_coordinated_release,
-            )
-            self.assertEqual([bug], vulnerability.bugs)
+        distro = self.ubuntu
+        self.assertIn(distro, vulnerabilities_by_distro)
+        vulnerability = vulnerabilities_by_distro[distro]
+
+        self.assertEqual(self.bug_importer, vulnerability.creator)
+        self.assertEqual(self.lp_cve, vulnerability.cve)
+        self.assertEqual(cve.status, vulnerability.status)
+        self.assertEqual(cve.ubuntu_description, vulnerability.description)
+        self.assertEqual(cve.notes, vulnerability.notes)
+        self.assertEqual(cve.mitigation, vulnerability.mitigation)
+        self.assertEqual(cve.importance, vulnerability.importance)
+        self.assertEqual(
+            InformationType.PUBLICSECURITY, vulnerability.information_type
+        )
+        self.assertEqual(cve.date_made_public, vulnerability.date_made_public)
+        self.assertEqual(
+            cve.date_notice_issued, vulnerability.date_notice_issued
+        )
+        self.assertEqual(
+            cve.date_coordinated_release,
+            vulnerability.date_coordinated_release,
+        )
+        self.assertEqual([bug], vulnerability.bugs)
 
     def checkLaunchpadCve(self, lp_cve: CveModel, cve: CVE):
         cvss = defaultdict(list)
@@ -1139,7 +1153,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.assertEqual(expected.global_tags, actual.global_tags)
 
     def test_create_bug(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
 
         self.checkBug(bug, self.cve)
         self.checkBugTasks(bug, self.cve)
@@ -1238,32 +1252,34 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             global_tags={"cisa-kev"},
         )
         lp_cve = self.factory.makeCVE(sequence="2022-1234")
-        bug = self.importer.create_bug(cve, lp_cve)
+        bug, _ = self.importer.create_bug(cve, lp_cve)
         self.checkBug(bug, cve)
         self.checkBugTasks(bug, cve)
         self.assertEqual([lp_cve], bug.cves)
 
     def test_find_existing_bug(self):
         self.assertIsNone(
-            self.importer._find_existing_bug(self.cve, self.lp_cve)
+            self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
         )
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         self.assertEqual(
-            self.importer._find_existing_bug(self.cve, self.lp_cve), bug
+            self.importer._find_existing_bug(self.lp_cve, self.ubuntu),
+            bug,
         )
 
     def test_find_existing_bug_multiple_bugs(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         another_bug = self.factory.makeBug(bug.bugtasks[0].target)
-        self.assertGreater(len(bug.vulnerabilities), 1)
+        self.assertEqual(len(bug.vulnerabilities), 1)
         vulnerability = bug.vulnerabilities[0]
-        vulnerability.unlinkBug(bug)
+
+        # Link another_bug so same vulnerability has more than one
         vulnerability.linkBug(another_bug)
         self.assertRaises(
             UCTImportError,
             self.importer._find_existing_bug,
-            self.cve,
             self.lp_cve,
+            self.ubuntu,
         )
 
     def test_update_bug_new_package(self):
@@ -1279,7 +1295,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         )
 
         cve = self.cve
-        bug = self.importer.create_bug(cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(cve, self.lp_cve)
 
         cve.distro_packages.append(
             CVE.DistroPackage(
@@ -1318,7 +1334,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             )
 
         cve = self.cve
-        bug = self.importer.create_bug(cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(cve, self.lp_cve)
 
         cve.series_packages.append(
             CVE.SeriesPackage(
@@ -1352,7 +1368,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         )
 
         cve = self.cve
-        bug = self.importer.create_bug(cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(cve, self.lp_cve)
 
         cve.distro_packages.append(
             CVE.DistroPackage(
@@ -1381,14 +1397,14 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkVulnerabilities(bug, cve)
 
     def test_update_bug_assignee_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         cve.assignee = self.factory.makePerson()
         self.importer.update_bug(bug, cve, self.lp_cve)
         self.checkBugTasks(bug, cve)
 
     def test_update_bug_cve_importance_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         self.assertNotEqual(cve.importance, BugTaskImportance.CRITICAL)
         cve.importance = BugTaskImportance.CRITICAL
@@ -1396,7 +1412,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkVulnerabilities(bug, cve)
 
     def test_update_bug_cve_status_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         self.assertNotEqual(cve.status, VulnerabilityStatus.IGNORED)
         cve.status = VulnerabilityStatus.IGNORED
@@ -1404,7 +1420,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkVulnerabilities(bug, cve)
 
     def test_update_bug_package_importance_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         self.assertNotEqual(
             cve.distro_packages[0].importance, BugTaskImportance.CRITICAL
@@ -1422,7 +1438,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBugTasks(bug, cve)
 
     def test_update_bug_package_status_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
         self.assertNotEqual(
             cve.series_packages[0].status, BugTaskStatus.DOESNOTEXIST
@@ -1438,7 +1454,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBugTasks(bug, cve)
 
     def test_update_bug_external_bugs_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new URL
@@ -1452,7 +1468,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_bug_global_tags_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         cve.global_tags.add("another-tag")
@@ -1460,7 +1476,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_bug_ubuntu_description_changed(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         cve.ubuntu_description += "new"
@@ -1468,7 +1484,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_bug_references(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new URL
@@ -1482,7 +1498,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_patch_urls(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new patch URL
@@ -1513,7 +1529,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_break_fix(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new break_fix
@@ -1544,7 +1560,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.checkBug(bug, cve)
 
     def test_update_tags(self):
-        bug = self.importer.create_bug(self.cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         cve = self.cve
 
         # Add new tags
@@ -1558,14 +1574,16 @@ class TestUCTImporterExporter(TestCaseWithFactory):
     def test_import_cve(self):
         self.importer.import_cve(self.cve)
         self.assertIsNotNone(
-            self.importer._find_existing_bug(self.cve, self.lp_cve)
+            self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
         )
         self.checkLaunchpadCve(self.lp_cve, self.cve)
 
     def test_import_cve_dry_run(self):
-        importer = UCTImporter(dry_run=True)
+        importer = UCTImporter(self.ubuntu, dry_run=True)
         importer.import_cve(self.cve)
-        self.assertIsNone(importer._find_existing_bug(self.cve, self.lp_cve))
+        self.assertIsNone(
+            importer._find_existing_bug(self.lp_cve, self.ubuntu)
+        )
 
     def test_naive_dates(self):
         cve = self.cve
@@ -1574,7 +1592,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         cve.date_coordinated_release = cve.date_coordinated_release.replace(
             tzinfo=None
         )
-        bug = self.importer.create_bug(cve, self.lp_cve)
+        bug, _ = self.importer.create_bug(cve, self.lp_cve)
         for date in (
             bug.vulnerabilities[0].date_made_public,
             bug.vulnerabilities[0].date_notice_issued,
@@ -1591,15 +1609,60 @@ class TestUCTImporterExporter(TestCaseWithFactory):
 
     def test_make_cve_from_bug(self):
         self.importer.import_cve(self.cve)
-        bug = self.importer._find_existing_bug(self.cve, self.lp_cve)
+        bug = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
         cve = self.exporter._make_cve_from_bug(bug)
         self.checkCVE(self.cve, cve)
 
     def test_export_bug_to_uct_file(self):
         self.importer.import_cve(self.cve)
-        bug = self.importer._find_existing_bug(self.cve, self.lp_cve)
+        bug = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
         output_dir = Path(self.makeTemporaryDirectory())
         cve_path = self.exporter.export_bug_to_uct_file(bug.id, output_dir)
         uct_record = UCTRecord.load(cve_path)
         cve = CVE.make_from_uct_record(uct_record)
         self.checkCVE(self.cve, cve)
+
+    def test_import_cve_from_file(self):
+        uct_record = self.cve.to_uct_record()
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cve_path = uct_record.save(Path(tmpdir))
+            self.importer.import_cve_from_file(cve_path)
+
+        bug = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
+        self.importer._find_existing_vulnerability(self.lp_cve, self.ubuntu)
+        self.checkBug(bug, self.cve)
+        self.checkVulnerabilities(bug, self.cve)
+
+    def test_from_record(self):
+        uct_record = self.cve.to_uct_record()
+        bug, _ = self.importer.from_record(uct_record, "CVE-2022-23222")
+        cve = CVE.make_from_uct_record(uct_record)
+        self.checkCVE(self.cve, cve)
+        self.checkBug(bug, self.cve)
+        self.checkVulnerabilities(bug, self.cve)
+
+    def test_import_non_existing_cve(self):
+        """Try to import a non existing cve won't create a bug and
+        vulnerability."""
+        self.cve.sequence = "CVE-2023-0000"
+        uct_record = self.cve.to_uct_record()
+        bug, vuln = self.importer.from_record(uct_record, "CVE-2023-0000")
+        self.assertEqual(bug, None)
+        self.assertEqual(vuln, None)
+
+    def test_import_duplicate(self):
+        """Import more than once a cve and check that it does not duplicate."""
+        self.importer.import_cve(self.cve)
+        bug = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
+        vulnerability = self.importer._find_existing_vulnerability(
+            self.lp_cve, self.ubuntu
+        )
+        self.importer.import_cve(self.cve)
+        bug_copy = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
+        vulnerability_copy = self.importer._find_existing_vulnerability(
+            self.lp_cve, self.ubuntu
+        )
+        self.assertEqual(bug, bug_copy)
+        self.assertEqual(vulnerability, vulnerability_copy)

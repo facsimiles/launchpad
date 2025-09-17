@@ -28,7 +28,7 @@ from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.cve import Cve as CveModel
 from lp.bugs.model.vulnerability import Vulnerability
 from lp.bugs.scripts.soss.models import SOSSRecord
-from lp.registry.interfaces.distribution import IDistributionSet
+from lp.bugs.scripts.svthandler import SVTImporter
 from lp.registry.interfaces.externalpackage import ExternalPackageType
 from lp.registry.interfaces.person import IPersonSet
 from lp.registry.interfaces.role import IPersonRoles
@@ -78,13 +78,14 @@ PACKAGE_STATUS_MAP = {
 DISTRIBUTION_NAME = "soss"
 
 
-class SOSSImporter:
+class SOSSImporter(SVTImporter):
     """
     SOSSImporter is used to import SOSS CVE files to Launchpad database.
     """
 
     def __init__(
         self,
+        distribution: Distribution,
         information_type: InformationType = InformationType.PROPRIETARY,
         dry_run: bool = False,
     ) -> None:
@@ -97,13 +98,7 @@ class SOSSImporter:
         self.vulnerability_set = getUtility(IVulnerabilitySet)
         self.bug_set = getUtility(IBugSet)
         self.cve_set = getUtility(ICveSet)
-        self.soss = removeSecurityProxy(
-            getUtility(IDistributionSet).getByName(DISTRIBUTION_NAME)
-        )
-
-        if self.soss is None:
-            logger.error("[SOSSImporter] SOSS distribution not found")
-            raise NotFoundError("SOSS distribution not found")
+        self.soss = distribution
 
     def import_cve_from_file(
         self, cve_path: str
@@ -115,10 +110,10 @@ class SOSSImporter:
         with open(cve_path, encoding="utf-8") as file:
             soss_record = SOSSRecord.from_yaml(file)
 
-        bug, vulnerability = self.import_cve(soss_record, cve_sequence)
+        bug, vulnerability = self.from_record(soss_record, cve_sequence)
         return bug, vulnerability
 
-    def import_cve(
+    def from_record(
         self, soss_record: SOSSRecord, cve_sequence: str
     ) -> Tuple[BugModel, Vulnerability]:
         """Import CVE from SOSS record."""
@@ -500,6 +495,7 @@ class SOSSImporter:
         return packagetype, package
 
     def checkUserPermissions(self, user):
+        """See `SVTImporter`."""
         return SecurityAdminDistribution(self.soss).checkAuthenticated(
             IPersonRoles(user)
         )

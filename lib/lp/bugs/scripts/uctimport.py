@@ -1,6 +1,9 @@
 import logging
 from pathlib import Path
 
+from zope.component import getUtility
+
+from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.app.validators.cve import CVEREF_PATTERN
 from lp.bugs.scripts.uct import UCTImporter
 from lp.services.scripts.base import LaunchpadScript
@@ -58,6 +61,8 @@ class UCTImportScript(LaunchpadScript):
                 return
         else:
             cve_paths = [path]
-        importer = UCTImporter(dry_run=self.options.dry_run)
+
+        ubuntu = getUtility(ILaunchpadCelebrities).ubuntu
+        importer = UCTImporter(ubuntu, dry_run=self.options.dry_run)
         for cve_path in cve_paths:
             importer.import_cve_from_file(cve_path)
