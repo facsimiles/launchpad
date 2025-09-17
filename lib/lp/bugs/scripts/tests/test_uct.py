@@ -1259,15 +1259,11 @@ class TestUCTImporterExporter(TestCaseWithFactory):
 
     def test_find_existing_bug(self):
         self.assertIsNone(
-            self.importer._find_existing_bug(
-                self.cve, self.lp_cve, self.ubuntu
-            )
+            self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
         )
         bug, _ = self.importer.create_bug(self.cve, self.lp_cve)
         self.assertEqual(
-            self.importer._find_existing_bug(
-                self.cve, self.lp_cve, self.ubuntu
-            ),
+            self.importer._find_existing_bug(self.lp_cve, self.ubuntu),
             bug,
         )
 
@@ -1282,7 +1278,6 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.assertRaises(
             UCTImportError,
             self.importer._find_existing_bug,
-            self.cve,
             self.lp_cve,
             self.ubuntu,
         )
@@ -1579,9 +1574,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
     def test_import_cve(self):
         self.importer.import_cve(self.cve)
         self.assertIsNotNone(
-            self.importer._find_existing_bug(
-                self.cve, self.lp_cve, self.ubuntu
-            )
+            self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
         )
         self.checkLaunchpadCve(self.lp_cve, self.cve)
 
@@ -1589,7 +1582,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         importer = UCTImporter(self.ubuntu, dry_run=True)
         importer.import_cve(self.cve)
         self.assertIsNone(
-            importer._find_existing_bug(self.cve, self.lp_cve, self.ubuntu)
+            importer._find_existing_bug(self.lp_cve, self.ubuntu)
         )
 
     def test_naive_dates(self):
@@ -1616,19 +1609,60 @@ class TestUCTImporterExporter(TestCaseWithFactory):
 
     def test_make_cve_from_bug(self):
         self.importer.import_cve(self.cve)
-        bug = self.importer._find_existing_bug(
-            self.cve, self.lp_cve, self.ubuntu
-        )
+        bug = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
         cve = self.exporter._make_cve_from_bug(bug)
         self.checkCVE(self.cve, cve)
 
     def test_export_bug_to_uct_file(self):
         self.importer.import_cve(self.cve)
-        bug = self.importer._find_existing_bug(
-            self.cve, self.lp_cve, self.ubuntu
-        )
+        bug = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
         output_dir = Path(self.makeTemporaryDirectory())
         cve_path = self.exporter.export_bug_to_uct_file(bug.id, output_dir)
         uct_record = UCTRecord.load(cve_path)
         cve = CVE.make_from_uct_record(uct_record)
         self.checkCVE(self.cve, cve)
+
+    def test_import_cve_from_file(self):
+        uct_record = self.cve.to_uct_record()
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cve_path = uct_record.save(Path(tmpdir))
+            self.importer.import_cve_from_file(cve_path)
+
+        bug = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
+        self.importer._find_existing_vulnerability(self.lp_cve, self.ubuntu)
+        self.checkBug(bug, self.cve)
+        self.checkVulnerabilities(bug, self.cve)
+
+    def test_from_record(self):
+        uct_record = self.cve.to_uct_record()
+        bug, _ = self.importer.from_record(uct_record, "CVE-2022-23222")
+        cve = CVE.make_from_uct_record(uct_record)
+        self.checkCVE(self.cve, cve)
+        self.checkBug(bug, self.cve)
+        self.checkVulnerabilities(bug, self.cve)
+
+    def test_import_non_existing_cve(self):
+        """Try to import a non existing cve won't create a bug and
+        vulnerability."""
+        self.cve.sequence = "CVE-2023-0000"
+        uct_record = self.cve.to_uct_record()
+        bug, vuln = self.importer.from_record(uct_record, "CVE-2023-0000")
+        self.assertEqual(bug, None)
+        self.assertEqual(vuln, None)
+
+    def test_import_duplicate(self):
+        """Import more than once a cve and check that it does not duplicate."""
+        self.importer.import_cve(self.cve)
+        bug = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
+        vulnerability = self.importer._find_existing_vulnerability(
+            self.lp_cve, self.ubuntu
+        )
+        self.importer.import_cve(self.cve)
+        bug_copy = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
+        vulnerability_copy = self.importer._find_existing_vulnerability(
+            self.lp_cve, self.ubuntu
+        )
+        self.assertEqual(bug, bug_copy)
+        self.assertEqual(vulnerability, vulnerability_copy)

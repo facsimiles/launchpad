@@ -148,7 +148,7 @@ class UCTImporter(SVTImporter):
                 cve.sequence,
             )
             return None, None
-        bug = self._find_existing_bug(cve, lp_cve, self.ubuntu)
+        bug = self._find_existing_bug(lp_cve, self.ubuntu)
         try:
             if bug is None:
                 bug, vulnerability = self.create_bug(cve, lp_cve)
@@ -297,7 +297,6 @@ class UCTImporter(SVTImporter):
 
     def _find_existing_bug(
         self,
-        cve: CVE,
         lp_cve: CveModel,
         distribution: Distribution,
     ) -> Optional[BugModel]:
@@ -309,7 +308,7 @@ class UCTImporter(SVTImporter):
         bugs = vulnerability.bugs
         if len(bugs) > 1:
             raise UCTImportError(
-                f"Multiple existing bugs found for CVE {cve.sequence}"
+                f"Multiple existing bugs found for CVE {lp_cve.sequence}"
             )
         if bugs:
             return removeSecurityProxy(bugs[0])
