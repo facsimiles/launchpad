@@ -37,6 +37,8 @@ ci-train-ppa-service/stable-phone-overlay
 dennis-team
 elvis-team
 fluendo-isv
+kobuk-team/intel-graphics
+kobuk-team/intel-graphics-staging
 natick-team
 netbook-remix-team
 netbook-team
