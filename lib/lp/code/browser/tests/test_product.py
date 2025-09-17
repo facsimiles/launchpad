@@ -21,7 +21,6 @@ from lp.testing import (
     TestCaseWithFactory,
     login,
     login_person,
-    logout,
     person_logged_in,
     time_counter,
 )
@@ -146,30 +145,6 @@ class TestProductBranchesView(ProductTestBase):
 
 class TestProductBranchesServiceUsages(ProductTestBase, BrowserTestCase):
     """Tests for the product code page, especially the usage messasges."""
-
-    def test_external_imported(self):
-        # A product with an imported development focus branch should say so,
-        # and should display the upstream information along with the LP info.
-        product = self.factory.makeProduct()
-        code_import = self.factory.makeProductCodeImport(
-            svn_branch_url="http://svn.example.org/branch"
-        )
-        login_person(product.owner)
-        product.development_focus.branch = code_import.branch
-        self.assertEqual(ServiceUsage.EXTERNAL, product.codehosting_usage)
-        product_url = canonical_url(product, rootsite="code")
-        logout()
-        browser = self.getUserBrowser(product_url)
-        login(ANONYMOUS)
-        content = find_tag_by_id(browser.contents, "external")
-        text = extract_text(content)
-        expected = (
-            "%(product_title)s hosts its code at %(branch_url)s. "
-            "Launchpad imports the master branch and you can create "
-            "branches from it."
-            % dict(product_title=product.title, branch_url=code_import.url)
-        )
-        self.assertTextMatchesExpressionIgnoreWhitespace(expected, text)
 
     def test_external_mirrored(self):
         # A mirrored branch says code is hosted externally, and displays

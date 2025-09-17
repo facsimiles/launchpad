@@ -122,9 +122,8 @@ from lp.code.browser.codeimport import (
 from lp.code.browser.sourcepackagerecipelisting import HasRecipesMenuMixin
 from lp.code.browser.vcslisting import TargetDefaultVCSNavigationMixin
 from lp.code.enums import RevisionControlSystems, TargetRevisionControlSystems
-from lp.code.errors import BranchExists, GitRepositoryExists
+from lp.code.errors import GitRepositoryExists
 from lp.code.interfaces.branch import IBranch
-from lp.code.interfaces.branchjob import IRosettaUploadJobSource
 from lp.code.interfaces.codeimport import ICodeImport, ICodeImportSet
 from lp.code.interfaces.gitrepository import IGitRepository, IGitRepositorySet
 from lp.registry.browser import BaseRdfView, add_subscribe_link
@@ -1894,13 +1893,6 @@ class SetBranchForm(Interface):
         required=True,
     )
 
-    default_vcs = Choice(
-        title=_("Project VCS"),
-        required=True,
-        vocabulary=VCSType,
-        description=_("The version control system for this project."),
-    )
-
     git_repository_location = Choice(
         title=_("Git repository"),
         required=False,
@@ -1965,7 +1957,6 @@ class ProductSetBranchView(
 
     custom_widget_rcs_type = LaunchpadRadioWidget
     custom_widget_branch_type = LaunchpadRadioWidget
-    custom_widget_default_vcs = LaunchpadRadioWidget
     custom_widget_git_repository_type = LaunchpadRadioWidget
 
     errors_in_action = False
@@ -1979,9 +1970,9 @@ class ProductSetBranchView(
     def initial_values(self):
         repository_set = getUtility(IGitRepositorySet)
         return dict(
-            rcs_type=RevisionControlSystems.BZR,
-            default_vcs=(self.context.pillar.inferred_vcs or VCSType.BZR),
-            branch_type=LINK_LP,
+            rcs_type=RevisionControlSystems.GIT,
+            default_vcs=VCSType.GIT,
+            branch_type=IMPORT_EXTERNAL,
             branch_location=self.series.branch,
             git_repository_type=LINK_LP,
             git_repository_location=repository_set.getDefaultRepository(
@@ -2015,7 +2006,6 @@ class ProductSetBranchView(
         super().setUpFields()
         if self.is_series:
             self.form_fields = self.form_fields.omit(
-                "default_vcs",
                 "git_repository_location",
                 "git_repository_type",
                 "git_repository_name",
@@ -2052,16 +2042,6 @@ class ProductSetBranchView(
         )
 
         if not self.is_series:
-            widget = self.widgets["default_vcs"]
-            vocab = widget.vocabulary
-            current_value = widget._getFormValue()
-            self.default_vcs_git = render_radio_widget_part(
-                widget, vocab.GIT, current_value, "Git"
-            )
-            self.default_vcs_bzr = render_radio_widget_part(
-                widget, vocab.BZR, current_value, "Bazaar"
-            )
-
             widget = self.widgets["git_repository_type"]
             current_value = widget._getFormValue()
             vocab = widget.vocabulary
@@ -2187,9 +2167,6 @@ class ProductSetBranchView(
     def validate_widgets(self, data, names=None):
         """See `LaunchpadFormView`."""
         names = [
-            "branch_type",
-            "rcs_type",
-            "default_vcs",
             "git_repository_type",
         ]
         super().validate_widgets(data, names)
@@ -2214,34 +2191,6 @@ class ProductSetBranchView(
                     "Unknown Git repository type %s" % git_repository_type
                 )
 
-        branch_type = data.get("branch_type")
-        if branch_type == LINK_LP:
-            # Mark other widgets as non-required.
-            self._setRequired(
-                [
-                    "rcs_type",
-                    "repo_url",
-                    "cvs_module",
-                    "branch_name",
-                    "branch_owner",
-                ],
-                False,
-            )
-        elif branch_type == IMPORT_EXTERNAL:
-            rcs_type = data.get("rcs_type")
-
-            # Set the valid schemes based on rcs_type.
-            self.widgets["repo_url"].field.allowed_schemes = (
-                self._validSchemes(rcs_type)
-            )
-            # The branch location is not required for validation.
-            self._setRequired(["branch_location"], False)
-            # The cvs_module is required if it is a CVS import.
-            if rcs_type == RevisionControlSystems.CVS:
-                self._setRequired(["cvs_module"], True)
-        else:
-            raise AssertionError("Unknown branch type %s" % branch_type)
-
         # Perform full validation now.
         super().validate_widgets(data)
 
@@ -2263,14 +2212,6 @@ class ProductSetBranchView(
                     "Unknown Git repository type %s" % git_repository_type
                 )
 
-        branch_type = data.get("branch_type")
-        if branch_type == LINK_LP:
-            self._validateLinkLpBzr(data)
-        elif branch_type == IMPORT_EXTERNAL:
-            self._validateImportExternalBzr(data)
-        else:
-            raise AssertionError("Unknown branch type %s" % branch_type)
-
     def abort_update(self):
         """Abort transaction.
 
@@ -2285,12 +2226,8 @@ class ProductSetBranchView(
 
     @action(_("Update"), name="update")
     def update_action(self, action, data):
-        branch_type = data.get("branch_type")
-
         if not self.is_series:
-            default_vcs = data.get("default_vcs")
-            if default_vcs:
-                self.context.vcs = default_vcs
+            self.context.vcs = VCSType.GIT
 
             git_repository_type = data.get("git_repository_type")
 
@@ -2328,51 +2265,6 @@ class ProductSetBranchView(
                 )
             else:
                 raise UnexpectedFormData(git_repository_type)
-
-        if branch_type == LINK_LP:
-            branch_location = data.get("branch_location")
-            if branch_location != self.series.branch:
-                self.series.branch = branch_location
-                # Request an initial upload of translation files.
-                getUtility(IRosettaUploadJobSource).create(
-                    self.series.branch, None
-                )
-                self.add_update_notification()
-        elif branch_type == IMPORT_EXTERNAL:
-            branch_name = data.get("branch_name")
-            branch_owner = data.get("branch_owner")
-            rcs_type = data.get("rcs_type")
-            if rcs_type == RevisionControlSystems.CVS:
-                cvs_root = data.get("repo_url")
-                cvs_module = data.get("cvs_module")
-                url = None
-            else:
-                cvs_root = None
-                cvs_module = None
-                url = data.get("repo_url")
-            rcs_item = RevisionControlSystems.items[rcs_type.name]
-            try:
-                code_import = getUtility(ICodeImportSet).new(
-                    owner=branch_owner,
-                    registrant=self.user,
-                    context=self.context,
-                    branch_name=branch_name,
-                    rcs_type=rcs_item,
-                    target_rcs_type=TargetRevisionControlSystems.BZR,
-                    url=url,
-                    cvs_root=cvs_root,
-                    cvs_module=cvs_module,
-                )
-            except BranchExists as e:
-                self._setBranchExists(e.existing_branch, "branch_name")
-                self.abort_update()
-                return
-            self.series.branch = code_import.branch
-            self.request.response.addInfoNotification(
-                "Code import created and branch linked to the series."
-            )
-        else:
-            raise UnexpectedFormData(branch_type)
 
 
 class ProductRdfView(BaseRdfView):

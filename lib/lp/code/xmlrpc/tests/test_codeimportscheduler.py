@@ -13,6 +13,7 @@ from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.code.enums import CodeImportResultStatus
 from lp.code.model.codeimportjob import CodeImportJob
 from lp.code.tests.codeimporthelpers import make_running_import
+from lp.code.tests.helpers import GitHostingFixture
 from lp.code.xmlrpc.codeimportscheduler import CodeImportSchedulerAPI
 from lp.services.database.constants import UTC_NOW
 from lp.services.database.interfaces import IStore
@@ -27,6 +28,7 @@ class TestCodeImportSchedulerAPI(TestCaseWithFactory):
 
     def setUp(self):
         TestCaseWithFactory.setUp(self)
+        self.useFixture(GitHostingFixture())
         self.api = CodeImportSchedulerAPI(None, None)
         self.machine = self.factory.makeCodeImportMachine(set_online=True)
         for job in IStore(CodeImportJob).find(CodeImportJob):
@@ -56,7 +58,11 @@ class TestCodeImportSchedulerAPI(TestCaseWithFactory):
         # getImportDataForJobID returns the worker arguments, target url and
         # log file name for an import corresponding to a particular job.
         self.pushConfig(
-            "codehosting", blacklisted_hostnames="localhost,127.0.0.1"
+            "codehosting",
+            blacklisted_hostnames="localhost,127.0.0.1",
+        )
+        self.pushConfig(
+            "launchpad", internal_macaroon_secret_key="some-secret"
         )
         code_import_job = self.makeCodeImportJob(running=True)
         code_import = removeSecurityProxy(code_import_job).code_import

@@ -12,6 +12,7 @@ from zope.security.proxy import removeSecurityProxy
 from lp.bugs.interfaces.cve import CveStatus, ICve
 from lp.buildmaster.enums import BuildStatus
 from lp.code.enums import BranchType, CodeImportReviewStatus
+from lp.code.tests.helpers import GitHostingFixture
 from lp.registry.interfaces.distribution import IDistribution
 from lp.registry.interfaces.distroseries import IDistroSeries
 from lp.registry.interfaces.sourcepackage import SourcePackageFileType
@@ -352,6 +353,7 @@ class TestFactory(TestCaseWithFactory):
     def test_makeCodeImportNoStatus(self):
         # If makeCodeImport is not given a review status,
         # it defaults to REVIEWED.
+        self.useFixture(GitHostingFixture())
         code_import = self.factory.makeCodeImport()
         self.assertEqual(
             CodeImportReviewStatus.REVIEWED, code_import.review_status
@@ -360,6 +362,7 @@ class TestFactory(TestCaseWithFactory):
     def test_makeCodeImportReviewStatus(self):
         # If makeCodeImport is given a review status, then that is the status
         # of the created import.
+        self.useFixture(GitHostingFixture())
         status = CodeImportReviewStatus.SUSPENDED
         code_import = self.factory.makeCodeImport(review_status=status)
         self.assertEqual(status, code_import.review_status)

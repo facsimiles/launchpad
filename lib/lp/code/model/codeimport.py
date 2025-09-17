@@ -28,8 +28,6 @@ from zope.security.proxy import removeSecurityProxy
 
 from lp.app.errors import NotFoundError
 from lp.code.enums import (
-    NON_CVS_RCS_TYPES,
-    BranchType,
     CodeImportJobState,
     CodeImportResultStatus,
     CodeImportReviewStatus,
@@ -44,7 +42,6 @@ from lp.code.errors import (
     CodeImportNotInReviewedState,
 )
 from lp.code.interfaces.branch import IBranch
-from lp.code.interfaces.branchtarget import IBranchTarget
 from lp.code.interfaces.codeimport import ICodeImport, ICodeImportSet
 from lp.code.interfaces.codeimportevent import ICodeImportEventSet
 from lp.code.interfaces.codeimportjob import ICodeImportJobWorkflow
@@ -338,61 +335,33 @@ class CodeImportSet:
         owner=None,
     ):
         """See `ICodeImportSet`."""
-        if rcs_type == RevisionControlSystems.CVS:
-            assert cvs_root is not None and cvs_module is not None
-            assert url is None
-        elif rcs_type in NON_CVS_RCS_TYPES:
-            assert cvs_root is None and cvs_module is None
-            assert url is not None
-        else:
-            raise AssertionError(
-                "Don't know how to sanity check source details for unknown "
-                "rcs_type %s" % rcs_type
-            )
+        if (
+            rcs_type != RevisionControlSystems.GIT
+            and target_rcs_type != TargetRevisionControlSystems.GIT
+        ):
+            raise AssertionError("Unsupported rcs system")
         if owner is None:
             owner = registrant
-        if target_rcs_type == TargetRevisionControlSystems.BZR:
-            # XXX cjwatson 2016-10-15: Testing
-            # IHasBranches.providedBy(context) would seem more in line with
-            # the Git case, but for some reason ProductSeries doesn't
-            # provide that.  We should sync this up somehow.
-            try:
-                target = IBranchTarget(context)
-            except TypeError:
-                raise CodeImportInvalidTargetType(context, target_rcs_type)
-            namespace = target.getNamespace(owner)
-        elif target_rcs_type == TargetRevisionControlSystems.GIT:
-            if not IHasGitRepositories.providedBy(context):
-                raise CodeImportInvalidTargetType(context, target_rcs_type)
-            if rcs_type != RevisionControlSystems.GIT:
-                raise AssertionError(
-                    "Can't import rcs_type %s into a Git repository" % rcs_type
-                )
-            target = namespace = get_git_namespace(context, owner)
-        else:
+        if not IHasGitRepositories.providedBy(context):
+            raise CodeImportInvalidTargetType(context, target_rcs_type)
+        if rcs_type != RevisionControlSystems.GIT:
             raise AssertionError(
-                "Can't import to target_rcs_type %s" % target_rcs_type
+                "Can't import rcs_type %s into a Git repository" % rcs_type
             )
+        target = namespace = get_git_namespace(context, owner)
         if review_status is None:
             # Auto approve imports.
             review_status = CodeImportReviewStatus.REVIEWED
         if not target.supports_code_imports:
             raise AssertionError("%r doesn't support code imports" % target)
         # Create the branch for the CodeImport.
-        if target_rcs_type == TargetRevisionControlSystems.BZR:
-            import_target = namespace.createBranch(
-                branch_type=BranchType.IMPORTED,
-                name=branch_name,
-                registrant=registrant,
-            )
-        else:
-            import_target = namespace.createRepository(
-                repository_type=GitRepositoryType.IMPORTED,
-                name=branch_name,
-                registrant=registrant,
-            )
-            hosting_path = import_target.getInternalPath()
-            getUtility(IGitHostingClient).create(hosting_path)
+        import_target = namespace.createRepository(
+            repository_type=GitRepositoryType.IMPORTED,
+            name=branch_name,
+            registrant=registrant,
+        )
+        hosting_path = import_target.getInternalPath()
+        getUtility(IGitHostingClient).create(hosting_path)
 
         code_import = CodeImport(
             registrant=registrant,

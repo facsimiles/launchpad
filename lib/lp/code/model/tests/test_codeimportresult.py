@@ -8,12 +8,17 @@ from datetime import datetime, timezone
 from testtools.matchers import LessThan
 
 from lp.code.interfaces.codeimportresult import ICodeImportResult
+from lp.code.tests.helpers import GitHostingFixture
 from lp.testing import TestCaseWithFactory
 from lp.testing.layers import LaunchpadFunctionalLayer
 
 
 class TestCodeImportResult(TestCaseWithFactory):
     layer = LaunchpadFunctionalLayer
+
+    def setUp(self):
+        super().setUp()
+        self.useFixture(GitHostingFixture())
 
     def test_provides_interface(self):
         result = self.factory.makeCodeImportResult()

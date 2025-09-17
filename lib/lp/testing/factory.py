@@ -2986,7 +2986,7 @@ class LaunchpadObjectFactory(ObjectFactory):
         the source type instead defaults to Git.)
         """
         if target_rcs_type is None:
-            target_rcs_type = TargetRevisionControlSystems.BZR
+            target_rcs_type = TargetRevisionControlSystems.GIT
         if (
             svn_branch_url
             is cvs_root

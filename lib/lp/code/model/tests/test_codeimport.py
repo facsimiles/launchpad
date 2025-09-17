@@ -5,7 +5,6 @@
 
 import json
 from datetime import datetime, timedelta, timezone
-from functools import partial
 
 from storm.store import Store
 from testscenarios import WithScenarios, load_tests_apply_scenarios
@@ -20,13 +19,11 @@ from lp.code.enums import (
     TargetRevisionControlSystems,
 )
 from lp.code.errors import (
-    BranchCreatorNotMemberOfOwnerTeam,
     CodeImportAlreadyRequested,
     CodeImportAlreadyRunning,
     CodeImportNotInReviewedState,
     GitRepositoryCreatorNotMemberOfOwnerTeam,
 )
-from lp.code.interfaces.branchtarget import IBranchTarget
 from lp.code.interfaces.codeimportjob import ICodeImportJobWorkflow
 from lp.code.model.codeimport import CodeImportSet
 from lp.code.model.codeimportevent import CodeImportEvent
@@ -58,103 +55,25 @@ from lp.testing.pages import webservice_for_person
 class TestCodeImportBase(WithScenarios, TestCaseWithFactory):
     scenarios = [
         (
-            "Branch",
-            {
-                "target_rcs_type": TargetRevisionControlSystems.BZR,
-                "supports_source_cvs": True,
-                "supports_source_svn": True,
-                "supports_source_bzr": True,
-                "needs_git_hosting_fixture": False,
-            },
-        ),
-        (
             "GitRepository",
             {
                 "target_rcs_type": TargetRevisionControlSystems.GIT,
                 "supports_source_cvs": False,
                 "supports_source_svn": False,
                 "supports_source_bzr": False,
-                "needs_git_hosting_fixture": True,
             },
         ),
     ]
 
     def setUp(self, *args, **kwargs):
         super().setUp(*args, **kwargs)
-        if self.needs_git_hosting_fixture:
-            self.hosting_fixture = self.useFixture(GitHostingFixture())
+        self.hosting_fixture = self.useFixture(GitHostingFixture())
 
 
 class TestCodeImportCreation(TestCodeImportBase):
     """Test the creation of CodeImports."""
 
     layer = DatabaseFunctionalLayer
-
-    def test_new_svn_import_svn_scheme(self):
-        """A subversion import can use the svn:// scheme."""
-        create_func = partial(
-            CodeImportSet().new,
-            registrant=self.factory.makePerson(),
-            context=self.factory.makeProduct(),
-            branch_name="imported",
-            rcs_type=RevisionControlSystems.BZR_SVN,
-            target_rcs_type=self.target_rcs_type,
-            url=self.factory.getUniqueURL(scheme="svn"),
-        )
-        if self.supports_source_svn:
-            code_import = create_func()
-            self.assertEqual(
-                CodeImportReviewStatus.REVIEWED, code_import.review_status
-            )
-            # No job is created for the import.
-            self.assertIsNot(None, code_import.import_job)
-        else:
-            self.assertRaises(AssertionError, create_func)
-
-    def test_reviewed_svn_import(self):
-        """A specific review status can be set for a new import."""
-        create_func = partial(
-            CodeImportSet().new,
-            registrant=self.factory.makePerson(),
-            context=self.factory.makeProduct(),
-            branch_name="imported",
-            rcs_type=RevisionControlSystems.BZR_SVN,
-            target_rcs_type=self.target_rcs_type,
-            url=self.factory.getUniqueURL(),
-            review_status=None,
-        )
-        if self.supports_source_svn:
-            code_import = create_func()
-            self.assertEqual(
-                CodeImportReviewStatus.REVIEWED, code_import.review_status
-            )
-            # A job is created for the import.
-            self.assertIsNot(None, code_import.import_job)
-        else:
-            self.assertRaises(AssertionError, create_func)
-
-    def test_cvs_import_reviewed(self):
-        """A new CVS code import should have REVIEWED status."""
-        create_func = partial(
-            CodeImportSet().new,
-            registrant=self.factory.makePerson(),
-            context=self.factory.makeProduct(),
-            branch_name="imported",
-            rcs_type=RevisionControlSystems.CVS,
-            target_rcs_type=self.target_rcs_type,
-            cvs_root=self.factory.getUniqueURL(),
-            cvs_module="module",
-            review_status=None,
-        )
-        if self.supports_source_cvs:
-            code_import = create_func()
-            self.assertEqual(
-                CodeImportReviewStatus.REVIEWED, code_import.review_status
-            )
-            # A job is created for the import.
-            self.assertIsNot(None, code_import.import_job)
-        else:
-            self.assertRaises(AssertionError, create_func)
 
     def test_git_import_git_scheme(self):
         """A git import can have a git:// style URL."""
@@ -172,12 +91,10 @@ class TestCodeImportCreation(TestCodeImportBase):
         )
         # A job is created for the import.
         self.assertIsNot(None, code_import.import_job)
-        if self.needs_git_hosting_fixture:
-            # The repository is created on the hosting service.
-            self.assertEqual(
-                (code_import.git_repository.getInternalPath(),),
-                self.hosting_fixture.create.extract_args()[0],
-            )
+        self.assertEqual(
+            (code_import.git_repository.getInternalPath(),),
+            self.hosting_fixture.create.extract_args()[0],
+        )
 
     def test_git_import_reviewed(self):
         """A new git import is always reviewed by default."""
@@ -195,34 +112,10 @@ class TestCodeImportCreation(TestCodeImportBase):
         )
         # A job is created for the import.
         self.assertIsNot(None, code_import.import_job)
-        if self.needs_git_hosting_fixture:
-            # The repository is created on the hosting service.
-            self.assertEqual(
-                (code_import.git_repository.getInternalPath(),),
-                self.hosting_fixture.create.extract_args()[0],
-            )
-
-    def test_bzr_import_reviewed(self):
-        """A new bzr import is always reviewed by default."""
-        create_func = partial(
-            CodeImportSet().new,
-            registrant=self.factory.makePerson(),
-            context=self.factory.makeProduct(),
-            branch_name="mirrored",
-            rcs_type=RevisionControlSystems.BZR,
-            target_rcs_type=self.target_rcs_type,
-            url=self.factory.getUniqueURL(),
-            review_status=None,
+        self.assertEqual(
+            (code_import.git_repository.getInternalPath(),),
+            self.hosting_fixture.create.extract_args()[0],
         )
-        if self.supports_source_bzr:
-            code_import = create_func()
-            self.assertEqual(
-                CodeImportReviewStatus.REVIEWED, code_import.review_status
-            )
-            # A job is created for the import.
-            self.assertIsNot(None, code_import.import_job)
-        else:
-            self.assertRaises(AssertionError, create_func)
 
     def test_junk_code_import_rejected(self):
         """You are not allowed to create code imports targeting +junk."""
@@ -243,10 +136,7 @@ class TestCodeImportCreation(TestCodeImportBase):
         """Test that we can create an import targeting a source package."""
         registrant = self.factory.makePerson()
         source_package = self.factory.makeSourcePackage()
-        if self.target_rcs_type == TargetRevisionControlSystems.BZR:
-            context = source_package
-        else:
-            context = source_package.distribution_sourcepackage
+        context = source_package.distribution_sourcepackage
         code_import = CodeImportSet().new(
             registrant=registrant,
             context=context,
@@ -258,13 +148,8 @@ class TestCodeImportCreation(TestCodeImportBase):
         )
         code_import = removeSecurityProxy(code_import)
         self.assertEqual(registrant, code_import.registrant)
-        if self.target_rcs_type == TargetRevisionControlSystems.BZR:
-            self.assertEqual(registrant, code_import.branch.owner)
-            self.assertEqual(IBranchTarget(context), code_import.branch.target)
-            self.assertEqual(source_package, code_import.branch.sourcepackage)
-        else:
-            self.assertEqual(registrant, code_import.git_repository.owner)
-            self.assertEqual(context, code_import.git_repository.target)
+        self.assertEqual(registrant, code_import.git_repository.owner)
+        self.assertEqual(context, code_import.git_repository.target)
         # And a job is still created
         self.assertIsNot(None, code_import.import_job)
 
@@ -274,10 +159,7 @@ class TestCodeImportCreation(TestCodeImportBase):
         owner = self.factory.makeTeam()
         removeSecurityProxy(registrant).join(owner)
         source_package = self.factory.makeSourcePackage()
-        if self.target_rcs_type == TargetRevisionControlSystems.BZR:
-            context = source_package
-        else:
-            context = source_package.distribution_sourcepackage
+        context = source_package.distribution_sourcepackage
         code_import = CodeImportSet().new(
             registrant=registrant,
             context=context,
@@ -290,15 +172,9 @@ class TestCodeImportCreation(TestCodeImportBase):
         )
         code_import = removeSecurityProxy(code_import)
         self.assertEqual(registrant, code_import.registrant)
-        if self.target_rcs_type == TargetRevisionControlSystems.BZR:
-            self.assertEqual(owner, code_import.branch.owner)
-            self.assertEqual(registrant, code_import.branch.registrant)
-            self.assertEqual(IBranchTarget(context), code_import.branch.target)
-            self.assertEqual(source_package, code_import.branch.sourcepackage)
-        else:
-            self.assertEqual(owner, code_import.git_repository.owner)
-            self.assertEqual(registrant, code_import.git_repository.registrant)
-            self.assertEqual(context, code_import.git_repository.target)
+        self.assertEqual(owner, code_import.git_repository.owner)
+        self.assertEqual(registrant, code_import.git_repository.registrant)
+        self.assertEqual(context, code_import.git_repository.target)
         # And a job is still created
         self.assertIsNot(None, code_import.import_job)
 
@@ -307,12 +183,8 @@ class TestCodeImportCreation(TestCodeImportBase):
         registrant = self.factory.makePerson()
         owner = self.factory.makeTeam()
         source_package = self.factory.makeSourcePackage()
-        if self.target_rcs_type == TargetRevisionControlSystems.BZR:
-            context = source_package
-            expected_exception = BranchCreatorNotMemberOfOwnerTeam
-        else:
-            context = source_package.distribution_sourcepackage
-            expected_exception = GitRepositoryCreatorNotMemberOfOwnerTeam
+        context = source_package.distribution_sourcepackage
+        expected_exception = GitRepositoryCreatorNotMemberOfOwnerTeam
         self.assertRaises(
             expected_exception,
             CodeImportSet().new,

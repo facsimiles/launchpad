@@ -63,39 +63,3 @@ The request is made by clicking on a button labeled
     http://translations.launchpad.test/evolution/trunk
     >>> print_feedback_messages(browser.contents)
     The import has been requested.
-
-The request page without a branch
----------------------------------
-The official Bazaar branch gets removed from the product series.
-
-    >>> browser.open("http://launchpad.test/evolution/trunk/+setbranch")
-    >>> browser.getControl(name="field.branch_location").value = ""
-    >>> browser.getControl("Update").click()
-
-Since the product series does not have a branch set now, requesting an
-import is pointless. The page points the user to the fact and where to
-set the branch.
-
-    >>> browser.open(
-    ...     "http://translations.launchpad.test/evolution/trunk/"
-    ...     "+request-bzr-import"
-    ... )
-    >>> branch = find_tag_by_id(browser.contents, "no-branch-display")
-    >>> print(extract_text(branch))
-    This series does not have an official Bazaar branch.
-    Please set it first.
-    >>> browser.getLink("Please set it first.").click()
-    >>> print(browser.url)
-    http://launchpad.test/evolution/trunk/+setbranch
-
-The request button is missing completely from the page.
-
-    >>> browser.open(
-    ...     "http://translations.launchpad.test/evolution/trunk/"
-    ...     "+request-bzr-import"
-    ... )
-    >>> request_button = find_tag_by_id(
-    ...     browser.contents, "field.actions.request_import"
-    ... )
-    >>> print(request_button)
-    None

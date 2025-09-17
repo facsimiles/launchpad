@@ -4,15 +4,18 @@ Retrying a failed import
 Imports that have failed more than the configured
 'consecutive_failure_limit' times in a row are no longer attempted.
 
+    >>> from lp.code.tests.helpers import GitHostingFixture
     >>> login("admin@canonical.com")
     >>> from lp.code.tests.codeimporthelpers import make_finished_import
     >>> from lp.services.config import config
     >>> from lp.code.interfaces.codeimportresult import CodeImportResultStatus
     >>> product = factory.makeProduct(name="imported")
     >>> owner = factory.makePerson(name="import-owner")
-    >>> code_import = factory.makeProductCodeImport(
-    ...     product=product, branch_name="trunk", registrant=owner
-    ... )
+    >>> with GitHostingFixture():
+    ...     code_import = factory.makeProductCodeImport(
+    ...         product=product, branch_name="trunk", registrant=owner
+    ...     )
+    ...
     >>> for i in range(config.codeimport.consecutive_failure_limit):
     ...     _ = make_finished_import(
     ...         code_import, CodeImportResultStatus.FAILURE, factory=factory
@@ -23,7 +26,7 @@ Imports that have failed more than the configured
 This is shown on the branch index page:
 
     >>> user_browser.open(
-    ...     "http://code.launchpad.test/~import-owner/imported/trunk"
+    ...     "http://code.launchpad.test/~import-owner/imported/+git/trunk"
     ... )
     >>> print(
     ...     extract_text(
@@ -42,7 +45,7 @@ be tried again.
 Anonymous users do not see this button, however.
 
     >>> anon_browser.open(
-    ...     "http://code.launchpad.test/~import-owner/imported/trunk"
+    ...     "http://code.launchpad.test/~import-owner/imported/+git/trunk"
     ... )
     >>> anon_browser.getControl("Try Again")
     Traceback (most recent call last):

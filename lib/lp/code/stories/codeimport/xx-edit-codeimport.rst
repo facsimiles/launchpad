@@ -10,15 +10,21 @@ can see a link to edit the details.
 
     >>> from lp.testing import ANONYMOUS, login, logout
     >>> from lp.services.webapp import canonical_url
+    >>> from lp.code.tests.helpers import GitHostingFixture
 
     >>> login(ANONYMOUS)
-    >>> registrant = factory.makePerson()
-    >>> svn_import = factory.makeProductCodeImport(
-    ...     svn_branch_url="svn://svn.example.com/fooix/trunk",
-    ...     registrant=registrant,
-    ... )
-    >>> svn_import_location = str(canonical_url(svn_import.branch))
-    >>> svn_import_branch_unique_name = svn_import.branch.unique_name
+    >>> product = factory.makeProduct(name="imported")
+    >>> registrant = factory.makePerson(name="import-owner")
+    >>> with GitHostingFixture():
+    ...     git_import = factory.makeProductCodeImport(
+    ...         product=product,
+    ...         branch_name="trunk",
+    ...         registrant=registrant,
+    ...         git_repo_url="git://git.example.org/foo",
+    ...     )
+    ...
+    >>> git_import_location = str(canonical_url(git_import.git_repository))
+    >>> git_import_branch_unique_name = git_import.git_repository.unique_name
 
     >>> hosted_branch = factory.makeAnyBranch()
     >>> hosted_branch_location = str(canonical_url(hosted_branch))
@@ -41,16 +47,16 @@ People that are not VCS Imports members, nor Launchpad administrators
 do not get an Edit link.
 
     >>> def print_import_details(browser):
-    ...     div = find_tag_by_id(
-    ...         browser.contents, "branch-import-details"
-    ...     ).div.div
+    ...     div = find_tag_by_id(browser.contents, "import-details")
     ...     print(extract_text(div))
     ...
-    >>> anon_browser.open(svn_import_location)
+    >>> anon_browser.open(git_import_location)
     >>> print_import_details(anon_browser)
-    Import Status: Reviewed
-    This branch is an import of the Subversion branch
-    from svn://svn.example.com/fooix/trunk.
+    Import Status:
+    Reviewed
+    This repository is an import
+    of the Git repository at
+    ...
     The next import is scheduled to run
     as soon as possible.
 
@@ -69,7 +75,7 @@ If the user attempts to hack the URL to edit the import details,
 they will get a not authorised page if the branch has a code import,
 and a 404 if the branch doesn't have an import.
 
-    >>> anon_browser.open(svn_import_location + "/+edit-import")
+    >>> anon_browser.open(git_import_location + "/+edit-import")
     Traceback (most recent call last):
     zope.security.interfaces.Unauthorized: (... 'launchpad.Edit')
 
@@ -81,7 +87,7 @@ and a 404 if the branch doesn't have an import.
 Editing details
 ---------------
 
-    >>> import_browser.open(svn_import_location)
+    >>> import_browser.open(git_import_location)
     >>> import_browser.getLink("Edit import source or review import")
     <Link text='Edit import source or review import' url='.../+edit-import'>
 
@@ -105,68 +111,32 @@ imports.
     >>> from datetime import datetime, timezone
     >>> date_finished = datetime(2007, 9, 10, 12, tzinfo=timezone.utc)
     >>> code_import = get_import_for_branch_name(
-    ...     svn_import_branch_unique_name
+    ...     git_import_branch_unique_name
     ... )
-    >>> code_import = make_finished_import(
-    ...     code_import, factory=factory, date_finished=date_finished
-    ... )
+    >>> with GitHostingFixture():
+    ...     code_import = make_finished_import(
+    ...         code_import, factory=factory, date_finished=date_finished
+    ...     )
+    ...
     >>> logout()
 
-    >>> import_browser.open(svn_import_location)
+    >>> import_browser.open(git_import_location)
     >>> print_import_details(import_browser)
-    Import Status: Reviewed
-    This branch is an import of the Subversion branch from
-        svn://svn.example.com/fooix/trunk.
-    The next import is scheduled to run in 5 hours.
-    Last successful import was on 2007-09-10.
+    Import Status:
+    Reviewed
+    This repository is an import
+    of the Git repository at
     ...
-
-
-Requesting an import
---------------------
-
-If an import is waiting for its next update, any logged in user can
-click a button to request an immediate import.
-
-    >>> sample_person_browser = setupBrowser(
-    ...     auth="Basic test@canonical.com:test"
-    ... )
-    >>> sample_person_browser.open(import_browser.url)
-    >>> sample_person_browser.getControl("Import Now")
-    <SubmitControl ...>
-
-Anonymous users cannot see this button.
-
-    >>> anon_browser.open(import_browser.url)
-    >>> anon_browser.getControl("Import Now")
-    Traceback (most recent call last):
-      ...
-    LookupError: label ...'Import Now'
+    The next import is scheduled to run
+    as soon as possible.
     ...
-
-If the logged in user clicks this button, the import will be scheduled
-to run ASAP and the fact that the import has been requested is
-displayed.
-
-    >>> sample_person_browser.getControl("Import Now").click()
-    >>> print_feedback_messages(sample_person_browser.contents)
-    Import will run as soon as possible.
-    >>> print_import_details(sample_person_browser)
-    Import Status: Reviewed
-    This branch is an import of the Subversion branch from
-        svn://svn.example.com/fooix/trunk.
-    The next import is scheduled to run as soon as possible (requested
-    by Sample Person).
-    Last successful import was on 2007-09-10.
-    ...
-
 
 Deleting an import
 ------------------
 
 If you own the branch that has the code import, you can delete the branch.
 
-    >>> import_browser.getLink("Delete branch").click()
+    >>> import_browser.getLink("Delete repository").click()
     >>> import_browser.getControl("Delete").click()
     >>> print_feedback_messages(import_browser.contents)
-    Branch ... deleted.
+    Repository ~import-owner/imported/+git/trunk deleted.

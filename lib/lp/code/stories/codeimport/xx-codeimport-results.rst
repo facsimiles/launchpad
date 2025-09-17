@@ -4,10 +4,13 @@ Code import results
 Information about the last ten import runs for a code import are shown
 on the branch index page with the other code import details.
 
+    >>> from lp.code.tests.helpers import GitHostingFixture
     >>> login("test@canonical.com")
     >>> from lp.code.tests.codeimporthelpers import make_all_result_types
-    >>> code_import_1 = factory.makeCodeImport()
-    >>> code_import_2 = factory.makeCodeImport()
+    >>> with GitHostingFixture():
+    ...     code_import_1 = factory.makeCodeImport()
+    ...     code_import_2 = factory.makeCodeImport()
+    ...
 
 The make_all_result_types helper method adds a code import result of
 each possible status value.  There are more status values than are
@@ -18,11 +21,11 @@ how each result type is rendered.
     >>> make_all_result_types(
     ...     code_import_1, factory, machine=odin, start=0, count=7
     ... )
-    >>> branch_url_1 = canonical_url(code_import_1.branch)
+    >>> branch_url_1 = canonical_url(code_import_1.git_repository)
     >>> make_all_result_types(
     ...     code_import_2, factory, machine=odin, start=7, count=7
     ... )
-    >>> branch_url_2 = canonical_url(code_import_2.branch)
+    >>> branch_url_2 = canonical_url(code_import_2.git_repository)
     >>> logout()
 
 For each import result, the start date and finish date is shown along

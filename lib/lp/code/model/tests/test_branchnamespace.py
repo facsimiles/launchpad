@@ -34,6 +34,7 @@ from lp.code.model.branchnamespace import (
     PersonalBranchNamespace,
     ProjectBranchNamespace,
 )
+from lp.code.tests.helpers import GitHostingFixture
 from lp.registry.enums import (
     BranchSharingPolicy,
     PersonVisibility,
@@ -378,13 +379,14 @@ class TestProjectBranchNamespace(TestCaseWithFactory, NamespaceMixin):
 
     def test_validateMove_vcs_imports_rename_import_branch(self):
         # Members of ~vcs-imports can rename any imported branch.
+        self.useFixture(GitHostingFixture())
         owner = self.factory.makePerson()
         product = self.factory.makeProduct()
         name = self.factory.getUniqueString()
         code_import = self.factory.makeCodeImport(
             registrant=owner, context=product, branch_name=name
         )
-        branch = code_import.branch
+        branch = code_import.git_repository
         new_name = self.factory.getUniqueString()
         namespace = ProjectBranchNamespace(owner, product)
         with celebrity_logged_in("vcs_imports") as mover:
@@ -394,12 +396,13 @@ class TestProjectBranchNamespace(TestCaseWithFactory, NamespaceMixin):
 
     def test_validateMove_vcs_imports_change_owner_import_branch(self):
         # Members of ~vcs-imports can change the owner any imported branch.
+        self.useFixture(GitHostingFixture())
         owner = self.factory.makePerson()
         product = self.factory.makeProduct()
         code_import = self.factory.makeCodeImport(
             registrant=owner, context=product
         )
-        branch = code_import.branch
+        branch = code_import.git_repository
         new_owner = self.factory.makePerson()
         new_namespace = ProjectBranchNamespace(new_owner, product)
         with celebrity_logged_in("vcs_imports") as mover:
