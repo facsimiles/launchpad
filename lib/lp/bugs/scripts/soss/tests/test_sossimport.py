@@ -206,7 +206,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         """Helper function to check the imported vulnerability"""
         self.assertEqual(vulnerability.distribution, self.soss)
         self.assertEqual(
-            vulnerability.date_created.date(), datetime.now().date()
+            vulnerability.date_created.date(), datetime.utcnow().date()
         )
         self.assertEqual(
             vulnerability.date_made_public,
@@ -310,7 +310,7 @@ class TestSOSSImporter(TestCaseWithFactory):
 
         self.assertEqual(vulnerability.distribution, self.soss)
         self.assertEqual(
-            vulnerability.date_created.date(), datetime.now().date()
+            vulnerability.date_created.date(), datetime.utcnow().date()
         )
         self.assertEqual(
             vulnerability.date_made_public,
