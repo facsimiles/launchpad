@@ -82,7 +82,7 @@ sudo tee -a /etc/postgresql/$pgversion/main/postgresql.conf <<'EOF'
 ##
 # Per Bug #90809, standard_conforming_strings should be 'on'
 standard_conforming_strings=off
-escape_string_warning=off
+escape_string_warning=on
 
 #enable_seqscan=false
 log_statement='none'
