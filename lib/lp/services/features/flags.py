@@ -331,10 +331,19 @@ flag_info = sorted(
             "",
         ),
         (
-            "bugs.vulnerability_import_export.enabled",
-            "boolean",
-            "If true, users with the right permissions can trigger "
-            "vulnerability data imports and exports via API",
+            "bugs.vulnerability_import_handler.enabled",
+            "space delimited",
+            "Lists handlers that users with the right permissions can use to "
+            "trigger vulnerability data imports via the API",
+            "",
+            "",
+            "",
+        ),
+        (
+            "bugs.vulnerability_export_handler.enabled",
+            "space delimited",
+            "Lists handlers that users with the right permissions can use to "
+            "trigger vulnerability data exports via the API",
             "",
             "",
             "",
