@@ -91,7 +91,6 @@
     <!-- First portlet column. -->
     <div class="first yui-u">
       <div tal:content="structure context/@@+portlet-ppas" />
-      <div tal:content="structure context/@@+portlet-mailinglist" />
     </div>
 
     <!-- Second portlet column. -->
