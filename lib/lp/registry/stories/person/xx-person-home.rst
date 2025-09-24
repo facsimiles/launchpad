@@ -64,7 +64,6 @@ But Foo Bar can:
     test@canonical.com
     testing@canonical.com
     Change email settings
-    Manage mailing list subscriptions
 
 
 Open ID link
