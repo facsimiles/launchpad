@@ -1326,13 +1326,6 @@
         template="../templates/team-portlet-polls.pt"
         />
     <browser:page
-        name="+mailing-list-subscribers"
-        for="lp.registry.interfaces.person.ITeam"
-        class="lp.registry.browser.team.TeamMailingListSubscribersView"
-        permission="zope.Public"
-        template="../templates/team-mailinglist-subscribers.pt"
-        />
-    <browser:page
         name="+listing-simple"
         for="lp.registry.interfaces.person.ITeam"
         permission="zope.Public"
@@ -1353,39 +1346,11 @@
         template="../templates/team-portlet-membership.pt"
         />
     <browser:page
-        name="+portlet-mailinglist"
-        for="lp.registry.interfaces.person.ITeam"
-        class="lp.registry.browser.person.PersonIndexView"
-        permission="zope.Public"
-        template="../templates/team-portlet-mailinglist.pt"
-        />
-    <browser:page
         name="+contactaddress"
         for="lp.registry.interfaces.person.ITeam"
         class="lp.registry.browser.team.TeamContactAddressView"
         permission="launchpad.Edit"
         template="../templates/team-contactaddress.pt"
-        />
-    <browser:page
-        name="+mailinglist"
-        for="lp.registry.interfaces.person.ITeam"
-        class="lp.registry.browser.team.TeamMailingListConfigurationView"
-        permission="launchpad.Moderate"
-        template="../templates/team-mailinglist.pt"
-        />
-    <browser:page
-        name="+mailinglist-moderate"
-        for="lp.registry.interfaces.person.ITeam"
-        class="lp.registry.browser.team.TeamMailingListModerationView"
-        permission="launchpad.Edit"
-        template="../templates/team-mailinglist-moderate.pt"
-        />
-    <browser:page
-        name="+mailing-list-archive"
-        for="lp.registry.interfaces.person.ITeam"
-        class="lp.registry.browser.team.TeamMailingListArchiveView"
-        permission="zope.Public"
-        template="../templates/team-mailinglist-archive.pt"
         />
     <browser:page
         name="+edit"
@@ -1675,13 +1640,6 @@
                  MilestoneInlineNavigationMenu
                  MilestoneOverviewMenu
                  MilestoneOverviewNavigationMenu"
-        />
-    <browser:page
-        name="+moderation"
-        for="lp.registry.interfaces.mailinglist.IMessageApproval"
-        class="lp.registry.browser.mailinglists.HeldMessageView"
-        permission="launchpad.View"
-        template="../templates/message-moderation.pt"
         />
     <lp:url
         for="lp.registry.interfaces.wikiname.IWikiName"
