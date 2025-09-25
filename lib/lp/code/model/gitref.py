@@ -1020,7 +1020,12 @@ def _get_store_hostnames():
     store_urls = getFeatureFlag("git_repository_url.store_hostnames")
     if store_urls:
         return store_urls.split(" ")
-    return ["git.staging.snapcraftcontent.com", "git.staging.pkg.store"]
+    return [
+        "git.staging.snapcraftcontent.com",
+        "git.staging.pkg.store",
+        "git.snapcraftcontent.com",
+        "git.pkg.store",
+    ]
 
 
 def _fetch_blob_from_store(repository_url, ref_path, filename):

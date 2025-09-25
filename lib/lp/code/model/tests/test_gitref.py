@@ -508,7 +508,7 @@ class TestGitRefGetBlob(TestCaseWithFactory):
 
     @responses.activate
     def test_remote_store_branch(self):
-        url = "https://git.staging.snapcraftcontent.com/ubuntu/public/test"
+        url = "https://git.snapcraftcontent.com/ubuntu/public/test"
         ref = self.factory.makeGitRefRemote(
             repository_url=url,
             path="refs/heads/path",
