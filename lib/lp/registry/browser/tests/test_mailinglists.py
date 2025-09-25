@@ -80,7 +80,7 @@ class MailingListSubscriptionControlsTestCase(TestCaseWithFactory):
         )
         content = view.render()
         link_tag = find_tag_by_id(content, "link-list-subscribe")
-        self.assertNotEqual(None, link_tag)
+        self.assertIsNone(link_tag)
 
     def test_subscribe_control_doesnt_render_for_non_member(self):
         other_person = self.factory.makePerson()
