@@ -151,7 +151,7 @@ class UCTRecord(SVTRecord):
 
     @classmethod
     def from_str(self, string: str) -> "UCTRecord":
-        with tempfile.NamedTemporaryFile("w") as fp:
+        with tempfile.NamedTemporaryFile("wb") as fp:
             fp.write(string)
             fp.flush()
             return self.load(Path(fp.name))

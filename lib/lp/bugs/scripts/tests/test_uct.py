@@ -269,7 +269,7 @@ class TestUCTRecord(TestCase):
 
     def test_from_str(self):
         load_from = Path(__file__).parent / "sampledata" / "CVE-2022-23222"
-        with open(load_from) as f:
+        with open(load_from, "rb") as f:
             string = f.read()
 
         record = UCTRecord.from_str(string)
