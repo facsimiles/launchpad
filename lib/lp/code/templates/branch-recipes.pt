@@ -15,12 +15,6 @@
       <a href="/+help-code/related-recipes.html" target="help"
          class="sprite maybe action-icon">(?)</a>
     </div>
-
-    <span
-      tal:define="link context_menu/create_recipe"
-      tal:condition="link/enabled"
-      tal:replace="structure link/render"
-      />
   </div>
 
 </div>
