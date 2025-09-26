@@ -268,12 +268,16 @@ class LaunchpadView(UserAttributeCache):
 
     @property
     def private(self):
-        """A view is private if its context is."""
         privacy = IPrivacy(self.context, None)
         if privacy is not None:
             return privacy.private
         else:
             return False
+
+    @property
+    def is_bazaar(self):
+        """A view is private if its context is."""
+        return getattr(self, "_is_bazaar", False)
 
     @property
     def information_type(self):

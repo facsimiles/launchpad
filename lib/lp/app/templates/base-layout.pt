@@ -102,6 +102,11 @@
                 <noscript><strong>The information on this page is private.</strong></noscript>
             </div>
           </tal:private-banner>
+          <tal:bazaar-banner condition="view/is_bazaar">
+            <div class="bazaar_banner_container">
+                <noscript><strong>The information on this page is private.</strong></noscript>
+            </div>
+          </tal:bazaar-banner>
     <div class="yui-d0">
       <div id="locationbar" class="login-logout">
         <tal:login replace="structure context/@@login_status" />
