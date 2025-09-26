@@ -60,7 +60,7 @@ class SOSSRecord(SVTRecord):
         def __lt__(self, other) -> bool:
             try:
                 self_ver = self.value.split(":")[-1].split("/")[0]
-                other_ver = self.value.split(":")[-1].split("/")[0]
+                other_ver = other.value.split(":")[-1].split("/")[0]
                 return Version(self_ver) < Version(other_ver)
             except Exception:
                 return self.value < other.value
