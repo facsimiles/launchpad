@@ -179,13 +179,7 @@ class FTPArchiveHandler:
 
         stdout_handler = OutputLineHandler(self.log.debug, "a-f: ")
         stderr_handler = OutputLineHandler(self.log.info, "a-f: ")
-        base_command = (
-            [
-                "apt-ftparchive",
-            ]
-            + list(args)
-            + [apt_config_filename]
-        )
+        base_command = ["apt-ftparchive"] + list(args) + [apt_config_filename]
         spawner = CommandSpawner()
 
         returncodes = {}
@@ -213,12 +207,7 @@ class FTPArchiveHandler:
             )
 
     def runApt(self, apt_config_filename):
-        self.runAptWithArgs(
-            apt_config_filename,
-            "-oAPT::FTPArchive::FilterByFileNameArchitecture=false",
-            "--no-contents",
-            "generate",
-        )
+        self.runAptWithArgs(apt_config_filename, "--no-contents", "generate")
 
     #
     # Empty Pocket Requests
