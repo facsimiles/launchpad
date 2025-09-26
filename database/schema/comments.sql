@@ -2190,13 +2190,13 @@ COMMENT ON COLUMN Job.date_finished IS 'If the job has finished, the time when t
 
 -- StructuralSubscription
 COMMENT ON TABLE StructuralSubscription IS 'A subscription to notifications about a Launchpad structure';
-COMMENT ON COLUMN StructuralSubscription.product IS 'The subscription\`s target, when it is a product.';
-COMMENT ON COLUMN StructuralSubscription.productseries IS 'The subscription\`s target, when it is a product series.';
-COMMENT ON COLUMN StructuralSubscription.project IS 'The subscription\`s target, when it is a project.';
-COMMENT ON COLUMN StructuralSubscription.milestone IS 'The subscription\`s target, when it is a milestone.';
-COMMENT ON COLUMN StructuralSubscription.distribution IS 'The subscription\`s target, when it is a distribution.';
-COMMENT ON COLUMN StructuralSubscription.distroseries IS 'The subscription\`s target, when it is a distribution series.';
-COMMENT ON COLUMN StructuralSubscription.sourcepackagename IS 'The subscription\`s target, when it is a source-package';
+COMMENT ON COLUMN StructuralSubscription.product IS 'The subscription''s target, when it is a product.';
+COMMENT ON COLUMN StructuralSubscription.productseries IS 'The subscription''s target, when it is a product series.';
+COMMENT ON COLUMN StructuralSubscription.project IS 'The subscription''s target, when it is a project.';
+COMMENT ON COLUMN StructuralSubscription.milestone IS 'The subscription''s target, when it is a milestone.';
+COMMENT ON COLUMN StructuralSubscription.distribution IS 'The subscription''s target, when it is a distribution.';
+COMMENT ON COLUMN StructuralSubscription.distroseries IS 'The subscription''s target, when it is a distribution series.';
+COMMENT ON COLUMN StructuralSubscription.sourcepackagename IS 'The subscription''s target, when it is a source-package.';
 COMMENT ON COLUMN StructuralSubscription.subscriber IS 'The person subscribed.';
 COMMENT ON COLUMN StructuralSubscription.subscribed_by IS 'The person initiating the subscription.';
 COMMENT ON COLUMN StructuralSubscription.date_created IS 'The date on which this subscription was created.';
