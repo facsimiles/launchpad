@@ -51,10 +51,6 @@
         <a
           tal:define="link context/menu:overview/editemailaddresses"
           tal:condition="link/enabled"
-          tal:content="structure link/fmt:link" /><br />
-        <a
-          tal:define="link context/menu:overview/editmailinglists"
-          tal:condition="link/enabled"
           tal:content="structure link/fmt:link" />
       </dd>
     </dl>
