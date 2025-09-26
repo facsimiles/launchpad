@@ -361,3 +361,22 @@ class TestSOSSRecord(TestCase):
 
         for f in files:
             self._verify_import_export_yaml(f)
+
+    def test_order_packages(self):
+        """Test that SOSSRecord.Packages are ordered by name and version."""
+        self.soss_record.packages[SOSSRecord.PackageTypeEnum.PYTHON].append(
+            SOSSRecord.Package(
+                name="ray",
+                channel=SOSSRecord.Channel("jammy:2.22.1/stable"),
+                repositories=["nvidia-pb3-python-stable-local"],
+                status=SOSSRecord.PackageStatusEnum.RELEASED,
+                note="2.22.1+soss.1",
+            ),
+        )
+
+        ordered_list = self.soss_record.packages[
+            SOSSRecord.PackageTypeEnum.PYTHON
+        ]
+        unordered_list = ordered_list[::-1]
+
+        self.assertEqual(sorted(unordered_list), ordered_list)
