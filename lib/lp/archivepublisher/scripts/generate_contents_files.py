@@ -236,6 +236,7 @@ class GenerateContentsFiles(LaunchpadCronScript):
             self.logger,
             "apt-ftparchive",
             [
+                "-oAPT::FTPArchive::FilterByFileNameArchitecture=false",
                 "generate",
                 os.path.join(
                     self.content_archive,
