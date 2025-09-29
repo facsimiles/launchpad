@@ -7,12 +7,15 @@ __all__ = [
     "SVTExporter",
 ]
 
+from dataclasses import dataclass
+
 from lp.bugs.interfaces.bug import IBug
 from lp.bugs.interfaces.cve import ICve
 from lp.bugs.interfaces.vulnerability import IVulnerability
 from lp.registry.interfaces.distribution import IDistribution
 
 
+@dataclass
 class SVTRecord:
     """A dataclass that contains the exact same info as a cve file."""
 

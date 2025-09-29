@@ -5,6 +5,7 @@ import logging
 import re
 import tempfile
 from collections import OrderedDict, defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -60,6 +61,7 @@ class CVSS(NamedTuple):
     vector_string: str
 
 
+@dataclass
 class UCTRecord(SVTRecord):
     """
     UCTRecord represents a single CVE record (file) in the ubuntu-cve-tracker.
@@ -104,45 +106,24 @@ class UCTRecord(SVTRecord):
         tags: Set[str]
         patches: List["UCTRecord.Patch"]
 
-    def __init__(
-        self,
-        parent_dir: str,
-        assigned_to: str,
-        bugs: List[str],
-        cvss: List[CVSS],
-        candidate: str,
-        crd: Optional[datetime],
-        public_date: Optional[datetime],
-        public_date_at_USN: Optional[datetime],
-        description: str,
-        discovered_by: str,
-        mitigation: Optional[str],
-        notes: str,
-        priority: Priority,
-        references: List[str],
-        ubuntu_description: str,
-        packages: List[Package],
-        global_tags: Set[str],
-        priority_explanation: str = "",
-    ):
-        self.parent_dir = parent_dir
-        self.assigned_to = assigned_to
-        self.bugs = bugs
-        self.cvss = cvss
-        self.candidate = candidate
-        self.crd = crd
-        self.public_date = public_date
-        self.public_date_at_USN = public_date_at_USN
-        self.description = description
-        self.discovered_by = discovered_by
-        self.mitigation = mitigation
-        self.notes = notes
-        self.priority = priority
-        self.priority_explanation = priority_explanation
-        self.references = references
-        self.ubuntu_description = ubuntu_description
-        self.packages = packages
-        self.global_tags = global_tags
+    parent_dir: str
+    assigned_to: str
+    bugs: List[str]
+    cvss: List[CVSS]
+    candidate: str
+    crd: Optional[datetime]
+    public_date: Optional[datetime]
+    public_date_at_USN: Optional[datetime]
+    description: str
+    discovered_by: str
+    mitigation: Optional[str]
+    notes: str
+    priority: "UCTRecord.Priority"
+    references: List[str]
+    ubuntu_description: str
+    packages: List["UCTRecord.Package"]
+    global_tags: Set[str]
+    priority_explanation: str = ""
 
     def __eq__(self, other):
         if not isinstance(other, UCTRecord):
