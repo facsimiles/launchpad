@@ -394,6 +394,7 @@ class BranchView(
 
     def initialize(self):
         super().initialize()
+        self._is_bazaar = True
         self.branch = self.context
         self.notices = []
         # Cache permission so private team owner can be rendered.

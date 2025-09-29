@@ -1,13 +1,5 @@
 /* JS Banner styling */
 .yui3-banner {
-    /* Default to not visible so we can fade in */
-    opacity: 1;
-
-    /* Animations for fade-in/out */
-    -webkit-transition: opacity 0.3s ease-in;
-    -moz-transition: opacity 0.3s ease-in;
-    transition: opacity 0.3s ease-in;
-
     width: 100%;
 }
 
@@ -18,13 +10,22 @@
 /* Nasty hack to get the bar moved since it's absolutely positioned
  * This also needs to be updated
  */
-body.beta #locationbar, body.private #locationbar {
+body.beta #locationbar, body.private #locationbar, body.bazaar #locationbar {
     padding-top: 47px;
 }
 
 /* If we have both classes make room for two banners height */
 body.beta.private #locationbar {
     padding-top: 94px;
+}
+body.beta.bazaar #locationbar {
+    padding-top: 94px;
+}
+body.private.bazaar #locationbar {
+    padding-top: 94px;
+}
+body.beta.private.bazaar #locationbar {
+    padding-top: 141px;
 }
 
 /* Similarly, the banner content needs to be positioned appropriately. */
@@ -39,8 +40,8 @@ body.beta.private .yui3-banner-content.private {
 /* If the container exists make sure we start out with the rest of the page
  * bumped down the starting distance to reduce flash effect
  */
-.beta_banner_container, .private_banner_container {
-    min-height: 45px;
+.beta_banner_container, .private_banner_container, .bazaar_banner_container {
+    min-height: 37px;
 }
 
 .yui3-banner-content {
@@ -65,8 +66,8 @@ body.beta.private .yui3-banner-content.private {
     height: 21px;
     margin-right: 10px;
     padding: 0;
-    vertical-align: middle;
-    width: 20px;
+    vertical-align: top;
+    width: 21px;
 }
 .yui3-banner-content .banner-content {}
 
@@ -118,4 +119,10 @@ body.beta.private .yui3-banner-content.private {
 .yui3-banner-content.private .badge {
     background: url(/@@/notification-private.png);
     background-repeat: no-repeat;
+}
+
+.yui3-banner-content.bazaar .badge {
+    background: url(/@@/info-large.png);
+    background-repeat: no-repeat;
+    background-size: 21px 21px;
 }
