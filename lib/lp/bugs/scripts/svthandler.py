@@ -10,9 +10,7 @@ __all__ = [
 from dataclasses import dataclass
 
 from lp.bugs.interfaces.bug import IBug
-from lp.bugs.interfaces.cve import ICve
 from lp.bugs.interfaces.vulnerability import IVulnerability
-from lp.registry.interfaces.distribution import IDistribution
 
 
 @dataclass
@@ -37,9 +35,8 @@ class SVTImporter:
 
 
 class SVTExporter:
+
     def to_record(
-        lp_cve: ICve,
-        distribution: IDistribution,
         bug: IBug,
         vulnerability: IVulnerability,
     ) -> SVTRecord:

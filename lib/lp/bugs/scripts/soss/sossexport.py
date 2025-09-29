@@ -7,10 +7,8 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
-from lp.app.enums import InformationType
 from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.bugtask import BugTask
-from lp.bugs.model.cve import Cve as CveModel
 from lp.bugs.model.vulnerability import Vulnerability
 from lp.bugs.scripts.soss.models import SOSSRecord
 from lp.bugs.scripts.soss.sossimport import (
@@ -20,7 +18,6 @@ from lp.bugs.scripts.soss.sossimport import (
 )
 from lp.bugs.scripts.svthandler import SVTExporter
 from lp.registry.interfaces.role import IPersonRoles
-from lp.registry.model.distribution import Distribution
 from lp.registry.security import SecurityAdminDistribution
 
 __all__ = [
@@ -42,12 +39,6 @@ class SOSSExporter(SVTExporter):
     SOSSExporter is used to export Launchpad Vulnerability data to SOSS CVE
     files.
     """
-
-    def __init__(
-        self,
-        information_type: InformationType = InformationType.PROPRIETARY,
-    ) -> None:
-        self.information_type = information_type
 
     def _get_packages(
         self, bugtasks: List[BugTask]
@@ -95,15 +86,13 @@ class SOSSExporter(SVTExporter):
 
     def to_record(
         self,
-        lp_cve: CveModel,
-        distribution: Distribution,
         bug: BugModel,
         vulnerability: Vulnerability,
     ) -> SOSSRecord:
         """Return a SOSSRecord exporting Launchpad data for the specified
         cve_sequence.
         """
-        self._validate_to_record_args(lp_cve, distribution, bug, vulnerability)
+        self._validate_to_record_args(bug, vulnerability)
 
         # Parse bug
         desc_parts = bug.description.rsplit("\n\nReferences:\n", maxsplit=1)
@@ -131,7 +120,7 @@ class SOSSExporter(SVTExporter):
             priority_reason=vulnerability.importance_explanation,
             assigned_to=assigned_to,
             packages=packages,
-            candidate=f"CVE-{lp_cve.sequence}",
+            candidate=f"CVE-{vulnerability.cve.sequence}",
             description=vulnerability.description,
             cvss=self._get_cvss(vulnerability.cvss),
             public_date=public_date,
@@ -157,16 +146,12 @@ class SOSSExporter(SVTExporter):
 
     def _validate_to_record_args(
         self,
-        lp_cve: CveModel,
-        distribution: Distribution,
         bug: BugModel,
         vulnerability: Vulnerability,
     ):
         required_args = {
-            "Cve": lp_cve,
             "Bug": bug,
             "Vulnerability": vulnerability,
-            "Distribution": distribution,
         }
 
         for name, value in required_args.items():
