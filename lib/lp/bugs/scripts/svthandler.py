@@ -17,12 +17,18 @@ from lp.bugs.interfaces.vulnerability import IVulnerability
 class SVTRecord:
     """A dataclass that contains the exact same info as a cve file."""
 
+    @classmethod
     def from_str(string: str) -> "SVTRecord":
         """Parse a string and return a SVTRecord."""
         raise NotImplementedError()
 
+    def to_str(self) -> str:
+        """Convert the SVTRecord to a string."""
+        raise NotImplementedError()
+
 
 class SVTImporter:
+
     def from_record(
         record: SVTRecord, cve_sequence: str
     ) -> (IBug, IVulnerability):
@@ -42,4 +48,8 @@ class SVTExporter:
     ) -> SVTRecord:
         """Export the bug and vulnerability related to a cve in a distribution
         and return a SVTRecord."""
+        raise NotImplementedError()
+
+    def checkUserPermissions(self, user, distribution):
+        """Checks if the user has permissions to use this handler."""
         raise NotImplementedError()

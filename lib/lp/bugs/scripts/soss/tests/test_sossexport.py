@@ -96,4 +96,4 @@ class TestSOSSExporter(TestCaseWithFactory):
             exported = self.soss_exporter.to_record(bug, vulnerability)
 
             with open(file) as f:
-                self.assertEqual(f.read(), exported.to_yaml())
+                self.assertEqual(f.read(), exported.to_str())
