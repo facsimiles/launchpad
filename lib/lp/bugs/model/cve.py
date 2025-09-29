@@ -63,6 +63,7 @@ class Cve(StormBase, BugLinkTargetMixin):
     date_made_public = DateTime(tzinfo=timezone.utc, allow_none=True)
     discovered_by = Unicode(allow_none=True)
     _cvss = JSON(name="cvss", allow_none=True)
+    metadata = JSON(name="metadata", allow_none=True)
 
     @property
     def cvss(self):
@@ -81,6 +82,7 @@ class Cve(StormBase, BugLinkTargetMixin):
         date_made_public=None,
         discovered_by=None,
         cvss=None,
+        metadata=None,
     ):
         super().__init__()
         self.sequence = sequence

@@ -180,6 +180,18 @@ class ICve(Interface):
         as_of="devel",
     )
 
+    metadata = exported(
+        Dict(
+            title=_("metadata"),
+            description=_("CVE metadata."),
+            key_type=Text(),
+            value_type=Text(),
+            required=False,
+            readonly=False,
+        ),
+        as_of="devel",
+    )
+
     def createReference(source, content, url=None):
         """Create a new CveReference for this CVE."""
 

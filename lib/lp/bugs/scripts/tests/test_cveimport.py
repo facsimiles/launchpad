@@ -94,6 +94,12 @@ class TestCVEUpdater(TestCase):
             "cveMetadata": {"cveId": f"CVE-{cve_id}"},
             "containers": {
                 "cna": {
+                    "affected": [
+                        {
+                            "vendor": "example vendor",
+                            "product": "example product",
+                        }
+                    ],
                     "descriptions": [{"lang": "en", "value": description}],
                     "references": [
                         {
@@ -269,6 +275,14 @@ class TestCVEUpdater(TestCase):
         cve_data = self.create_test_json_cve(
             cve_id="2024-0004", description=new_desc
         )
+        new_metadata = {
+            "affected": [
+                {
+                    "vendor": "example vendor",
+                    "product": "example product",
+                }
+            ],
+        }
 
         # Process the update with a fresh updater
         updater = self.make_updater()
@@ -278,6 +292,7 @@ class TestCVEUpdater(TestCase):
         # Verify the update
         updated_cve = cveset["2024-0004"]
         self.assertEqual(new_desc, updated_cve.description)
+        self.assertEqual(new_metadata, updated_cve.metadata)
 
     def test_extract_github_zip(self):
         """Test extract_github_zip for complete releases."""
