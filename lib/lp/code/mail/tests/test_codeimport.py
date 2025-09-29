@@ -8,11 +8,7 @@ import textwrap
 
 import transaction
 
-from lp.code.enums import (
-    CodeImportReviewStatus,
-    RevisionControlSystems,
-    TargetRevisionControlSystems,
-)
+from lp.code.enums import CodeImportReviewStatus, TargetRevisionControlSystems
 from lp.code.tests.helpers import GitHostingFixture
 from lp.services.mail import stub
 from lp.testing import TestCaseWithFactory, login_celebrity, login_person
@@ -23,90 +19,6 @@ class TestNewCodeImports(TestCaseWithFactory):
     """Test the emails sent out for new code imports."""
 
     layer = DatabaseFunctionalLayer
-
-    def test_cvs_to_bzr_import(self):
-        # Test the email for a new CVS-to-Bazaar import.
-        eric = self.factory.makePerson(name="eric")
-        fooix = self.factory.makeProduct(name="fooix")
-        # Eric needs to be logged in for the mail to be sent.
-        login_person(eric)
-        self.factory.makeProductCodeImport(
-            cvs_root=":pserver:anon@cvs.example.com:/cvsroot",
-            cvs_module="a_module",
-            branch_name="import",
-            product=fooix,
-            registrant=eric,
-        )
-        transaction.commit()
-        msg = email.message_from_bytes(stub.test_emails[0][2])
-        self.assertEqual("code-import", msg["X-Launchpad-Notification-Type"])
-        self.assertEqual("~eric/fooix/import", msg["X-Launchpad-Branch"])
-        self.assertEqual(
-            "A new CVS code import has been requested by Eric:\n"
-            "    http://code.launchpad.test/~eric/fooix/import\n"
-            "from\n"
-            "    :pserver:anon@cvs.example.com:/cvsroot, a_module\n"
-            "\n"
-            "-- \nYou are getting this email because you are a member of the "
-            "vcs-imports team.\n",
-            msg.get_payload(decode=True).decode(),
-        )
-
-    def test_svn_to_bzr_import(self):
-        # Test the email for a new Subversion-to-Bazaar import.
-        eric = self.factory.makePerson(name="eric")
-        fooix = self.factory.makeProduct(name="fooix")
-        # Eric needs to be logged in for the mail to be sent.
-        login_person(eric)
-        self.factory.makeProductCodeImport(
-            svn_branch_url="svn://svn.example.com/fooix/trunk",
-            branch_name="trunk",
-            product=fooix,
-            registrant=eric,
-            rcs_type=RevisionControlSystems.BZR_SVN,
-        )
-        transaction.commit()
-        msg = email.message_from_bytes(stub.test_emails[0][2])
-        self.assertEqual("code-import", msg["X-Launchpad-Notification-Type"])
-        self.assertEqual("~eric/fooix/trunk", msg["X-Launchpad-Branch"])
-        self.assertEqual(
-            "A new subversion code import has been requested by Eric:\n"
-            "    http://code.launchpad.test/~eric/fooix/trunk\n"
-            "from\n"
-            "    svn://svn.example.com/fooix/trunk\n"
-            "\n"
-            "-- \nYou are getting this email because you are a member of the "
-            "vcs-imports team.\n",
-            msg.get_payload(decode=True).decode(),
-        )
-
-    def test_git_to_bzr_import(self):
-        # Test the email for a new git-to-Bazaar import.
-        eric = self.factory.makePerson(name="eric")
-        fooix = self.factory.makeProduct(name="fooix")
-        # Eric needs to be logged in for the mail to be sent.
-        login_person(eric)
-        self.factory.makeProductCodeImport(
-            git_repo_url="git://git.example.com/fooix.git",
-            branch_name="master",
-            product=fooix,
-            registrant=eric,
-        )
-        transaction.commit()
-        msg = email.message_from_bytes(stub.test_emails[0][2])
-        self.assertEqual("code-import", msg["X-Launchpad-Notification-Type"])
-        self.assertEqual("~eric/fooix/master", msg["X-Launchpad-Branch"])
-        self.assertEqual(
-            "A new git code import has been requested "
-            "by Eric:\n"
-            "    http://code.launchpad.test/~eric/fooix/master\n"
-            "from\n"
-            "    git://git.example.com/fooix.git\n"
-            "\n"
-            "-- \nYou are getting this email because you are a member of the "
-            "vcs-imports team.\n",
-            msg.get_payload(decode=True).decode(),
-        )
 
     def test_git_to_git_import(self):
         # Test the email for a new git-to-git import.
@@ -130,43 +42,6 @@ class TestNewCodeImports(TestCaseWithFactory):
             "A new git code import has been requested "
             "by Eric:\n"
             "    http://code.launchpad.test/~eric/fooix/+git/master\n"
-            "from\n"
-            "    git://git.example.com/fooix.git\n"
-            "\n"
-            "-- \nYou are getting this email because you are a member of the "
-            "vcs-imports team.\n",
-            msg.get_payload(decode=True).decode(),
-        )
-
-    def test_new_source_package_import(self):
-        # Test the email for a new sourcepackage import.
-        eric = self.factory.makePerson(name="eric")
-        distro = self.factory.makeDistribution(name="foobuntu")
-        series = self.factory.makeDistroSeries(
-            name="manic", distribution=distro
-        )
-        fooix = self.factory.makeSourcePackage(
-            sourcepackagename="fooix", distroseries=series
-        )
-        # Eric needs to be logged in for the mail to be sent.
-        login_person(eric)
-        self.factory.makePackageCodeImport(
-            git_repo_url="git://git.example.com/fooix.git",
-            branch_name="master",
-            sourcepackage=fooix,
-            registrant=eric,
-        )
-        transaction.commit()
-        msg = email.message_from_bytes(stub.test_emails[0][2])
-        self.assertEqual("code-import", msg["X-Launchpad-Notification-Type"])
-        self.assertEqual(
-            "~eric/foobuntu/manic/fooix/master", msg["X-Launchpad-Branch"]
-        )
-        self.assertEqual(
-            "A new git code import has been requested "
-            "by Eric:\n"
-            "    http://code.launchpad.test/"
-            "~eric/foobuntu/manic/fooix/master\n"
             "from\n"
             "    git://git.example.com/fooix.git\n"
             "\n"
@@ -229,97 +104,6 @@ class TestUpdatedCodeImports(TestCaseWithFactory):
                 "unique_name": unique_name,
             },
             msg.get_payload(decode=True).decode(),
-        )
-
-    def test_cvs_to_bzr_import_same_details(self):
-        code_import = self.factory.makeProductCodeImport(
-            cvs_root=":pserver:anon@cvs.example.com:/cvsroot",
-            cvs_module="a_module",
-        )
-        unique_name = code_import.target.unique_name
-        user = login_celebrity("vcs_imports")
-        code_import.updateFromData(
-            {"review_status": CodeImportReviewStatus.FAILING}, user
-        )
-        transaction.commit()
-        self.assertSameDetailsEmail(
-            "a_module from :pserver:anon@cvs.example.com:/cvsroot",
-            unique_name,
-        )
-
-    def test_cvs_to_bzr_import_different_details(self):
-        code_import = self.factory.makeProductCodeImport(
-            cvs_root=":pserver:anon@cvs.example.com:/cvsroot",
-            cvs_module="a_module",
-        )
-        unique_name = code_import.target.unique_name
-        user = login_celebrity("vcs_imports")
-        code_import.updateFromData({"cvs_module": "another_module"}, user)
-        transaction.commit()
-        self.assertDifferentDetailsEmail(
-            "a_module from :pserver:anon@cvs.example.com:/cvsroot",
-            "another_module from :pserver:anon@cvs.example.com:/cvsroot",
-            unique_name,
-        )
-
-    def test_svn_to_bzr_import_same_details(self):
-        code_import = self.factory.makeProductCodeImport(
-            svn_branch_url="svn://svn.example.com/fooix/trunk"
-        )
-        unique_name = code_import.target.unique_name
-        user = login_celebrity("vcs_imports")
-        code_import.updateFromData(
-            {"review_status": CodeImportReviewStatus.FAILING}, user
-        )
-        transaction.commit()
-        self.assertSameDetailsEmail(
-            "svn://svn.example.com/fooix/trunk", unique_name
-        )
-
-    def test_svn_to_bzr_import_different_details(self):
-        code_import = self.factory.makeProductCodeImport(
-            svn_branch_url="svn://svn.example.com/fooix/trunk"
-        )
-        unique_name = code_import.target.unique_name
-        user = login_celebrity("vcs_imports")
-        code_import.updateFromData(
-            {"url": "https://svn.example.com/fooix/trunk"}, user
-        )
-        transaction.commit()
-        self.assertDifferentDetailsEmail(
-            "svn://svn.example.com/fooix/trunk",
-            "https://svn.example.com/fooix/trunk",
-            unique_name,
-        )
-
-    def test_git_to_bzr_import_same_details(self):
-        code_import = self.factory.makeProductCodeImport(
-            git_repo_url="git://git.example.com/fooix.git"
-        )
-        unique_name = code_import.target.unique_name
-        user = login_celebrity("vcs_imports")
-        code_import.updateFromData(
-            {"review_status": CodeImportReviewStatus.FAILING}, user
-        )
-        transaction.commit()
-        self.assertSameDetailsEmail(
-            "git://git.example.com/fooix.git", unique_name
-        )
-
-    def test_git_to_bzr_import_different_details(self):
-        code_import = self.factory.makeProductCodeImport(
-            git_repo_url="git://git.example.com/fooix.git"
-        )
-        unique_name = code_import.target.unique_name
-        user = login_celebrity("vcs_imports")
-        code_import.updateFromData(
-            {"url": "https://git.example.com/fooix.git"}, user
-        )
-        transaction.commit()
-        self.assertDifferentDetailsEmail(
-            "git://git.example.com/fooix.git",
-            "https://git.example.com/fooix.git",
-            unique_name,
         )
 
     def test_git_to_git_import_same_details(self):

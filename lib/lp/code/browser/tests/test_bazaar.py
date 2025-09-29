@@ -3,13 +3,11 @@
 
 """Tests for classes in the lp.code.browser.bazaar module."""
 
-from zope.security.proxy import removeSecurityProxy
-
 from lp.app.enums import InformationType
 from lp.code.browser.bazaar import BazaarApplicationView
 from lp.services.webapp.authorization import check_permission
 from lp.services.webapp.servers import LaunchpadTestRequest
-from lp.testing import ANONYMOUS, TestCaseWithFactory, login, login_person
+from lp.testing import ANONYMOUS, TestCaseWithFactory, login
 from lp.testing.layers import DatabaseFunctionalLayer
 
 
@@ -57,27 +55,5 @@ class TestBazaarViewPreCacheLaunchpadPermissions(TestCaseWithFactory):
         self.makeBranchScanned(stacked_private_branch)
         self.makeBranchScanned(branch)
         recent_branches = self.getViewBranches("recently_changed_branches")
-        self.assertEqual(branch, recent_branches[0])
-        self.assertTrue(check_permission("launchpad.View", branch))
-
-    def test_recently_imported(self):
-        # Create an import branch that is stacked on a private branch that the
-        # logged in user would not normally see.  This would never happen in
-        # reality, but hey, lets test the function actually works.
-        private_branch = self.factory.makeAnyBranch(
-            information_type=InformationType.USERDATA
-        )
-        # A new code import needs a real user as the sender for the outgoing
-        # email.
-        login_person(self.factory.makePerson())
-        private_code_import = self.factory.makeCodeImport()
-        stacked_private_branch = private_code_import.branch
-        naked_branch = removeSecurityProxy(stacked_private_branch)
-        naked_branch.stacked_on = private_branch
-        code_import = self.factory.makeCodeImport()
-        branch = code_import.branch
-        self.makeBranchScanned(stacked_private_branch)
-        self.makeBranchScanned(branch)
-        recent_branches = self.getViewBranches("recently_imported_branches")
         self.assertEqual(branch, recent_branches[0])
         self.assertTrue(check_permission("launchpad.View", branch))

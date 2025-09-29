@@ -16,6 +16,7 @@ from storm.locals import DateTime, Int, Reference, Unicode
 from zope.interface import implementer
 
 from lp.code.enums import (
+    NON_CVS_RCS_TYPES,
     CodeImportEventDataType,
     CodeImportEventType,
     CodeImportMachineOfflineReason,
@@ -357,11 +358,7 @@ class CodeImportEventSet:
 
     def _iterSourceDetails(self, code_import):
         """Yield key-value tuples describing the source of the import."""
-        if code_import.rcs_type in (
-            RevisionControlSystems.BZR_SVN,
-            RevisionControlSystems.GIT,
-            RevisionControlSystems.BZR,
-        ):
+        if code_import.rcs_type in NON_CVS_RCS_TYPES:
             yield "URL", code_import.url
         elif code_import.rcs_type == RevisionControlSystems.CVS:
             yield "CVS_ROOT", code_import.cvs_root

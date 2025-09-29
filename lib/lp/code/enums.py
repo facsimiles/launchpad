@@ -845,7 +845,7 @@ class RevisionControlSystems(DBEnumeratedType):
         """
         Concurrent Versions System
 
-        Imports from CVS via CSCVS.
+        Imports from CVS via CSCVS. (no longer supported)
         """,
     )
 
@@ -854,7 +854,7 @@ class RevisionControlSystems(DBEnumeratedType):
         """
         Subversion via CSCVS
 
-        Imports from SVN using CSCVS.
+        Imports from SVN using CSCVS. (no longer supported)
         """,
     )
 
@@ -863,7 +863,7 @@ class RevisionControlSystems(DBEnumeratedType):
         """
         Subversion via bzr-svn
 
-        Imports from SVN using bzr-svn.
+        Imports from SVN using bzr-svn. (no longer supported)
         """,
     )
 
@@ -890,7 +890,7 @@ class RevisionControlSystems(DBEnumeratedType):
         """
         Bazaar
 
-        Mirror of a Bazaar branch.
+        Mirror of a Bazaar branch. (no longer supported)
         """,
     )
 
@@ -1629,4 +1629,5 @@ NON_CVS_RCS_TYPES = (
     RevisionControlSystems.BZR_SVN,
     RevisionControlSystems.GIT,
     RevisionControlSystems.BZR,
+    RevisionControlSystems.SVN,
 )

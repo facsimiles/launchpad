@@ -103,71 +103,6 @@ shown.
 Both active reviews and approved merges are links allowing the user to
 go to listing views.
 
-
-Initial branch listing
-======================
-
-The initial branch listing has the following branches in order:
- * The current development focus branch
- * Other series branches (as long as not Merged or Abandoned)
- * Other non-series branches ordered by most recently modified
-
-If a branch is associated with more than one series, it is only shown
-once, but both series are shown in the listing.
-
-    >>> admin_browser.open("http://launchpad.test/firefox/trunk/+setbranch")
-    >>> admin_browser.getControl("Branch:").value = "~name12/firefox/main"
-    >>> admin_browser.getControl("Update").click()
-    >>> admin_browser.open("http://launchpad.test/firefox/1.0/+setbranch")
-    >>> admin_browser.getControl("Branch:").value = "~name12/firefox/main"
-    >>> admin_browser.getControl("Update").click()
-
-    >>> browser.open("http://code.launchpad.test/firefox")
-    >>> table = find_tag_by_id(browser.contents, "branchtable")
-    >>> for row in table.tbody.find_all("tr")[0:2]:
-    ...     print(extract_text(row))
-    lp://dev/firefox
-      Series: trunk, 1.0                     Development ...
-    lp://dev/~mark/firefox/release--0.9.1  Development ...
-
-Firstly lets associate release--0.9.1 with the 1.0 series.
-
-    >>> admin_browser.open("http://launchpad.test/firefox/1.0/+setbranch")
-    >>> admin_browser.getControl("Branch:").value = (
-    ...     "~mark/firefox/release--0.9.1"
-    ... )
-    >>> admin_browser.getControl("Update").click()
-
-    >>> browser.open("http://code.launchpad.test/firefox")
-    >>> table = find_tag_by_id(browser.contents, "branchtable")
-    >>> for row in table.tbody.find_all("tr")[0:2]:
-    ...     print(extract_text(row))
-    lp://dev/firefox
-      Series: trunk                 Development ...
-    lp://dev/firefox/1.0
-      Series: 1.0                   Development ...
-
-If series branches are marked as Abandoned they will not show up on the
-default listings.
-
-    >>> admin_browser.open(
-    ...     "http://code.launchpad.test/~name12/firefox/main/+edit"
-    ... )
-    >>> admin_browser.getControl("Abandoned").click()
-    >>> admin_browser.getControl("Change Branch").click()
-    >>> admin_browser.open(
-    ...     "http://code.launchpad.test/~mark/firefox/release--0.9.1/+edit"
-    ... )
-    >>> admin_browser.getControl("Abandoned").click()
-    >>> admin_browser.getControl("Change Branch").click()
-
-    >>> browser.open("http://code.launchpad.test/firefox")
-    >>> table = find_tag_by_id(browser.contents, "branchtable")
-    >>> for row in table.tbody.find_all("tr")[0:2]:
-    ...     print(extract_text(row))
-    lp://dev/~mark/firefox/release-0.8     Development ...
-
-
 Involvement portlet
 ===================
 
@@ -236,17 +171,6 @@ And a regular user can only register and import branches.
     >>> user_browser.open("http://code.launchpad.test/firefox")
     >>> print_links(user_browser)
     Import a branch
-
-If the product specifies that it officially uses Launchpad code, then
-the 'Import a branch' button is still shown.
-
-    >>> ignored = login_person(owner)
-    >>> product.development_focus.branch = old_branch
-    >>> logout()
-    >>> browser.open("http://code.launchpad.test/firefox")
-    >>> print_links(browser)
-    Import a branch
-
 
 The statistics portlet
 ======================

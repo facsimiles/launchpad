@@ -67,7 +67,6 @@ from lp.code.interfaces.branchnamespace import (
 )
 from lp.code.interfaces.branchrevision import IBranchRevision
 from lp.code.interfaces.codehosting import branch_id_alias
-from lp.code.interfaces.codeimport import ICodeImportSet
 from lp.code.interfaces.linkedbranch import ICanHasLinkedBranch
 from lp.code.interfaces.seriessourcepackagebranch import (
     IFindOfficialBranchLinks,
@@ -77,7 +76,6 @@ from lp.code.model.branch import (
     ClearDependentBranch,
     ClearOfficialPackageBranch,
     ClearSeriesBranch,
-    DeleteCodeImport,
     DeletionCallable,
     DeletionOperation,
     update_trigger_modified_fields,
@@ -91,7 +89,11 @@ from lp.code.model.branchjob import (
 from lp.code.model.branchrevision import BranchRevision
 from lp.code.model.codereviewcomment import CodeReviewComment
 from lp.code.model.revision import Revision
-from lp.code.tests.helpers import BranchHostingFixture, add_revision_to_branch
+from lp.code.tests.helpers import (
+    BranchHostingFixture,
+    GitHostingFixture,
+    add_revision_to_branch,
+)
 from lp.codehosting.vfs.branchfs import get_real_branch_path
 from lp.registry.enums import (
     BranchSharingPolicy,
@@ -115,7 +117,6 @@ from lp.services.job.interfaces.job import JobStatus
 from lp.services.job.runner import JobRunner
 from lp.services.job.tests import block_on_job, monitor_celery
 from lp.services.osutils import override_environ
-from lp.services.propertycache import clear_property_cache
 from lp.services.webapp.authorization import check_permission
 from lp.services.webapp.interfaces import IOpenLaunchBag, OAuthPermission
 from lp.testing import (
@@ -152,24 +153,6 @@ def create_knit(test_case):
         db_branch.branch_format = BranchFormat.BZR_BRANCH_5
         db_branch.repository_format = RepositoryFormat.BZR_KNIT_1
     return db_branch, tree
-
-
-class TestCodeImport(TestCase):
-    layer = LaunchpadZopelessLayer
-
-    def setUp(self):
-        super().setUp()
-        login("test@canonical.com")
-        self.factory = LaunchpadObjectFactory()
-
-    def test_branchCodeImport(self):
-        """Ensure the codeImport property works correctly."""
-        code_import = self.factory.makeCodeImport()
-        branch = code_import.branch
-        self.assertEqual(code_import, branch.code_import)
-        getUtility(ICodeImportSet).delete(code_import)
-        clear_property_cache(branch)
-        self.assertIsNone(branch.code_import)
 
 
 class TestBranchChanged(TestCaseWithFactory):
@@ -1343,8 +1326,9 @@ class TestBranchDeletion(TestCaseWithFactory):
 
     def test_codeImportCanStillBeDeleted(self):
         """A branch that has an attached code import can be deleted."""
+        self.useFixture(GitHostingFixture())
         code_import = LaunchpadObjectFactory().makeCodeImport()
-        branch = code_import.branch
+        branch = code_import.git_repository
         self.assertEqual(
             branch.canBeDeleted(),
             True,
@@ -1862,20 +1846,14 @@ class TestBranchDeletionConsequences(TestCase):
 
     def test_branchWithCodeImportRequirements(self):
         """Deletion requirements for a code import branch are right"""
+        self.useFixture(GitHostingFixture())
         code_import = self.factory.makeCodeImport()
         # Remove the implicit branch subscription first.
-        code_import.branch.unsubscribe(
-            code_import.branch.owner, code_import.branch.owner
+        code_import.git_repository.unsubscribe(
+            code_import.git_repository.owner, code_import.git_repository.owner
         )
-        self.assertEqual({}, code_import.branch.deletionRequirements())
-
-    def test_branchWithCodeImportDeletion(self):
-        """break_references allows deleting a code import branch."""
-        code_import = self.factory.makeCodeImport()
-        code_import_id = code_import.id
-        code_import.branch.destroySelf(break_references=True)
-        self.assertRaises(
-            NotFoundError, getUtility(ICodeImportSet).get, code_import_id
+        self.assertEqual(
+            {}, code_import.git_repository.getDeletionRequirements()
         )
 
     def test_sourceBranchWithCodeReviewVoteReference(self):
@@ -1957,15 +1935,6 @@ class TestBranchDeletionConsequences(TestCase):
         DeletionCallable(spec, "blah", spec_link.destroySelf)()
         self.assertIsNone(
             IStore(SpecificationBranch).get(SpecificationBranch, spec_link_id)
-        )
-
-    def test_DeleteCodeImport(self):
-        """DeleteCodeImport.__call__ must delete the CodeImport."""
-        code_import = self.factory.makeCodeImport()
-        code_import_id = code_import.id
-        DeleteCodeImport(code_import)()
-        self.assertRaises(
-            NotFoundError, getUtility(ICodeImportSet).get, code_import_id
         )
 
     def test_deletionRequirements_with_SourcePackageRecipe(self):

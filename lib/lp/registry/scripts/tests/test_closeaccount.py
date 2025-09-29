@@ -822,57 +822,47 @@ class TestCloseAccount(TestCaseWithFactory):
         self.useFixture(GitHostingFixture())
         person = self.factory.makePerson()
         team = self.factory.makeTeam(members=[person])
-        code_imports = [
-            self.factory.makeCodeImport(
-                registrant=person, target_rcs_type=target_rcs_type, owner=team
-            )
-            for target_rcs_type in (
-                TargetRevisionControlSystems.BZR,
-                TargetRevisionControlSystems.GIT,
-            )
-        ]
+        code_import = self.factory.makeCodeImport(
+            registrant=person,
+            target_rcs_type=TargetRevisionControlSystems.GIT,
+            owner=team,
+        )
         person_id = person.id
         account_id = person.account.id
         script = self.makeScript([person.name])
         with dbuser("launchpad"):
             self.runScript(script)
         self.assertRemoved(account_id, person_id)
-        self.assertEqual(person, code_imports[0].registrant)
-        self.assertEqual(person, code_imports[1].registrant)
+        self.assertEqual(person, code_import.registrant)
 
     def test_skips_import_job_requester(self):
         self.useFixture(GitHostingFixture())
         person = self.factory.makePerson()
         team = self.factory.makeTeam(members=[person])
-        code_imports = [
-            self.factory.makeCodeImport(
-                registrant=person, target_rcs_type=target_rcs_type, owner=team
-            )
-            for target_rcs_type in (
-                TargetRevisionControlSystems.BZR,
-                TargetRevisionControlSystems.GIT,
-            )
-        ]
+        code_import = self.factory.makeCodeImport(
+            registrant=person,
+            target_rcs_type=TargetRevisionControlSystems.GIT,
+            owner=team,
+        )
 
-        for code_import in code_imports:
-            getUtility(ICodeImportJobWorkflow).requestJob(
-                code_import.import_job, person
-            )
-            self.assertEqual(person, code_import.import_job.requesting_user)
-            result = self.factory.makeCodeImportResult(
-                code_import=code_import,
-                requesting_user=person,
-                result_status=CodeImportResultStatus.SUCCESS,
-            )
-            person_id = person.id
-            account_id = person.account.id
-            script = self.makeScript([person.name])
-            with dbuser("launchpad"):
-                self.runScript(script)
-            self.assertRemoved(account_id, person_id)
-            self.assertEqual(person, code_import.registrant)
-            self.assertEqual(person, result.requesting_user)
-            self.assertEqual(person, code_import.import_job.requesting_user)
+        getUtility(ICodeImportJobWorkflow).requestJob(
+            code_import.import_job, person
+        )
+        self.assertEqual(person, code_import.import_job.requesting_user)
+        result = self.factory.makeCodeImportResult(
+            code_import=code_import,
+            requesting_user=person,
+            result_status=CodeImportResultStatus.SUCCESS,
+        )
+        person_id = person.id
+        account_id = person.account.id
+        script = self.makeScript([person.name])
+        with dbuser("launchpad"):
+            self.runScript(script)
+        self.assertRemoved(account_id, person_id)
+        self.assertEqual(person, code_import.registrant)
+        self.assertEqual(person, result.requesting_user)
+        self.assertEqual(person, code_import.import_job.requesting_user)
 
     def test_skip_requester_package_diff_job(self):
         person = self.factory.makePerson()

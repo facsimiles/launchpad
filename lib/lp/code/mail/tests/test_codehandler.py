@@ -29,7 +29,10 @@ from lp.code.model.branchmergeproposaljob import (
     BranchMergeProposalJob,
     BranchMergeProposalJobType,
 )
-from lp.code.tests.helpers import make_merge_proposal_without_reviewers
+from lp.code.tests.helpers import (
+    GitHostingFixture,
+    make_merge_proposal_without_reviewers,
+)
 from lp.services.config import config
 from lp.services.mail.handlers import mail_handlers
 from lp.services.mail.interfaces import EmailProcessingError
@@ -274,6 +277,7 @@ class TestCodeHandler(TestCaseWithFactory):
         they don't have launchpad.Edit but are a member of the review team,
         then a check against the code import is done.
         """
+        self.useFixture(GitHostingFixture())
         mail = self.factory.makeSignedMessage(body=" merge approved")
         code_import = self.factory.makeCodeImport()
         bmp = self.factory.makeBranchMergeProposal(

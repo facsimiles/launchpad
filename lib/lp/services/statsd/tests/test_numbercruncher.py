@@ -20,6 +20,7 @@ from lp.buildmaster.interfaces.processor import IProcessorSet
 from lp.buildmaster.model.buildqueue import BuildQueue
 from lp.buildmaster.tests.mock_workers import OkWorker
 from lp.code.enums import CodeImportJobState
+from lp.code.tests.helpers import GitHostingFixture
 from lp.services.database.isolation import is_transaction_in_progress
 from lp.services.database.policy import DatabaseBlockedPolicy
 from lp.services.log.logger import BufferLogger
@@ -331,6 +332,7 @@ class TestNumberCruncher(StatsMixin, TestCaseWithFactory):
         )
 
     def test_updateCodeImportStats(self):
+        self.useFixture(GitHostingFixture())
         clock = task.Clock()
         cruncher = NumberCruncher(clock=clock)
         cruncher.updateCodeImportStats()

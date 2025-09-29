@@ -9,6 +9,7 @@ be entered manually (or from a bookmark).  Given that this is a view
 that is more interesting to import operators, and not so much to
 individual users, this seems like a fair compromise.
 
+    >>> from lp.code.tests.helpers import GitHostingFixture
     >>> browser = setupBrowser(auth="Basic test@canonical.com:test")
     >>> browser.open("http://code.launchpad.test/+code-imports/+machines")
     >>> def print_table(browser):
@@ -37,28 +38,74 @@ running jobs in the table.
     ... )
 
     >>> from lp.code.tests.codeimporthelpers import make_running_import
-    >>> ignored = make_running_import(
-    ...     factory=factory,
-    ...     machine=apollo,
-    ...     logtail="Creating changeset 1\nCreating changeset 2",
-    ... )
-    >>> ignored = make_running_import(factory=factory, machine=apollo)
-    >>> ignored = make_running_import(factory=factory, machine=odin)
+    >>> from lp.registry.interfaces.person import IPersonSet
+    >>> from lp.registry.interfaces.product import IProductSet
+    >>> from zope.component import getUtility
+    >>> with GitHostingFixture():
+    ...     name12 = getUtility(IPersonSet).getByName("name12")
+    ...     imp1 = factory.makeCodeImport(
+    ...         registrant=name12,
+    ...         context=getUtility(IProductSet).getByName("evolution"),
+    ...         branch_name="foo",
+    ...         git_repo_url="git://git.gnome.org/gnome-terminal/foo",
+    ...     )
+    ...     imp2 = factory.makeCodeImport(
+    ...         registrant=name12,
+    ...         context=getUtility(IProductSet).getByName("evolution"),
+    ...         branch_name="bar",
+    ...         git_repo_url="git://git.gnome.org/gnome-terminal/bar",
+    ...     )
+    ...     imp3 = factory.makeCodeImport(
+    ...         registrant=name12,
+    ...         context=getUtility(IProductSet).getByName("evolution"),
+    ...         branch_name="baz",
+    ...         git_repo_url="git://git.gnome.org/gnome-terminal/baz",
+    ...     )
+    ...     ignored = make_running_import(
+    ...         code_import=imp1,
+    ...         factory=factory,
+    ...         machine=apollo,
+    ...         logtail="Creating changeset 1\nCreating changeset 2",
+    ...     )
+    ...     ignored = make_running_import(
+    ...         code_import=imp2, factory=factory, machine=apollo
+    ...     )
+    ...     ignored = make_running_import(
+    ...         code_import=imp3, factory=factory, machine=odin
+    ...     )
+    ...
     >>> logout()
 
     >>> browser.open("http://code.launchpad.test/+code-imports/+machines")
     >>> print_table(browser)
-    Machine                            Status
-    apollo (2 jobs running)            Online
-        lp://dev/~.../.../...
-            Started: ... ago      Last heartbeat: ... ago
-        lp://dev/~.../.../...
-            Started: ... ago      Last heartbeat: ... ago
-    bazaar-importer (0 jobs running)   Online
-    odin (1 job running)               Online
-        lp://dev/~.../.../...
-            Started: ... ago      Last heartbeat: ... ago
-    saturn                             Offline
+    Machine
+    Status
+    apollo
+    (2
+    jobs
+    running)
+    Online
+    lp:~name12/evolution/+git/foo
+    Started: a moment ago
+    Last heartbeat: a moment ago
+    lp:~name12/evolution/+git/bar
+    Started: a moment ago
+    Last heartbeat: a moment ago
+    bazaar-importer
+    (0
+    jobs
+    running)
+    Online
+    odin
+    (1
+    job
+    running)
+    Online
+    lp:~name12/evolution/+git/baz
+    Started: a moment ago
+    Last heartbeat: a moment ago
+    saturn
+    Offline
 
 
 Individual machine views
@@ -81,24 +128,34 @@ The page also shows the current running jobs for that machine.
 
     >>> print(extract_text(find_tag_by_id(browser.contents, "current-jobs")))
     Current jobs
-    lp://dev/~.../.../... Started: ... ago Last heartbeat: ... ago
-         Creating changeset 1
-         Creating changeset 2
-    lp://dev/~.../.../... Started: ... ago Last heartbeat: ... ago
+    lp:~name12/evolution/+git/foo
+    Started: a moment ago
+    Last heartbeat: a moment ago
+    Creating changeset 1
+    Creating changeset 2
+    lp:~name12/evolution/+git/bar
+    Started: a moment ago
+    Last heartbeat: a moment ago
 
 And also shows the most recent ten events for the machine, with the most
 recent event first.
 
     >>> def print_events(browser):
     ...     recent_events = find_tag_by_id(browser.contents, "recent-events")
-    ...     print(extract_text(recent_events))
+    ...     lines = extract_text(recent_events).splitlines()
+    ...     for line in lines:
+    ...         # Skip timestamps
+    ...         if "AWST" in line:
+    ...             continue
+    ...         print(line)
     ...
     >>> print_events(browser)
     Related events
-    ...: Job Started lp://dev/~.../.../...
-    ...: Job Started lp://dev/~.../.../...
-    ...: Machine Online
-
+    Job Started
+    lp:~name12/evolution/+git/bar
+    Job Started
+    lp:~name12/evolution/+git/foo
+    Machine Online
 
 Changing the machine's status
 .............................

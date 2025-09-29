@@ -27,6 +27,10 @@ from lp.testing.views import create_initialized_view
 class TestImportDetails(TestCaseWithFactory):
     layer = DatabaseFunctionalLayer
 
+    def setUp(self):
+        super().setUp()
+        self.useFixture(GitHostingFixture())
+
     def assertImportDetailsDisplayed(
         self, context, details_id, prefix_text, span_title=None
     ):
@@ -46,23 +50,9 @@ class TestImportDetails(TestCaseWithFactory):
         text = re.sub(r"\s+", " ", extract_text(details))
         self.assertThat(text, StartsWith(prefix_text))
 
-    def test_bzr_svn_import(self):
-        # The branch page for a bzr-svn-imported branch contains a summary
-        # of the import details.
-        code_import = self.factory.makeCodeImport(
-            rcs_type=RevisionControlSystems.BZR_SVN
-        )
-        self.assertImportDetailsDisplayed(
-            code_import.target,
-            "svn-import-details",
-            "This branch is an import of the Subversion branch",
-            span_title=RevisionControlSystems.BZR_SVN.title,
-        )
-
     def test_git_to_git_import(self):
         # The repository page for a git-to-git-imported repository contains
         # a summary of the import details.
-        self.useFixture(GitHostingFixture())
         code_import = self.factory.makeCodeImport(
             rcs_type=RevisionControlSystems.GIT,
             target_rcs_type=TargetRevisionControlSystems.GIT,
@@ -76,7 +66,6 @@ class TestImportDetails(TestCaseWithFactory):
     def test_git_to_git_import_product(self):
         # The index page for a product should state that a repository
         # is imported.
-        self.useFixture(GitHostingFixture())
         code_import = self.factory.makeCodeImport(
             rcs_type=RevisionControlSystems.GIT,
             target_rcs_type=TargetRevisionControlSystems.GIT,
@@ -101,16 +90,16 @@ class TestImportDetails(TestCaseWithFactory):
             self.assertRaises(
                 Unauthorized,
                 create_initialized_view,
-                code_import.branch,
+                code_import.git_repository,
                 "+edit-import",
             )
 
     def test_branch_owner_of_import_can_edit_it(self):
         # Owners are allowed to edit code import.
         code_import = self.factory.makeCodeImport()
-        with person_logged_in(code_import.branch.owner):
+        with person_logged_in(code_import.git_repository.owner):
             view = create_initialized_view(
-                code_import.branch,
+                code_import.git_repository,
                 "+edit-import",
                 form={
                     "field.actions.update": "update",
@@ -124,9 +113,9 @@ class TestImportDetails(TestCaseWithFactory):
         # Owners are allowed to edit code import.
         code_import = self.factory.makeCodeImport()
         original_url = code_import.url
-        with person_logged_in(code_import.branch.owner):
+        with person_logged_in(code_import.git_repository.owner):
             view = create_initialized_view(
-                code_import.branch,
+                code_import.git_repository,
                 "+edit-import",
                 form={
                     "field.actions.suspend": "Suspend",
@@ -141,7 +130,7 @@ class TestImportDetails(TestCaseWithFactory):
         code_import = self.factory.makeCodeImport()
         with admin_logged_in():
             view = create_initialized_view(
-                code_import.branch,
+                code_import.git_repository,
                 "+edit-import",
                 form={
                     "field.actions.suspend": "Suspend",
