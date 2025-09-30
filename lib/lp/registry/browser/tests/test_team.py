@@ -1,23 +1,15 @@
 # Copyright 2010-2021 Canonical Ltd.  This software is licensed under the
 # GNU Affero General Public License version 3 (see the file LICENSE).
 
-import contextlib
-import json
-
 import soupmatchers
 import transaction
-from lazr.restful.interfaces import IJSONRequestCache
 from testtools.matchers import Not
 from zope.component import getUtility
 from zope.security.proxy import removeSecurityProxy
 
 from lp.app.enums import InformationType
 from lp.oci.interfaces.ocirecipe import OCI_RECIPE_ALLOW_CREATE
-from lp.registry.browser.team import (
-    TeamIndexMenu,
-    TeamMailingListArchiveView,
-    TeamOverviewMenu,
-)
+from lp.registry.browser.team import TeamIndexMenu, TeamOverviewMenu
 from lp.registry.enums import (
     EXCLUSIVE_TEAM_POLICY,
     INCLUSIVE_TEAM_POLICY,
@@ -49,7 +41,6 @@ from lp.testing import (
     person_logged_in,
 )
 from lp.testing.layers import DatabaseFunctionalLayer, LaunchpadFunctionalLayer
-from lp.testing.matchers import IsConfiguredBatchNavigator
 from lp.testing.menu import check_menu_links
 from lp.testing.pages import extract_text, find_tag_by_id
 from lp.testing.views import create_initialized_view, create_view
@@ -688,13 +679,6 @@ class TestTeamMenu(TestCaseWithFactory):
         link = menu.configure_mailing_list()
         self.assertEqual("Read more about it here.", link.text)
 
-    def test_TeamOverviewMenu_check_menu_links_with_mailing(self):
-        self.factory.makeMailingList(self.team, self.team.teamowner)
-        menu = TeamOverviewMenu(self.team)
-        self.assertIs(True, check_menu_links(menu))
-        link = menu.configure_mailing_list()
-        self.assertEqual("Configure mailing list", link.text)
-
     def test_TeamOverviewMenu_new_user_without_add_poll(self):
         # A brand new user does not see the add_poll link.
         self.pushConfig(
@@ -718,69 +702,6 @@ class TestTeamMenu(TestCaseWithFactory):
         self.assertIn(
             "add_poll",
             [link.name for link in menu.iterlinks() if link.enabled],
-        )
-
-
-class TestMailingListArchiveView(TestCaseWithFactory):
-    layer = DatabaseFunctionalLayer
-
-    def test_no_messages(self):
-        team = self.factory.makeTeam()
-        self.factory.makeMailingList(team, team.teamowner)
-        view = create_view(team, name="+mailing-list-archive")
-        messages = IJSONRequestCache(view.request).objects["mail"]
-        self.assertEqual(0, len(messages))
-
-    @contextlib.contextmanager
-    def _override_messages(self, view_class, messages):
-        def _message_shim(self):
-            return json.loads(messages)
-
-        tmp = TeamMailingListArchiveView._get_messages
-        TeamMailingListArchiveView._get_messages = _message_shim
-        yield TeamMailingListArchiveView
-        TeamMailingListArchiveView._get_messages = tmp
-
-    def test_messages_are_in_json(self):
-        team = self.factory.makeTeam()
-        self.factory.makeMailingList(team, team.teamowner)
-        messages = """[{
-            "headers": {
-                "To": "somelist@example.com",
-                "From": "someguy@example.com",
-                "Subject": "foobar"},
-            "message_id": "foo"}]"""
-
-        with self._override_messages(TeamMailingListArchiveView, messages):
-            view = create_view(team, name="+mailing-list-archive")
-            messages = IJSONRequestCache(view.request).objects["mail"]
-            self.assertEqual(1, len(messages))
-            self.assertEqual("foo", messages[0]["message_id"])
-
-
-class TestModeration(TestCaseWithFactory):
-    layer = DatabaseFunctionalLayer
-
-    def test_held_messages_is_batch_navigator(self):
-        team = self.factory.makeTeam()
-        self.factory.makeMailingList(team, team.teamowner)
-        view = create_initialized_view(team, name="+mailinglist-moderate")
-        self.assertThat(
-            view.held_messages,
-            IsConfiguredBatchNavigator("message", "messages"),
-        )
-
-    def test_no_mailing_list_redirect(self):
-        team = self.factory.makeTeam()
-        login_person(team.teamowner)
-        view = create_view(team, name="+mailinglist-moderate")
-        response = view.request.response
-        self.assertEqual(302, response.getStatus())
-        self.assertEqual(canonical_url(team), response.getHeader("location"))
-        self.assertEqual(1, len(response.notifications))
-        self.assertEqual(
-            "%s does not have a mailing list." % (team.displayname),
-            response.notifications[0].message,
         )
 
 

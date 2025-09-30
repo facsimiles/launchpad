@@ -30,8 +30,20 @@ class TestSOSSRecord(TestCase):
                 "show_hidden=true",
             ],
             notes=[
-                "This is a sample soss cve with all the fields filled for "
-                "testing",
+                {
+                    "username": (
+                        "since 1.0, a package issues a warning when text() is "
+                        "omitted this fix is not important, marking priority "
+                        "as low"
+                    )
+                },
+                {
+                    "username": (
+                        "since 1.0, a package issues a warning when text() is "
+                        "omitted this fix is not important, marking priority "
+                        "as low"
+                    )
+                },
                 "sample note 2",
             ],
             priority=SOSSRecord.PriorityEnum.LOW,
@@ -142,8 +154,20 @@ class TestSOSSRecord(TestCase):
                 "show_hidden=true",
             ],
             "Notes": [
-                "This is a sample soss cve with all the fields filled for "
-                "testing",
+                {
+                    "username": (
+                        "since 1.0, a package issues a warning when text() is "
+                        "omitted this fix is not important, marking priority "
+                        "as low"
+                    )
+                },
+                {
+                    "username": (
+                        "since 1.0, a package issues a warning when text() is "
+                        "omitted this fix is not important, marking priority "
+                        "as low"
+                    )
+                },
                 "sample note 2",
             ],
             "Priority": "Low",
@@ -270,6 +294,35 @@ class TestSOSSRecord(TestCase):
             ValueError, SOSSRecord.from_dict, self.soss_record_dict
         )
 
+    def test_from_dict_bad_package_name(self):
+        """LP source packages can't contain some special characters. If there
+        is a package that does it, we ignore.
+        """
+        # Add a package that we will ignore
+        self.soss_record_dict["Packages"]["unpackaged"].append(
+            {
+                "Name": "wrong_name",
+                "Channel": "noble:0.7.3/stable",
+                "Repositories": ["soss-src-stable-local"],
+                "Status": "needed",
+                "Note": "",
+            }
+        )
+
+        # Output is still the same
+        soss_record = SOSSRecord.from_dict(self.soss_record_dict)
+        self.assertEqual(self.soss_record, soss_record)
+
+    def test_from_dict_duplicated_package(self):
+        # Add a package that we will ignore
+        self.soss_record_dict["Packages"]["unpackaged"].append(
+            self.soss_record_dict["Packages"]["unpackaged"][0]
+        )
+
+        # Output is still the same
+        soss_record = SOSSRecord.from_dict(self.soss_record_dict)
+        self.assertEqual(self.soss_record, soss_record)
+
     def test_from_yaml(self):
         load_from = Path(__file__).parent / "sampledata" / "CVE-2025-1979"
 
@@ -308,3 +361,22 @@ class TestSOSSRecord(TestCase):
 
         for f in files:
             self._verify_import_export_yaml(f)
+
+    def test_order_packages(self):
+        """Test that SOSSRecord.Packages are ordered by name and version."""
+        self.soss_record.packages[SOSSRecord.PackageTypeEnum.PYTHON].append(
+            SOSSRecord.Package(
+                name="ray",
+                channel=SOSSRecord.Channel("jammy:2.22.1/stable"),
+                repositories=["nvidia-pb3-python-stable-local"],
+                status=SOSSRecord.PackageStatusEnum.RELEASED,
+                note="2.22.1+soss.1",
+            ),
+        )
+
+        ordered_list = self.soss_record.packages[
+            SOSSRecord.PackageTypeEnum.PYTHON
+        ]
+        unordered_list = ordered_list[::-1]
+
+        self.assertEqual(sorted(unordered_list), ordered_list)

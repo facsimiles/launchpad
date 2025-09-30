@@ -318,7 +318,8 @@ flag_info = sorted(
             "git_repository_url.store_hostnames",
             "space delimited",
             "Valid store hostnames to use as remote repositories",
-            "git.staging.snapcraftcontent.com git.staging.pkg.store",
+            "git.staging.snapcraftcontent.com git.staging.pkg.store "
+            "git.snapcraftcontent.com git.pkg.store",
             "",
             "",
         ),
@@ -331,10 +332,19 @@ flag_info = sorted(
             "",
         ),
         (
-            "bugs.vulnerability_import_export.enabled",
-            "boolean",
-            "If true, users with the right permissions can trigger "
-            "vulnerability data imports and exports via API",
+            "bugs.vulnerability_import_handler.enabled",
+            "space delimited",
+            "Lists handlers that users with the right permissions can use to "
+            "trigger vulnerability data imports via the API",
+            "",
+            "",
+            "",
+        ),
+        (
+            "bugs.vulnerability_export_handler.enabled",
+            "space delimited",
+            "Lists handlers that users with the right permissions can use to "
+            "trigger vulnerability data exports via the API",
             "",
             "",
             "",

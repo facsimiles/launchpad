@@ -3,6 +3,7 @@
 
 import logging
 import re
+import tempfile
 from collections import OrderedDict, defaultdict
 from datetime import datetime
 from enum import Enum
@@ -28,6 +29,7 @@ from zope.schema.interfaces import InvalidURI
 
 from lp.bugs.enums import VulnerabilityStatus
 from lp.bugs.interfaces.bugtask import BugTaskImportance, BugTaskStatus
+from lp.bugs.scripts.svthandler import SVTRecord
 from lp.registry.interfaces.distribution import IDistributionSet
 from lp.registry.interfaces.distroseries import IDistroSeriesSet
 from lp.registry.interfaces.person import IPersonSet
@@ -58,7 +60,7 @@ class CVSS(NamedTuple):
     vector_string: str
 
 
-class UCTRecord:
+class UCTRecord(SVTRecord):
     """
     UCTRecord represents a single CVE record (file) in the ubuntu-cve-tracker.
 
@@ -146,6 +148,13 @@ class UCTRecord:
         if not isinstance(other, UCTRecord):
             raise ValueError("UCTRecord can only be compared to UCTRecord")
         return self.__dict__ == other.__dict__
+
+    @classmethod
+    def from_str(self, string: str) -> "UCTRecord":
+        with tempfile.NamedTemporaryFile("wb") as fp:
+            fp.write(string)
+            fp.flush()
+            return self.load(Path(fp.name))
 
     @classmethod
     def load(cls, cve_path: Path) -> "UCTRecord":

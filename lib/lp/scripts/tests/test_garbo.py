@@ -60,6 +60,7 @@ from lp.code.model.codeimportresult import CodeImportResult
 from lp.code.model.diff import Diff
 from lp.code.model.gitjob import GitJob, GitRefScanJob
 from lp.code.model.gitrepository import GitRepository
+from lp.code.tests.helpers import GitHostingFixture
 from lp.oci.interfaces.ocirecipe import OCI_RECIPE_ALLOW_CREATE
 from lp.oci.model.ocirecipebuild import OCIFile
 from lp.registry.enums import BranchSharingPolicy, BugSharingPolicy, VCSType
@@ -509,6 +510,7 @@ class TestGarbo(FakeAdapterMixin, TestCaseWithFactory):
         )
 
     def test_CodeImportResultPruner(self):
+        self.useFixture(GitHostingFixture())
         now = datetime.now(timezone.utc)
         store = IPrimaryStore(CodeImportResult)
 

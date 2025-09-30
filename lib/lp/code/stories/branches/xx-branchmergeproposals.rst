@@ -436,13 +436,6 @@ Invalid errors are also shown.
 When a branch is set as the development focus, then a radio button
 is shown.
 
-    >>> admin_browser.open("http://launchpad.test/firefox/trunk")
-    >>> admin_browser.getLink("Link to branch").click()
-    >>> admin_browser.getControl(name="field.branch_location").value = (
-    ...     "~name12/firefox/main"
-    ... )
-    >>> admin_browser.getControl("Update").click()
-
     # Just show the radio buttons for the branch widgets.
     >>> def print_radio_options(browser):
     ...     widgets = get_target_branch_widgets(browser)
@@ -454,34 +447,6 @@ is shown.
     ...                 checked = ""
     ...             print(widget["value"], checked)
     ...
-
-Also the main development focus is selected.
-
-    >>> nopriv_browser.open(
-    ...     "http://code.launchpad.test/~mark/firefox/release-0.8"
-    ... )
-    >>> nopriv_browser.getLink("Propose for merging").click()
-    >>> print_radio_options(nopriv_browser)
-    ~name12/firefox/main checked
-    other
-
-If the user has also targeted a branch other than the development
-focus before, then that is also shown as a radio option.
-
-    >>> nopriv_browser.getControl("Other").click()
-    >>> nopriv_browser.getControl(
-    ...     name="field.target_branch.target_branch"
-    ... ).value = "~mark/firefox/release-0.9"
-    >>> nopriv_browser.getControl("Propose Merge").click()
-
-    >>> nopriv_browser.open(
-    ...     "http://code.launchpad.test/~mark/firefox/release-0.9.2"
-    ... )
-    >>> nopriv_browser.getLink("Propose for merging").click()
-    >>> print_radio_options(nopriv_browser)
-    ~name12/firefox/main checked
-    ~mark/firefox/release-0.9
-    other
 
 
 Merge Proposal Bug and Spec Links
@@ -524,31 +489,6 @@ The section is shown if there are links.
     >>> print_bugs_and_specs(nopriv_browser)
     Related bugs: Bug #...: Bug for linking Undecided New Link a bug report
     None
-
-
-Target branch edge cases
-------------------------
-
-When the development focus branch is proposed for merging,
-don't suggest that we merge it onto itself.
-
-    >>> nopriv_browser.open("http://code.launchpad.test/~name12/firefox/main")
-    >>> nopriv_browser.getLink("Propose for merging").click()
-    >>> print_radio_options(nopriv_browser)
-    ~mark/firefox/release-0.9 checked
-    other
-
-If we are looking to propose a branch that has been targeted before,
-we don't show that branch as a possible target (as it is the source
-branch).
-
-    >>> nopriv_browser.open(
-    ...     "http://code.launchpad.test/~mark/firefox/release-0.9"
-    ... )
-    >>> nopriv_browser.getLink("Propose for merging").click()
-    >>> print_radio_options(nopriv_browser)
-    ~name12/firefox/main checked
-    other
 
 
 Registering a merge, and junk branches

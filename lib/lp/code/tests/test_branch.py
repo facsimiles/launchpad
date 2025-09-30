@@ -14,7 +14,10 @@ from lp.code.enums import (
     CodeReviewNotificationLevel,
 )
 from lp.code.interfaces.codehosting import SUPPORTED_SCHEMES
-from lp.code.tests.helpers import make_official_package_branch
+from lp.code.tests.helpers import (
+    GitHostingFixture,
+    make_official_package_branch,
+)
 from lp.services.webapp.authorization import check_permission
 from lp.soyuz.interfaces.archivepermission import IArchivePermissionSet
 from lp.testing import TestCaseWithFactory, run_with_login
@@ -260,8 +263,9 @@ class TestWriteToBranch(PermissionTest):
     def test_vcs_imports_members_can_edit_import_branch(self):
         # Even if a branch isn't owned by vcs-imports, vcs-imports members can
         # edit it if it has a code import associated with it.
+        self.useFixture(GitHostingFixture())
         person = self.factory.makePerson()
-        branch = self.factory.makeCodeImport().branch
+        branch = self.factory.makeCodeImport().git_repository
         vcs_imports = getUtility(ILaunchpadCelebrities).vcs_imports
         removeSecurityProxy(vcs_imports).addMember(
             person, vcs_imports.teamowner
@@ -335,22 +339,6 @@ class TestWriteToBranch(PermissionTest):
         branch = self.factory.makeAnyBranch()
         person = self.factory.makePerson()
         self.assertCannotEdit(person, branch)
-
-    def test_code_import_registrant_can_edit(self):
-        # It used to be the case that all import branches were owned by the
-        # special, restricted team ~vcs-imports. This made a lot of work for
-        # the Launchpad development team, since they needed to delete and
-        # rename import branches whenever people wanted it. To reduce this
-        # work a little, whoever registered of a code import branch is allowed
-        # to edit the branch, even if they aren't one of the owners.
-        registrant = self.factory.makePerson()
-        code_import = self.factory.makeCodeImport(registrant=registrant)
-        branch = code_import.branch
-        removeSecurityProxy(branch).setOwner(
-            getUtility(ILaunchpadCelebrities).vcs_imports,
-            getUtility(ILaunchpadCelebrities).vcs_imports,
-        )
-        self.assertCanEdit(registrant, branch)
 
 
 class TestComposePublicURL(TestCaseWithFactory):

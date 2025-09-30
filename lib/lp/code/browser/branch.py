@@ -247,7 +247,6 @@ class BranchContextMenu(ContextMenu, HasRecipesMenuMixin, HasSnapsMenuMixin):
     links = [
         "add_subscriber",
         "browse_revisions",
-        "create_recipe",
         "create_snap",
         "link_bug",
         "link_blueprint",
@@ -345,12 +344,6 @@ class BranchContextMenu(ContextMenu, HasRecipesMenuMixin, HasSnapsMenuMixin):
             "+upgrade", "Upgrade this branch", icon="edit", enabled=enabled
         )
 
-    def create_recipe(self):
-        # You can't create a recipe for a private branch.
-        enabled = not self.context.private
-        text = "Create packaging recipe"
-        return Link("+new-recipe", text, enabled=enabled, icon="add")
-
 
 class BranchMirrorMixin:
     """Provide mirror_location property.
@@ -401,6 +394,7 @@ class BranchView(
 
     def initialize(self):
         super().initialize()
+        self._is_bazaar = True
         self.branch = self.context
         self.notices = []
         # Cache permission so private team owner can be rendered.

@@ -22,6 +22,7 @@ ICodeImportEventSet utility.
     >>> from zope.security.proxy import removeSecurityProxy
     >>> from lp.testing import verifyObject
     >>> from lp.code.interfaces.codeimportevent import ICodeImportEventSet
+    >>> from lp.code.tests.helpers import GitHostingFixture
     >>> event_set = getUtility(ICodeImportEventSet)
     >>> verifyObject(ICodeImportEventSet, removeSecurityProxy(event_set))
     True
@@ -99,9 +100,11 @@ CodeImportEvent, we need to use the CodeImport constructor directly.
 
 First we create a Subversion import.
 
-    >>> svn_import = factory.makeCodeImport(
-    ...     svn_branch_url="svn://svn.example.com/trunk"
-    ... )
+    >>> with GitHostingFixture():
+    ...     svn_import = factory.makeCodeImport(
+    ...         git_repo_url="svn://svn.example.com/trunk"
+    ...     )
+    ...
 
 CodeImportSet.newCreate creates an event from the new CodeImport object
 and the person that created it. Here, the creator is the nopriv user.
@@ -138,28 +141,13 @@ collate events associated with deleted CodeImport objects.
     True
 
 Different source details are recorded according to the type of the
-import source. For a CVS import, CVS details are recorded instead of the
-Subversion URL.
+import source. For a Git import, the git details are recorded.
 
-    >>> cvs_import = factory.makeCodeImport(
-    ...     cvs_root=":pserver:anonymous@cvs.example.com:/cvsroot",
-    ...     cvs_module="hello",
-    ... )
-    >>> cvs_create_event = event_set.newCreate(cvs_import, nopriv)
-    >>> print_items(cvs_create_event)
-    CODE_IMPORT <muted>
-    OWNER ...
-    REVIEW_STATUS 'REVIEWED'
-    ASSIGNEE None
-    UPDATE_INTERVAL None
-    CVS_ROOT ':pserver:anonymous@cvs.example.com:/cvsroot'
-    CVS_MODULE 'hello'
-
-And for a Git import, the git details are recorded.
-
-    >>> git_import = factory.makeCodeImport(
-    ...     git_repo_url="git://git.example.org/main.git"
-    ... )
+    >>> with GitHostingFixture():
+    ...     git_import = factory.makeCodeImport(
+    ...         git_repo_url="git://git.example.org/main.git"
+    ...     )
+    ...
     >>> git_create_event = event_set.newCreate(git_import, nopriv)
     >>> print_items(git_create_event)
     CODE_IMPORT <muted>

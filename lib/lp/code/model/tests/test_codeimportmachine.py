@@ -12,6 +12,7 @@ from lp.code.enums import (
     CodeImportMachineState,
 )
 from lp.code.interfaces.codeimportjob import ICodeImportJobWorkflow
+from lp.code.tests.helpers import GitHostingFixture
 from lp.services.database.constants import UTC_NOW
 from lp.testing import TestCaseWithFactory
 from lp.testing.layers import DatabaseFunctionalLayer
@@ -25,6 +26,7 @@ class TestCodeImportMachineShouldLookForJob(TestCaseWithFactory):
     def setUp(self):
         super().setUp("admin@canonical.com")
         self.machine = self.factory.makeCodeImportMachine(set_online=True)
+        self.useFixture(GitHostingFixture())
 
     def createJobRunningOnMachine(self, machine):
         """Create a job in the database and mark it as running on `machine`."""

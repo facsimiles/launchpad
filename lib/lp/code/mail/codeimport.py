@@ -10,6 +10,7 @@ from zope.component import getUtility
 
 from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.code.enums import (
+    NON_CVS_RCS_TYPES,
     BranchSubscriptionNotificationLevel,
     CodeImportEventDataType,
     CodeImportEventType,
@@ -112,11 +113,7 @@ def make_email_body_for_code_import_update(code_import, event, new_whiteboard):
                 CodeImportEventDataType.OLD_CVS_MODULE, code_import.cvs_module
             )
             old_details = "%s from %s" % (old_module, old_root)
-    elif code_import.rcs_type in (
-        RevisionControlSystems.BZR_SVN,
-        RevisionControlSystems.GIT,
-        RevisionControlSystems.BZR,
-    ):
+    elif code_import.rcs_type in NON_CVS_RCS_TYPES:
         old_details = new_details = code_import.url
         if CodeImportEventDataType.OLD_URL in event_data:
             old_details = event_data[CodeImportEventDataType.OLD_URL]

@@ -15,6 +15,7 @@ from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.bugtask import BugTask
 from lp.bugs.model.cve import Cve as CveModel
 from lp.bugs.model.vulnerability import Vulnerability
+from lp.bugs.scripts.svthandler import SVTExporter
 from lp.bugs.scripts.uct.models import CVE, CVSS
 from lp.bugs.scripts.uct.uctimport import UCTImporter
 from lp.registry.model.distributionsourcepackage import (
@@ -32,7 +33,7 @@ TAG_SEPARATOR = UCTImporter.TAG_SEPARATOR
 logger = logging.getLogger(__name__)
 
 
-class UCTExporter:
+class UCTExporter(SVTExporter):
     """
     `UCTExporter` is used to export LP Bugs, Vulnerabilities and Cve's to
     UCT CVE files.

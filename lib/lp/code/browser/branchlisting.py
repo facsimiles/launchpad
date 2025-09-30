@@ -500,6 +500,10 @@ class BranchListingView(LaunchpadFormView, FeedsMixin):
     # that they should link to.
     can_have_git_link = False
 
+    def initialize(self):
+        self._is_bazaar = True
+        return super().initialize()
+
     @property
     def show_git_link(self):
         if not self.can_have_git_link:

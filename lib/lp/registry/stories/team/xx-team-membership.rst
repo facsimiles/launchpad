@@ -274,12 +274,9 @@ subscriptions on their own participation page.
     ... )
     >>> print(extract_text(actions))
     Register a team
-    Change mailing list subscriptions
 
     >>> user_browser.getLink("Register a team")
     <Link ... url='http://.../people/+newteam'>
-    >>> user_browser.getLink("Change mailing list subscriptions")
-    <Link ... url='http://.../~no-priv/+editmailinglists'>
 
 Teams also have a participation page, but it does not include a mailing
 list column.

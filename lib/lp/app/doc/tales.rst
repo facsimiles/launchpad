@@ -739,19 +739,6 @@ Bug branches
     <a href="...+bug...">Bug #...</a>
 
 
-Code imports
-............
-
-The fmt:link for a code import takes you to the branch that the code
-import is associated with.  The primary reason that this is here is to
-support the branch deletion code.
-
-    >>> login("foo.bar@canonical.com")
-    >>> code_import = factory.makeCodeImport(branch_name="trunk")
-    >>> print(test_tales("code_import/fmt:link", code_import=code_import))
-    <a href=".../trunk">Import of...</a>
-
-
 Product release files
 .....................
 

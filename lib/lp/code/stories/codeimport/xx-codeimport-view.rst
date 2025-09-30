@@ -134,8 +134,9 @@ We can also filter by source type.
 If we create a lot of imports, the listing view will be batched.
 
     >>> login("test@canonical.com")
-    >>> for i in range(10):
-    ...     new_import = factory.makeCodeImport()
+    >>> with GitHostingFixture():
+    ...     for i in range(10):
+    ...         new_import = factory.makeCodeImport()
     ...
     >>> logout()
 

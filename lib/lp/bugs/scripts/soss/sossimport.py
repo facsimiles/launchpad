@@ -6,7 +6,7 @@ import logging
 import os
 from collections import defaultdict
 from datetime import timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import transaction
 from zope.component import getUtility
@@ -28,7 +28,7 @@ from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.cve import Cve as CveModel
 from lp.bugs.model.vulnerability import Vulnerability
 from lp.bugs.scripts.soss.models import SOSSRecord
-from lp.registry.interfaces.distribution import IDistributionSet
+from lp.bugs.scripts.svthandler import SVTImporter
 from lp.registry.interfaces.externalpackage import ExternalPackageType
 from lp.registry.interfaces.person import IPersonSet
 from lp.registry.interfaces.role import IPersonRoles
@@ -78,13 +78,14 @@ PACKAGE_STATUS_MAP = {
 DISTRIBUTION_NAME = "soss"
 
 
-class SOSSImporter:
+class SOSSImporter(SVTImporter):
     """
     SOSSImporter is used to import SOSS CVE files to Launchpad database.
     """
 
     def __init__(
         self,
+        distribution: Distribution,
         information_type: InformationType = InformationType.PROPRIETARY,
         dry_run: bool = False,
     ) -> None:
@@ -97,13 +98,7 @@ class SOSSImporter:
         self.vulnerability_set = getUtility(IVulnerabilitySet)
         self.bug_set = getUtility(IBugSet)
         self.cve_set = getUtility(ICveSet)
-        self.soss = removeSecurityProxy(
-            getUtility(IDistributionSet).getByName(DISTRIBUTION_NAME)
-        )
-
-        if self.soss is None:
-            logger.error("[SOSSImporter] SOSS distribution not found")
-            raise NotFoundError("SOSS distribution not found")
+        self.soss = distribution
 
     def import_cve_from_file(
         self, cve_path: str
@@ -115,19 +110,25 @@ class SOSSImporter:
         with open(cve_path, encoding="utf-8") as file:
             soss_record = SOSSRecord.from_yaml(file)
 
-        bug, vulnerability = self.import_cve(soss_record, cve_sequence)
+        bug, vulnerability = self.from_record(soss_record, cve_sequence)
         return bug, vulnerability
 
-    def import_cve(
+    def from_record(
         self, soss_record: SOSSRecord, cve_sequence: str
     ) -> Tuple[BugModel, Vulnerability]:
         """Import CVE from SOSS record."""
-        if not self._validate_soss_record(soss_record, cve_sequence):
-            return None, None
-
+        self._validate_soss_record(soss_record, cve_sequence)
         lp_cve = self._get_launchpad_cve(cve_sequence)
-        if lp_cve is None:
-            return None, None
+
+        vulnerability = self._find_existing_vulnerability(lp_cve, self.soss)
+        if not vulnerability:
+            vulnerability = self._create_vulnerability(
+                soss_record, lp_cve, self.soss
+            )
+        else:
+            vulnerability = self._update_vulnerability(
+                vulnerability, soss_record
+            )
 
         bug = self._find_existing_bug(soss_record, lp_cve, self.soss)
         if not bug:
@@ -135,17 +136,12 @@ class SOSSImporter:
         else:
             bug = self._update_bug(bug, soss_record, lp_cve)
 
-        vulnerability = self._find_existing_vulnerability(lp_cve, self.soss)
-        if not vulnerability:
-            vulnerability = self._create_vulnerability(
-                bug, soss_record, lp_cve, self.soss
-            )
-        else:
-            vulnerability = self._update_vulnerability(
-                vulnerability, soss_record
-            )
+        vulnerability.linkBug(bug, check_permissions=False)
 
-        if not self.dry_run:
+        # Creating a bug only creates the first bugtask
+        self._create_or_update_bugtasks(bug, soss_record)
+
+        if not self.dry_run and vulnerability and bug:
             transaction.commit()
             logger.info(
                 "[SOSSImporter] Successfully committed changes for "
@@ -194,8 +190,8 @@ class SOSSImporter:
             )
         )
 
-        # Create next bugtasks
-        self._create_or_update_bugtasks(bug, soss_record)
+        if not bug:
+            raise ValueError(f"Error creating bug for {lp_cve.sequence}")
 
         logger.info(f"[SOSSImporter] Created bug with ID: {bug.id}")
         return bug
@@ -215,14 +211,12 @@ class SOSSImporter:
         bug.transitionToInformationType(
             self.information_type, self.bug_importer
         )
-        self._create_or_update_bugtasks(bug, soss_record)
 
         logger.info(f"[SOSSImporter] Updated Bug with ID: {bug.id}")
         return bug
 
     def _create_vulnerability(
         self,
-        bug: BugModel,
         soss_record: SOSSRecord,
         lp_cve: CveModel,
         distribution: Distribution,
@@ -232,7 +226,6 @@ class SOSSImporter:
         the given SOSSRecord instance and link to the specified Bug
         and LP's Cve model.
 
-        :param bug: Bug model associated with the vulnerability
         :param soss_record: SOSSRecord with information from a SOSS cve
         :param lp_cve: Launchpad Cve model
         :param distribution: a Distribution affected by the vulnerability
@@ -243,11 +236,11 @@ class SOSSImporter:
                 distribution=distribution,
                 status=VulnerabilityStatus.NEEDS_TRIAGE,
                 importance=PRIORITY_ENUM_MAP[soss_record.priority],
-                creator=bug.owner,
+                creator=self.bug_importer,
                 information_type=self.information_type,
                 cve=lp_cve,
                 description=soss_record.description,
-                notes="\n".join(soss_record.notes),
+                notes=self._format_notes(soss_record.notes),
                 mitigation=None,
                 importance_explanation=soss_record.priority_reason,
                 date_made_public=self._normalize_date_with_timezone(
@@ -258,7 +251,12 @@ class SOSSImporter:
                 cvss=self._prepare_cvss_data(soss_record),
             )
         )
-        vulnerability.linkBug(bug, bug.owner)
+
+        if not vulnerability:
+            raise ValueError(
+                f"[SOSSImporter] Error creating vulnerability for "
+                f"{lp_cve.sequence}"
+            )
 
         logger.info(
             "[SOSSImporter] Created vulnerability with ID: "
@@ -279,7 +277,7 @@ class SOSSImporter:
         """
         vulnerability.status = VulnerabilityStatus.NEEDS_TRIAGE
         vulnerability.description = soss_record.description
-        vulnerability.notes = "\n".join(soss_record.notes)
+        vulnerability.notes = self._format_notes(soss_record.notes)
         vulnerability.mitigation = None
         vulnerability.importance = PRIORITY_ENUM_MAP[soss_record.priority]
         vulnerability.importance_explanation = soss_record.priority_reason
@@ -322,9 +320,6 @@ class SOSSImporter:
         self, lp_cve: CveModel, distribution: Distribution
     ) -> Optional[Vulnerability]:
         """Find existing vulnerability for the current distribution"""
-        if not lp_cve:
-            return None
-
         vulnerability = lp_cve.getDistributionVulnerability(distribution)
         return removeSecurityProxy(vulnerability)
 
@@ -407,6 +402,7 @@ class SOSSImporter:
                 cve_sequence,
                 cve_sequence,
             )
+            raise NotFoundError(f"Could not find {cve_sequence} in LP")
         return lp_cve
 
     def _make_bug_description(self, soss_record: SOSSRecord) -> str:
@@ -473,7 +469,10 @@ class SOSSImporter:
                 soss_record.candidate,
                 cve_sequence,
             )
-            return False
+            raise ValueError(
+                f"CVE sequence mismatch: {soss_record.candidate} != "
+                f"{cve_sequence}"
+            )
 
         if not soss_record.packages:
             logger.warning(
@@ -482,7 +481,7 @@ class SOSSImporter:
                 cve_sequence,
                 cve_sequence,
             )
-            return False
+            raise ValueError(f"{cve_sequence}: has no affected packages")
 
         return True
 
@@ -496,6 +495,21 @@ class SOSSImporter:
         return packagetype, package
 
     def checkUserPermissions(self, user):
+        """See `SVTImporter`."""
         return SecurityAdminDistribution(self.soss).checkAuthenticated(
             IPersonRoles(user)
         )
+
+    def _format_notes(self, notes: List[Union[Dict, str]]) -> str:
+        """Return a string from a list of notes. Notes can contain dicts or
+        strings.
+        """
+        formatted_notes = []
+        for note in notes:
+            if isinstance(note, dict):
+                for key, value in note.items():
+                    value = value.replace("\n", " ")
+                    formatted_notes.append(f"{key}: {value}")
+            else:
+                formatted_notes.append(str(note))
+        return "\n\n".join(formatted_notes)

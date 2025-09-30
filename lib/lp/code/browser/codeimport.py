@@ -57,10 +57,6 @@ from lp.code.errors import (
     GitRepositoryExists,
 )
 from lp.code.interfaces.branch import IBranch, user_has_special_branch_access
-from lp.code.interfaces.branchnamespace import (
-    IBranchNamespacePolicy,
-    get_branch_namespace,
-)
 from lp.code.interfaces.codeimport import ICodeImport, ICodeImportSet
 from lp.code.interfaces.codeimportmachine import ICodeImportMachineSet
 from lp.code.interfaces.gitnamespace import (
@@ -267,23 +263,7 @@ class NewCodeImportForm(Interface):
     """The fields presented on the form for editing a code import."""
 
     use_template(IBranch, ["owner"])
-    use_template(ICodeImport, ["rcs_type", "cvs_root", "cvs_module"])
-
-    svn_branch_url = URIField(
-        title=_("Branch URL"),
-        required=False,
-        description=_(
-            "The URL of a Subversion branch, starting with svn:// or "
-            "http(s)://.   You can include a username and password as part "
-            "of the url, but this will be displayed on the branch page."
-        ),
-        allowed_schemes=["http", "https", "svn"],
-        allow_userinfo=True,
-        allow_port=True,
-        allow_query=False,
-        allow_fragment=False,
-        trailing_slash=False,
-    )
+    use_template(ICodeImport, ["rcs_type"])
 
     git_repo_url = URIField(
         title=_("Repo URL"),
@@ -299,28 +279,6 @@ class NewCodeImportForm(Interface):
         allow_port=True,
         allow_query=False,
         allow_fragment=False,
-        trailing_slash=False,
-    )
-
-    git_target_rcs_type = Choice(
-        title=_("Target version control system"),
-        description=_(
-            "The version control system that the source code should be "
-            "imported into on the Launchpad side."
-        ),
-        required=False,
-        vocabulary=TargetRevisionControlSystems,
-    )
-
-    bzr_branch_url = URIField(
-        title=_("Branch URL"),
-        required=False,
-        description=_("The URL of the Bazaar branch."),
-        allowed_schemes=["http", "https", "bzr", "ftp"],
-        allow_userinfo=True,
-        allow_port=True,
-        allow_query=False,  # Query makes no sense in Bazaar
-        allow_fragment=False,  # Fragment makes no sense in Bazaar
         trailing_slash=False,
     )
 
@@ -349,15 +307,13 @@ class CodeImportNewView(CodeImportBaseView, CodeImportNameValidationMixin):
     for_input = True
 
     custom_widget_rcs_type = LaunchpadRadioWidget
-    custom_widget_git_target_rcs_type = LaunchpadRadioWidget
 
     @property
     def initial_values(self):
         return {
             "owner": self.user,
-            "rcs_type": RevisionControlSystems.BZR,
+            "rcs_type": RevisionControlSystems.GIT,
             "branch_name": "trunk",
-            "git_target_rcs_type": TargetRevisionControlSystems.BZR,
         }
 
     @property
@@ -409,61 +365,29 @@ class CodeImportNewView(CodeImportBaseView, CodeImportNameValidationMixin):
         # display them separately in the form.
         soup = BeautifulSoup(self.widgets["rcs_type"]())
         fields = soup.find_all("input")
-        [cvs_button, svn_button, git_button, bzr_button, empty_marker] = [
-            field
-            for field in fields
-            if field.get("value") in ["CVS", "BZR_SVN", "GIT", "BZR", "1"]
+        [git_button, empty_marker] = [
+            field for field in fields if field.get("value") in ["GIT", "1"]
         ]
-        bzr_button["onclick"] = "updateWidgets()"
-        cvs_button["onclick"] = "updateWidgets()"
-        svn_button["onclick"] = "updateWidgets()"
         git_button["onclick"] = "updateWidgets()"
         # The following attributes are used only in the page template.
-        self.rcs_type_cvs = str(cvs_button)
-        self.rcs_type_svn = str(svn_button)
         self.rcs_type_git = str(git_button)
-        self.rcs_type_bzr = str(bzr_button)
         self.rcs_type_emptymarker = str(empty_marker)
-        # This widget is only conditionally required in the rcs_type == GIT
-        # case, but we still don't want a "(nothing selected)" item.
-        self.widgets["git_target_rcs_type"]._displayItemForMissingValue = False
-
-    def _getImportLocation(self, data):
-        """Return the import location based on type."""
-        rcs_type = data["rcs_type"]
-        if rcs_type == RevisionControlSystems.CVS:
-            return data.get("cvs_root"), data.get("cvs_module"), None
-        elif rcs_type == RevisionControlSystems.BZR_SVN:
-            return None, None, data.get("svn_branch_url")
-        elif rcs_type == RevisionControlSystems.GIT:
-            return None, None, data.get("git_repo_url")
-        elif rcs_type == RevisionControlSystems.BZR:
-            return None, None, data.get("bzr_branch_url")
-        else:
-            raise AssertionError(
-                "Unexpected revision control type %r." % rcs_type
-            )
 
     def _create_import(self, data, status):
         """Create the code import."""
         product = self.getProduct(data)
-        cvs_root, cvs_module, url = self._getImportLocation(data)
-        if data["rcs_type"] == RevisionControlSystems.GIT:
-            target_rcs_type = data.get(
-                "git_target_rcs_type", TargetRevisionControlSystems.BZR
-            )
-        else:
-            target_rcs_type = TargetRevisionControlSystems.BZR
+        url = data.get("git_repo_url")
+
         return getUtility(ICodeImportSet).new(
             registrant=self.user,
             owner=data["owner"],
             context=product,
             branch_name=data["branch_name"],
             rcs_type=data["rcs_type"],
-            target_rcs_type=target_rcs_type,
+            target_rcs_type=TargetRevisionControlSystems.GIT,
             url=url,
-            cvs_root=cvs_root,
-            cvs_module=cvs_module,
+            cvs_root=None,
+            cvs_module=None,
             review_status=status,
         )
 
@@ -504,20 +428,11 @@ class CodeImportNewView(CodeImportBaseView, CodeImportNameValidationMixin):
 
     def validate_widgets(self, data, names=None):
         """See `LaunchpadFormView`."""
-        self.widgets["git_target_rcs_type"].context.required = (
-            data.get("rcs_type") == RevisionControlSystems.GIT
-        )
         super().validate_widgets(data, names=names)
 
     def validate(self, data):
         """See `LaunchpadFormView`."""
         rcs_type = data["rcs_type"]
-        if rcs_type == RevisionControlSystems.GIT:
-            target_rcs_type = data.get(
-                "git_target_rcs_type", TargetRevisionControlSystems.BZR
-            )
-        else:
-            target_rcs_type = TargetRevisionControlSystems.BZR
 
         # Make sure that the user is able to create branches/repositories
         # for the specified namespace.
@@ -525,14 +440,9 @@ class CodeImportNewView(CodeImportBaseView, CodeImportNameValidationMixin):
         # 'owner' in data may be None if it failed validation.
         owner = data.get("owner")
         if product is not None and owner is not None:
-            if target_rcs_type == TargetRevisionControlSystems.BZR:
-                namespace = get_branch_namespace(owner, product)
-                policy = IBranchNamespacePolicy(namespace)
-                can_create = policy.canCreateBranches(self.user)
-            else:
-                namespace = get_git_namespace(product, owner)
-                policy = IGitNamespacePolicy(namespace)
-                can_create = policy.canCreateRepositories(self.user)
+            namespace = get_git_namespace(product, owner)
+            policy = IGitNamespacePolicy(namespace)
+            can_create = policy.canCreateRepositories(self.user)
             if not can_create:
                 self.setFieldError(
                     "product",
@@ -542,33 +452,12 @@ class CodeImportNewView(CodeImportBaseView, CodeImportNameValidationMixin):
 
         # Make sure fields for unselected revision control systems
         # are blanked out:
-        if rcs_type == RevisionControlSystems.CVS:
-            self._validateCVS(data.get("cvs_root"), data.get("cvs_module"))
-        elif rcs_type == RevisionControlSystems.BZR_SVN:
-            self._validateURL(
-                data.get("svn_branch_url"),
-                rcs_type,
-                target_rcs_type,
-                field_name="svn_branch_url",
-            )
-        elif rcs_type == RevisionControlSystems.GIT:
-            self._validateURL(
-                data.get("git_repo_url"),
-                rcs_type,
-                target_rcs_type,
-                field_name="git_repo_url",
-            )
-        elif rcs_type == RevisionControlSystems.BZR:
-            self._validateURL(
-                data.get("bzr_branch_url"),
-                rcs_type,
-                target_rcs_type,
-                field_name="bzr_branch_url",
-            )
-        else:
-            raise AssertionError(
-                "Unexpected revision control type %r." % rcs_type
-            )
+        self._validateURL(
+            data.get("git_repo_url"),
+            rcs_type,
+            target_rcs_type=TargetRevisionControlSystems.GIT,
+            field_name="git_repo_url",
+        )
 
 
 class EditCodeImportForm(Interface):

@@ -17,7 +17,6 @@ from zope.component import getUtility
 from zope.publisher.xmlrpc import TestRequest
 from zope.security.proxy import removeSecurityProxy
 
-from lp.app.enums import InformationType
 from lp.code.enums import (
     CodeImportEventType,
     CodeImportJobState,
@@ -26,7 +25,6 @@ from lp.code.enums import (
     GitRepositoryType,
     TargetRevisionControlSystems,
 )
-from lp.code.interfaces.codehosting import branch_id_alias, compose_public_url
 from lp.code.interfaces.codeimport import ICodeImportSet
 from lp.code.interfaces.codeimportevent import ICodeImportEventSet
 from lp.code.interfaces.codeimportjob import (
@@ -48,10 +46,7 @@ from lp.services.database.interfaces import IStore
 from lp.services.database.sqlbase import get_transaction_timestamp
 from lp.services.librarian.interfaces import ILibraryFileAliasSet
 from lp.services.librarian.interfaces.client import ILibrarianClient
-from lp.services.macaroons.interfaces import (
-    BadMacaroonContext,
-    IMacaroonIssuer,
-)
+from lp.services.macaroons.interfaces import IMacaroonIssuer
 from lp.services.macaroons.testing import MacaroonTestMixin, MacaroonVerifies
 from lp.services.webapp import canonical_url
 from lp.testing import (
@@ -90,41 +85,8 @@ class TestCodeImportJob(TestCaseWithFactory):
         if start_job:
             machine = self.factory.makeCodeImportMachine(set_online=True)
             getUtility(ICodeImportJobWorkflow).startJob(job, machine)
-        self.assertThat(job.makeWorkerArguments(), matcher)
-
-    def test_bzr_arguments(self):
-        code_import = self.factory.makeCodeImport(
-            bzr_branch_url="http://example.com/foo"
-        )
-        self.assertArgumentsMatch(
-            code_import,
-            Equals(
-                [
-                    str(code_import.branch.id),
-                    "bzr",
-                    "bzr",
-                    "http://example.com/foo",
-                    "--exclude-host",
-                    "launchpad.test",
-                ]
-            ),
-        )
-
-    def test_git_arguments(self):
-        code_import = self.factory.makeCodeImport(
-            git_repo_url="git://git.example.com/project.git"
-        )
-        self.assertArgumentsMatch(
-            code_import,
-            Equals(
-                [
-                    str(code_import.branch.id),
-                    "git",
-                    "bzr",
-                    "git://git.example.com/project.git",
-                ]
-            ),
-        )
+        args = job.makeWorkerArguments()
+        self.assertThat(args, matcher)
 
     def test_git_to_git_arguments(self):
         self.pushConfig(
@@ -155,91 +117,13 @@ class TestCodeImportJob(TestCaseWithFactory):
             start_job=True,
         )
 
-    def test_cvs_arguments(self):
-        code_import = self.factory.makeCodeImport(
-            cvs_root=":pserver:foo@example.com/bar", cvs_module="bar"
-        )
-        self.assertArgumentsMatch(
-            code_import,
-            Equals(
-                [
-                    str(code_import.branch.id),
-                    "cvs",
-                    "bzr",
-                    ":pserver:foo@example.com/bar",
-                    "--cvs-module",
-                    "bar",
-                ]
-            ),
-        )
-
-    def test_bzr_svn_arguments(self):
-        code_import = self.factory.makeCodeImport(
-            svn_branch_url="svn://svn.example.com/trunk"
-        )
-        self.assertArgumentsMatch(
-            code_import,
-            Equals(
-                [
-                    str(code_import.branch.id),
-                    "bzr-svn",
-                    "bzr",
-                    "svn://svn.example.com/trunk",
-                ]
-            ),
-        )
-
-    def test_bzr_stacked(self):
-        devfocus = self.factory.makeAnyBranch()
-        code_import = self.factory.makeCodeImport(
-            bzr_branch_url="bzr://bzr.example.com/foo",
-            context=devfocus.target.context,
-        )
-        code_import.branch.stacked_on = devfocus
-        self.assertArgumentsMatch(
-            code_import,
-            Equals(
-                [
-                    str(code_import.branch.id),
-                    "bzr",
-                    "bzr",
-                    "bzr://bzr.example.com/foo",
-                    "--stacked-on",
-                    compose_public_url("http", branch_id_alias(devfocus)),
-                    "--exclude-host",
-                    "launchpad.test",
-                ]
-            ),
-        )
-
-    def test_bzr_stacked_private(self):
-        # Code imports can't be stacked on private branches.
-        devfocus = self.factory.makeAnyBranch(
-            information_type=InformationType.USERDATA
-        )
-        code_import = self.factory.makeCodeImport(
-            context=removeSecurityProxy(devfocus).target.context,
-            bzr_branch_url="bzr://bzr.example.com/foo",
-        )
-        branch = removeSecurityProxy(code_import.branch)
-        branch.stacked_on = devfocus
-        self.assertArgumentsMatch(
-            code_import,
-            Equals(
-                [
-                    str(branch.id),
-                    "bzr",
-                    "bzr",
-                    "bzr://bzr.example.com/foo",
-                    "--exclude-host",
-                    "launchpad.test",
-                ]
-            ),
-        )
-
     def test_blacklisted_hostnames(self):
         # Additional blacklisted hostnames are passed as --exclude-host
         # options.
+        self.useFixture(GitHostingFixture())
+        self.pushConfig(
+            "launchpad", internal_macaroon_secret_key="some-secret"
+        )
         self.pushConfig(
             "codehosting", blacklisted_hostnames="localhost,127.0.0.1"
         )
@@ -248,18 +132,26 @@ class TestCodeImportJob(TestCaseWithFactory):
         )
         self.assertArgumentsMatch(
             code_import,
-            Equals(
+            MatchesListwise(
                 [
-                    str(code_import.branch.id),
-                    "git",
-                    "bzr",
-                    "git://git.example.com/project.git",
-                    "--exclude-host",
-                    "localhost",
-                    "--exclude-host",
-                    "127.0.0.1",
+                    Equals(str(code_import.git_repository.unique_name)),
+                    Equals("git"),
+                    Equals("git"),
+                    Equals("git://git.example.com/project.git"),
+                    Equals("--macaroon"),
+                    MacaroonVerifies(
+                        "code-import-job", code_import.import_job
+                    ),
+                    Equals("--exclude-host"),
+                    Equals("launchpad.test"),
+                    Equals("--exclude-host"),
+                    Equals("localhost"),
+                    Equals("--exclude-host"),
+                    Equals("127.0.0.1"),
                 ]
             ),
+            # Start the job so that the macaroon can be verified.
+            start_job=True,
         )
 
 
@@ -271,6 +163,7 @@ class TestCodeImportJobSet(TestCaseWithFactory):
     def setUp(self):
         super().setUp()
         login_for_code_imports()
+        self.useFixture(GitHostingFixture())
 
     def test_getByIdExisting(self):
         # CodeImportJobSet.getById retrieves a CodeImportJob by database id.
@@ -322,6 +215,7 @@ class TestCodeImportJobSetGetJobForMachine(TestCaseWithFactory):
         for job in IStore(CodeImportJob).find(CodeImportJob):
             job.destroySelf()
         self.machine = self.factory.makeCodeImportMachine(set_online=True)
+        self.useFixture(GitHostingFixture())
 
     def makeJob(self, state, date_due_delta, requesting_user=None):
         """Create a CodeImportJob object from a spec."""
@@ -435,6 +329,7 @@ class ReclaimableJobTests(TestCaseWithFactory):
         login_for_code_imports()
         for job in IStore(CodeImportJob).find(CodeImportJob):
             job.destroySelf()
+        self.useFixture(GitHostingFixture())
 
     def makeJobWithHeartbeatInPast(self, seconds_in_past):
         code_import = make_running_import(factory=self.factory)
@@ -592,6 +487,7 @@ class TestCodeImportJobWorkflowNewJob(TestCaseWithFactory, AssertFailureMixin):
     def setUp(self):
         super().setUp()
         login_for_code_imports()
+        self.useFixture(GitHostingFixture())
 
     def test_wrongReviewStatus(self):
         # CodeImportJobWorkflow.newJob fails if the CodeImport review_status
@@ -599,7 +495,7 @@ class TestCodeImportJobWorkflowNewJob(TestCaseWithFactory, AssertFailureMixin):
         new_import = self.factory.makeCodeImport(
             review_status=CodeImportReviewStatus.SUSPENDED
         )
-        branch_name = new_import.branch.unique_name
+        branch_name = new_import.git_repository.unique_name
         # Testing newJob failure.
         self.assertFailure(
             "Review status of %s is not REVIEWED: SUSPENDED" % (branch_name,),
@@ -612,7 +508,7 @@ class TestCodeImportJobWorkflowNewJob(TestCaseWithFactory, AssertFailureMixin):
         # associated to a CodeImportJob.
         job = self.factory.makeCodeImportJob()
         reviewed_import = job.code_import
-        branch_name = reviewed_import.branch.unique_name
+        branch_name = reviewed_import.git_repository.unique_name
         self.assertFailure(
             "Already associated to a CodeImportJob: %s" % (branch_name,),
             getUtility(ICodeImportJobWorkflow).newJob,
@@ -720,6 +616,7 @@ class TestCodeImportJobWorkflowDeletePendingJob(
     def setUp(self):
         super().setUp()
         self.import_admin = login_for_code_imports()
+        self.useFixture(GitHostingFixture())
 
     def test_wrongReviewStatus(self):
         # CodeImportJobWorkflow.deletePendingJob fails if the
@@ -729,7 +626,7 @@ class TestCodeImportJobWorkflowDeletePendingJob(
             {"review_status": CodeImportReviewStatus.REVIEWED},
             self.import_admin,
         )
-        branch_name = reviewed_import.branch.unique_name
+        branch_name = reviewed_import.git_repository.unique_name
         # Testing deletePendingJob failure.
         self.assertFailure(
             "The review status of %s is REVIEWED." % (branch_name,),
@@ -743,7 +640,7 @@ class TestCodeImportJobWorkflowDeletePendingJob(
         new_import = self.factory.makeCodeImport(
             review_status=CodeImportReviewStatus.NEW
         )
-        branch_name = new_import.branch.unique_name
+        branch_name = new_import.git_repository.unique_name
         # Testing deletePendingJob failure.
         self.assertFailure(
             "Not associated to a CodeImportJob: %s" % (branch_name,),
@@ -756,7 +653,7 @@ class TestCodeImportJobWorkflowDeletePendingJob(
         # the CodeImportJob is different from PENDING.
         job = self.factory.makeCodeImportJob()
         code_import = job.code_import
-        branch_name = job.code_import.branch.unique_name
+        branch_name = job.code_import.git_repository.unique_name
         # ICodeImport does not allow setting 'review_status', so we must use
         # removeSecurityProxy.
         INVALID = CodeImportReviewStatus.INVALID
@@ -783,6 +680,7 @@ class TestCodeImportJobWorkflowRequestJob(
     def setUp(self):
         super().setUp()
         login_for_code_imports()
+        self.useFixture(GitHostingFixture())
 
     def test_wrongJobState(self):
         # CodeImportJobWorkflow.requestJob fails if the state of the
@@ -800,7 +698,7 @@ class TestCodeImportJobWorkflowRequestJob(
         removeSecurityProxy(import_job).state = CodeImportJobState.RUNNING
         self.assertFailure(
             "The CodeImportJob associated with %s is "
-            "RUNNING." % code_import.branch.unique_name,
+            "RUNNING." % code_import.git_repository.unique_name,
             getUtility(ICodeImportJobWorkflow).requestJob,
             import_job,
             person,
@@ -818,7 +716,7 @@ class TestCodeImportJobWorkflowRequestJob(
         removeSecurityProxy(import_job).requesting_user = person
         self.assertFailure(
             "The CodeImportJob associated with %s was already requested by "
-            "%s." % (code_import.branch.unique_name, person.name),
+            "%s." % (code_import.git_repository.unique_name, person.name),
             getUtility(ICodeImportJobWorkflow).requestJob,
             import_job,
             other_person,
@@ -884,6 +782,7 @@ class TestCodeImportJobWorkflowStartJob(
     def setUp(self):
         super().setUp()
         login_for_code_imports()
+        self.useFixture(GitHostingFixture())
 
     def test_wrongJobState(self):
         # Calling startJob with a job whose state is not PENDING is an error.
@@ -897,7 +796,7 @@ class TestCodeImportJobWorkflowStartJob(
         # Testing startJob failure.
         self.assertFailure(
             "The CodeImportJob associated with %s is "
-            "RUNNING." % code_import.branch.unique_name,
+            "RUNNING." % code_import.git_repository.unique_name,
             getUtility(ICodeImportJobWorkflow).requestJob,
             job,
             machine,
@@ -942,6 +841,7 @@ class TestCodeImportJobWorkflowUpdateHeartbeat(
     def setUp(self):
         super().setUp()
         login_for_code_imports()
+        self.useFixture(GitHostingFixture())
 
     def test_wrongJobState(self):
         # Calling updateHeartbeat with a job whose state is not RUNNING is an
@@ -950,7 +850,7 @@ class TestCodeImportJobWorkflowUpdateHeartbeat(
         job = self.factory.makeCodeImportJob(code_import)
         self.assertFailure(
             "The CodeImportJob associated with %s is "
-            "PENDING." % code_import.branch.unique_name,
+            "PENDING." % code_import.git_repository.unique_name,
             getUtility(ICodeImportJobWorkflow).updateHeartbeat,
             job,
             "",
@@ -981,6 +881,7 @@ class TestCodeImportJobWorkflowFinishJob(
         super().setUp()
         self.vcs_imports = login_for_code_imports()
         self.machine = self.factory.makeCodeImportMachine(set_online=True)
+        self.useFixture(GitHostingFixture())
 
     def makeRunningJob(self, code_import=None):
         """Make and return a CodeImportJob object with state==RUNNING.
@@ -1003,7 +904,7 @@ class TestCodeImportJobWorkflowFinishJob(
         job = self.factory.makeCodeImportJob(code_import)
         self.assertFailure(
             "The CodeImportJob associated with %s is "
-            "PENDING." % code_import.branch.unique_name,
+            "PENDING." % code_import.git_repository.unique_name,
             getUtility(ICodeImportJobWorkflow).finishJob,
             job,
             CodeImportResultStatus.SUCCESS,
@@ -1252,23 +1153,6 @@ class TestCodeImportJobWorkflowFinishJob(
             else:
                 self.assertTrue(code_import.date_last_successful is None)
 
-    def test_successfulResultCallsRequestMirror(self):
-        # finishJob() calls requestMirror() on the import branch if and only
-        # if the status was success.
-        status_jobs = []
-        for status in CodeImportResultStatus.items:
-            status_jobs.append((status, self.makeRunningJob()))
-        for status, job in status_jobs:
-            code_import = job.code_import
-            self.assertTrue(code_import.date_last_successful is None)
-            getUtility(ICodeImportJobWorkflow).finishJob(job, status, None)
-            if status == CodeImportResultStatus.SUCCESS:
-                self.assertTrue(
-                    code_import.branch.next_mirror_time is not None
-                )
-            else:
-                self.assertTrue(code_import.branch.next_mirror_time is None)
-
     def test_enoughFailuresMarksAsFailing(self):
         # If a code import fails config.codeimport.consecutive_failure_limit
         # times in a row, the import is marked as FAILING.
@@ -1314,6 +1198,7 @@ class TestCodeImportJobWorkflowReclaimJob(
         super().setUp()
         login_for_code_imports()
         self.machine = self.factory.makeCodeImportMachine(set_online=True)
+        self.useFixture(GitHostingFixture())
 
     def makeRunningJob(self, code_import=None):
         """Make and return a CodeImportJob object with state==RUNNING.
@@ -1374,13 +1259,18 @@ class TestRequestJobUIRaces(TestCaseWithFactory):
 
     layer = DatabaseFunctionalLayer
 
+    def setUp(self):
+        super().setUp()
+        self.useFixture(GitHostingFixture())
+
     @logged_in_for_code_imports
     def getNewCodeImportIDAndBranchURL(self):
-        """Create a code import and return its ID and the URL of its branch."""
+        """Create a code import and return its ID
+        and the URL of the git repository."""
         code_import = make_finished_import(factory=self.factory)
-        branch_url = canonical_url(code_import.branch)
+        repository_url = canonical_url(code_import.git_repository)
         code_import_id = code_import.id
-        return code_import_id, branch_url
+        return code_import_id, repository_url
 
     def requestJobByUserWithDisplayName(self, code_import_id, displayname):
         """Record a request for the job by a user with the given name."""
@@ -1458,18 +1348,9 @@ class TestCodeImportJobMacaroonIssuer(MacaroonTestMixin, TestCaseWithFactory):
         )
         self.useFixture(GitHostingFixture())
 
-    def makeJob(self, target_rcs_type=TargetRevisionControlSystems.GIT):
-        code_import = self.factory.makeCodeImport(
-            target_rcs_type=target_rcs_type
-        )
+    def makeJob(self):
+        code_import = self.factory.makeCodeImport()
         return self.factory.makeCodeImportJob(code_import=code_import)
-
-    def test_issueMacaroon_refuses_branch(self):
-        job = self.makeJob(target_rcs_type=TargetRevisionControlSystems.BZR)
-        issuer = getUtility(IMacaroonIssuer, "code-import-job")
-        self.assertRaises(
-            BadMacaroonContext, removeSecurityProxy(issuer).issueMacaroon, job
-        )
 
     def test_issueMacaroon_good(self):
         job = self.makeJob()

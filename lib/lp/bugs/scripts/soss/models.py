@@ -9,6 +9,9 @@ from typing import Any, Dict, List, Optional
 import yaml
 from packaging.version import Version
 
+from lp.app.validators.name import valid_name
+from lp.bugs.scripts.svthandler import SVTRecord
+
 __all__ = [
     "SOSSRecord",
 ]
@@ -18,7 +21,7 @@ VALID_CHANNEL_REGEX = re.compile(r"^(focal|jammy|noble):[^/]+/stable$")
 
 
 @dataclass
-class SOSSRecord:
+class SOSSRecord(SVTRecord):
 
     class PriorityEnum(Enum):
         NEEDS_TRIAGE = "Needs-triage"
@@ -57,7 +60,7 @@ class SOSSRecord:
         def __lt__(self, other) -> bool:
             try:
                 self_ver = self.value.split(":")[-1].split("/")[0]
-                other_ver = self.value.split(":")[-1].split("/")[0]
+                other_ver = other.value.split(":")[-1].split("/")[0]
                 return Version(self_ver) < Version(other_ver)
             except Exception:
                 return self.value < other.value
@@ -122,6 +125,10 @@ class SOSSRecord:
     public_date: Optional[datetime] = None
 
     @classmethod
+    def from_str(cls, string: str) -> "SOSSRecord":
+        return cls.from_yaml(string)
+
+    @classmethod
     def from_yaml(cls, yaml_str: str) -> "SOSSRecord":
         raw: Dict[str, Any] = yaml.safe_load(yaml_str)
         if not isinstance(raw, dict):
@@ -138,8 +145,9 @@ class SOSSRecord:
         packages = {}
         for enum_key, pkgs in raw.get("Packages", {}).items():
             package_type = SOSSRecord.PackageTypeEnum(enum_key.lower())
-            package_list = [
-                SOSSRecord.Package(
+            # Use dict comprehension to deduplicate by (name, channel) key
+            unique_packages = {
+                (package["Name"], package["Channel"]): SOSSRecord.Package(
                     name=package["Name"],
                     channel=SOSSRecord.Channel(package["Channel"]),
                     repositories=package["Repositories"],
@@ -149,8 +157,9 @@ class SOSSRecord:
                     note=package["Note"],
                 )
                 for package in pkgs
-            ]
-            packages[package_type] = package_list
+                if valid_name(package["Name"])
+            }
+            packages[package_type] = list(unique_packages.values())
 
         cvss_list = [
             SOSSRecord.CVSS(

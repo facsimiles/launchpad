@@ -84,11 +84,6 @@
         <li>
           <a class="sprite add" href="/people/+newteam">Register a team</a>
         </li>
-        <li>
-          <a class="sprite edit"
-            tal:attributes="href context/menu:overview/editmailinglists/fmt:url"
-            >Change mailing list subscriptions</a>
-        </li>
       </ul>
     </tal:user>
   </div>

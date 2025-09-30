@@ -28,7 +28,7 @@ or external contact address.
     >>> from lp.services.beautifulsoup import BeautifulSoup
     >>> soup = BeautifulSoup(browser.contents)
     >>> print(soup.find(id="email-warning").decode())
-    <p ... Email sent to a mailing list or external contact address may ...
+    <p ... Email sent to an external contact address may ...
 
 As we can see, the landscape-developers team has no contact address.
 

@@ -5,7 +5,7 @@
 import logging
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from lp.app.enums import InformationType
 from lp.bugs.model.bug import Bug as BugModel
@@ -18,7 +18,10 @@ from lp.bugs.scripts.soss.sossimport import (
     PACKAGE_TYPE_MAP,
     PRIORITY_ENUM_MAP,
 )
+from lp.bugs.scripts.svthandler import SVTExporter
+from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.model.distribution import Distribution
+from lp.registry.security import SecurityAdminDistribution
 
 __all__ = [
     "SOSSExporter",
@@ -34,7 +37,7 @@ PACKAGE_TYPE_MAP_REVERSE = {v: k for k, v in PACKAGE_TYPE_MAP.items()}
 PACKAGE_STATUS_MAP_REVERSE = {v: k for k, v in PACKAGE_STATUS_MAP.items()}
 
 
-class SOSSExporter:
+class SOSSExporter(SVTExporter):
     """
     SOSSExporter is used to export Launchpad Vulnerability data to SOSS CVE
     files.
@@ -116,7 +119,7 @@ class SOSSExporter:
         public_date = self._normalize_date_without_timezone(
             vulnerability.date_made_public
         )
-        notes = vulnerability.notes.split("\n") if vulnerability.notes else []
+        notes = self._format_notes(vulnerability.notes)
         priority = SOSSRecord.PriorityEnum(
             PRIORITY_ENUM_MAP_REVERSE[vulnerability.importance]
         )
@@ -133,6 +136,24 @@ class SOSSExporter:
             cvss=self._get_cvss(vulnerability.cvss),
             public_date=public_date,
         )
+
+    def _format_notes(self, notes: str) -> List[Union[Dict, str]]:
+        """Return a list of dicts or strings using from the notes string. Each
+        dict contains the user and the note added.
+        """
+        if not notes:
+            return []
+
+        formatted_notes = []
+        for note in notes.split("\n\n"):
+            if len(note.split(":", maxsplit=1)) == 2:
+                key, value = note.split(":")
+                formatted_notes.append({key: value.strip()})
+            else:
+                # Fallback to simple string
+                formatted_notes.append(str(note))
+
+        return formatted_notes
 
     def _validate_to_record_args(
         self,
@@ -160,3 +181,8 @@ class SOSSExporter:
         if date_obj and date_obj.tzinfo is not None:
             return date_obj.replace(tzinfo=None)
         return date_obj
+
+    def checkUserPermissions(self, user, distribution):
+        return SecurityAdminDistribution(distribution).checkAuthenticated(
+            IPersonRoles(user)
+        )

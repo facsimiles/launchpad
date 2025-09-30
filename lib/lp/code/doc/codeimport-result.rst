@@ -38,11 +38,14 @@ Then commit the transaction, so the external librarian process can see
 it.
 
     >>> from transaction import commit
+    >>> from lp.code.tests.helpers import GitHostingFixture
     >>> commit()
     >>> from lp.services.librarian.interfaces import ILibraryFileAliasSet
     >>> log_alias = getUtility(ILibraryFileAliasSet)[log_alias_id]
 
-    >>> sample_import = factory.makeCodeImport()
+    >>> with GitHostingFixture():
+    ...     sample_import = factory.makeCodeImport()
+    ...
 
 Then create a result object.
 
@@ -112,7 +115,9 @@ Results for other imports of course should not be present in the
 results, so we should create one of those just to be sure that it's
 not present.
 
-    >>> result_for_other_import = factory.makeCodeImportResult()
+    >>> with GitHostingFixture():
+    ...     result_for_other_import = factory.makeCodeImportResult()
+    ...
 
 Then we can test that the results are in the order expected.
 

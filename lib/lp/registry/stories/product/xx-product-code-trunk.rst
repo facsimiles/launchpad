@@ -98,14 +98,18 @@ portlet.
 
 The owner can specify the development focus branch from the overview page.
 
+    >>> from lp.code.tests.helpers import GitHostingFixture
     >>> owner_browser.getLink(url="+configure-code").click()
-    >>> owner_browser.getControl("Bazaar", index=0).click()
-    >>> owner_browser.getControl(name="field.branch_location").value = (
-    ...     "~eric/fooix/trunk"
+    >>> owner_browser.getControl("Git", index=0).click()
+    >>> owner_browser.getControl("Import a Git").click()
+    >>> owner_browser.getControl("Git repository URL").value = (
+    ...     "git://example.com/fooix"
     ... )
-    >>> owner_browser.getControl("Update").click()
+    >>> with GitHostingFixture():
+    ...     owner_browser.getControl("Update").click()
+    ...
     >>> print_feedback_messages(owner_browser.contents)
-    Project settings updated.
+    Code import created and repository set as default.
 
 The owner is taken back to the project page.
 
@@ -115,19 +119,24 @@ The owner is taken back to the project page.
      trunk series (/fooix/trunk)
      Change details (http://launchpad.test/fooix/+edit)
     >>> print_code_trunk(owner_browser)
-    lp://dev/fooix  Configure Code
+    lp:fooix
+    Configure Code
+    Browse the code
     Links:
-      lp://dev/fooix (http://code.launchpad.test/~eric/fooix/trunk)
-      Configure Code
-        Configure code for this project
-        (http://launchpad.test/fooix/+configure-code)
+    lp:fooix
+     (http://code.launchpad.test/~eric/fooix/+git/fooix)
+    Configure Code
+    Configure code for this project
+    (http://launchpad.test/fooix/+configure-code)
+    Browse the code
+     (https://git.launchpad.test/fooix)
 
 
 Projects with development focus branches
 ----------------------------------------
 
-If the project has a specified development focus branch, this is shown in the
-development focus section of the project information.
+If the project has a specified development focus branch,
+this is shown in the development focus section of the project information.
 
 There is a link both to the branch, and but no source code browser for that
 branch.
@@ -138,9 +147,13 @@ branch.
     Links:
      trunk series (/fooix/trunk)
     >>> print_code_trunk(anon_browser)
-    lp://dev/fooix
+    lp:fooix
+    Browse the code
     Links:
-      lp://dev/fooix (http://code.launchpad.test/~eric/fooix/trunk)
+    lp:fooix
+     (http://code.launchpad.test/~eric/fooix/+git/fooix)
+    Browse the code
+     (https://git.launchpad.test/fooix)
 
     >>> owner_browser.open("http://launchpad.test/fooix")
     >>> print_development_focus(owner_browser)
@@ -149,12 +162,17 @@ branch.
      trunk series (/fooix/trunk)
      Change details (http://launchpad.test/fooix/+edit)
     >>> print_code_trunk(owner_browser)
-    lp://dev/fooix   Configure Code
+    lp:fooix
+    Configure Code
+    Browse the code
     Links:
-      lp://dev/fooix (http://code.launchpad.test/~eric/fooix/trunk)
-      Configure Code
-        Configure code for this project
-        (http://launchpad.test/fooix/+configure-code)
+    lp:fooix
+     (http://code.launchpad.test/~eric/fooix/+git/fooix)
+    Configure Code
+    Configure code for this project
+    (http://launchpad.test/fooix/+configure-code)
+    Browse the code
+     (https://git.launchpad.test/fooix)
 
 
 Private development focus branches
@@ -176,6 +194,13 @@ appears as if there is no series branch set.
     Links:
       trunk series (/fooix/trunk)
     >>> print_code_trunk(anon_browser)
+    lp:fooix
+    Browse the code
+    Links:
+    lp:fooix
+     (http://code.launchpad.test/~eric/fooix/+git/fooix)
+    Browse the code
+     (https://git.launchpad.test/fooix)
 
     >>> owner_browser.open("http://launchpad.test/fooix")
     >>> print_development_focus(owner_browser)
@@ -185,9 +210,14 @@ appears as if there is no series branch set.
       Change details
         (http://launchpad.test/fooix/+edit)
     >>> print_code_trunk(owner_browser)
-    lp://dev/fooix   Configure Code
+    lp:fooix
+    Configure Code
+    Browse the code
     Links:
-      lp://dev/fooix (http://code.launchpad.test/~eric/fooix/trunk)
-      Configure Code
-        Configure code for this project
-        (http://launchpad.test/fooix/+configure-code)
+    lp:fooix
+     (http://code.launchpad.test/~eric/fooix/+git/fooix)
+    Configure Code
+    Configure code for this project
+    (http://launchpad.test/fooix/+configure-code)
+    Browse the code
+     (https://git.launchpad.test/fooix)
