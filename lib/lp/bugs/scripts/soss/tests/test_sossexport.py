@@ -79,12 +79,7 @@ class TestSOSSExporter(TestCaseWithFactory):
                 soss_record = SOSSRecord.from_yaml(f)
 
             bug, vulnerability = soss_importer.import_cve_from_file(file)
-
-            cve_sequence = file.name.lstrip("CVE-")
-            lp_cve = self.cve_set[cve_sequence]
-            exported = self.soss_exporter.to_record(
-                lp_cve, self.soss, bug, vulnerability
-            )
+            exported = self.soss_exporter.to_record(bug, vulnerability)
 
             self.assertEqual(soss_record, exported)
 
@@ -98,12 +93,7 @@ class TestSOSSExporter(TestCaseWithFactory):
         for file in self.sampledata.iterdir():
 
             bug, vulnerability = soss_importer.import_cve_from_file(file)
-
-            cve_sequence = file.name.lstrip("CVE-")
-            lp_cve = self.cve_set[cve_sequence]
-            exported = self.soss_exporter.to_record(
-                lp_cve, self.soss, bug, vulnerability
-            )
+            exported = self.soss_exporter.to_record(bug, vulnerability)
 
             with open(file) as f:
-                self.assertEqual(f.read(), exported.to_yaml())
+                self.assertEqual(f.read(), exported.to_str())

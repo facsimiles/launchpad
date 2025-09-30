@@ -218,5 +218,5 @@ class SOSSRecord(SVTRecord):
 
         return serialized
 
-    def to_yaml(self) -> str:
+    def to_str(self) -> str:
         return yaml.dump(self.to_dict(), sort_keys=False)

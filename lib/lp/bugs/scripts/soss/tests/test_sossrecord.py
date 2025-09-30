@@ -342,19 +342,19 @@ class TestSOSSRecord(TestCase):
             self.soss_record_dict,
         )
 
-    def test_to_yaml(self):
+    def test_to_str(self):
         load_from = Path(__file__).parent / "sampledata" / "CVE-2025-1979"
         with open(load_from) as f:
             sample_data = f.read()
 
-        self.assertEqual(self.soss_record.to_yaml(), sample_data),
+        self.assertEqual(self.soss_record.to_str(), sample_data),
 
     def _verify_import_export_yaml(self, file):
         with open(file) as f:
             soss_record_read = f.read()
 
         soss_record = SOSSRecord.from_yaml(soss_record_read)
-        self.assertEqual(soss_record_read, soss_record.to_yaml())
+        self.assertEqual(soss_record_read, soss_record.to_str())
 
     def test_verify_import_export_yaml(self):
         files = self.get_sample_files()
