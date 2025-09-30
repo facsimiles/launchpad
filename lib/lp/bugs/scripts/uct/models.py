@@ -8,6 +8,7 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from io import StringIO
 from pathlib import Path
 from typing import (
     Any,
@@ -272,17 +273,11 @@ class UCTRecord(SVTRecord):
 
         return entry
 
-    def save(self, output_dir: Path) -> Path:
+    def to_str(self) -> str:
         """
-        Save UCTRecord to a file in UCT format.
+        Export UCTRecord to a yaml str format.
         """
-        if not output_dir.is_dir():
-            raise ValueError(
-                "{} does not exist or is not a directory", output_dir
-            )
-        output_path = output_dir / self.parent_dir / self.candidate
-        output_path.parent.mkdir(exist_ok=True)
-        output = open(str(output_path), "w")
+        output = StringIO()
         if self.public_date_at_USN:
             self._write_field(
                 "PublicDateAtUSN",
@@ -362,7 +357,20 @@ class UCTRecord(SVTRecord):
                     output,
                 )
 
-        output.close()
+        return output.getvalue()
+
+    def save(self, output_dir: Path) -> Path:
+        """
+        Save UCTRecord to a file in UCT format.
+        """
+        if not output_dir.is_dir():
+            raise ValueError(
+                "{} does not exist or is not a directory", output_dir
+            )
+        output_path = output_dir / self.parent_dir / self.candidate
+        output_path.parent.mkdir(exist_ok=True)
+        yaml_content = self.to_str()
+        output_path.write_text(yaml_content)
         return output_path
 
     @classmethod

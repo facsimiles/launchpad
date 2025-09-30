@@ -278,6 +278,13 @@ class TestUCTRecord(TestCase):
         self.record.parent_dir = "tmp"
         self.assertEqual(record.__dict__, self.record.__dict__)
 
+    def test_to_str(self):
+        load_from = Path(__file__).parent / "sampledata" / "CVE-2022-23222"
+        with open(load_from) as f:
+            expected_record = f.read()
+        record_str = self.record.to_str()
+        self.assertEqual(expected_record, record_str)
+
 
 class TestCVE(TestCaseWithFactory):
     layer = ZopelessDatabaseLayer
