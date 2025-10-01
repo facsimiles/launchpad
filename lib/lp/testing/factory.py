@@ -64,6 +64,7 @@ from lp.blueprints.interfaces.specification import ISpecificationSet
 from lp.blueprints.interfaces.sprint import ISprintSet
 from lp.bugs.interfaces.apportjob import IProcessApportBlobJobSource
 from lp.bugs.interfaces.bug import CreateBugParams, IBugSet
+from lp.bugs.interfaces.bugpresence import IBugPresenceSet
 from lp.bugs.interfaces.bugtask import (
     BugTaskImportance,
     BugTaskStatus,
@@ -2651,6 +2652,42 @@ class LaunchpadObjectFactory(ObjectFactory):
             content_type=content_type,
             description=description,
             **other_params,
+        )
+
+    def makeBugPresence(
+        self,
+        bug=None,
+        product=None,
+        distribution=None,
+        source_package_name=None,
+        git_repository=None,
+        break_fix_data=None,
+    ):
+        """Create and return a new bug presence.
+
+        :param bug: An `IBug` or a bug ID or name, or None, in which
+            case a new bug is created.
+        :param product: An `IProduct`, or None.
+        :param distribution: An `IDistribution`, or None.
+        :param source_package_name: An `ISourcePackageName`, or None.
+        :param git_repository: An `IGitRepository`, or None.
+        :param break_fix_data: A list or None
+        :return: An `IBugPresence`.
+        """
+        if bug is None:
+            bug = self.makeBug()
+        elif isinstance(bug, (int, str)):
+            bug = getUtility(IBugSet).getByNameOrID(str(bug))
+        if break_fix_data is None:
+            break_fix_data = []
+
+        return getUtility(IBugPresenceSet).create(
+            bug=bug,
+            product=product,
+            distribution=distribution,
+            source_package_name=source_package_name,
+            git_repository=git_repository,
+            break_fix_data=break_fix_data,
         )
 
     def makeBugSubscriptionFilter(

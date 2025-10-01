@@ -947,7 +947,6 @@
                 permission="launchpad.View"
                 set_schema="lp.bugs.interfaces.bugpresence.IBugPresence"
                 attributes="
-                    id
                     bug
                     product
                     distribution
@@ -955,7 +954,7 @@
                     git_repository
                     break_fix_data"/>
             <require
-                permission="launchpad.Edit"
+                permission="launchpad.Delete"
                 attributes="destroySelf"/>
         </class>
 
