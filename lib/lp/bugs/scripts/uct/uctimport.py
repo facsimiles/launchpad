@@ -88,7 +88,9 @@ class UCTImporter(SVTImporter):
         self.ubuntu = ubuntu
         self.information_type = information_type
 
-    def import_cve_from_file(self, cve_path: Path) -> None:
+    def import_cve_from_file(
+        self, cve_path: Path
+    ) -> Tuple[BugModel, Vulnerability]:
         """
         Import a UCT CVE record from a file located at `cve_path`.
 
@@ -97,7 +99,7 @@ class UCTImporter(SVTImporter):
         logger.info("Importing %s", cve_path)
         uct_record = UCTRecord.load(cve_path)
         cve = CVE.make_from_uct_record(uct_record)
-        self.import_cve(cve)
+        return self.import_cve(cve)
 
     def from_record(
         self, record: UCTRecord, cve_sequence: str

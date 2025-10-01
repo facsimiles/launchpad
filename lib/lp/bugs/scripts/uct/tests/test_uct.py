@@ -1753,14 +1753,10 @@ class TestUCTImporterExporter(TestCaseWithFactory):
 
     def test_import_cve_from_file(self):
         uct_record = self.cve.to_uct_record()
-        import tempfile
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cve_path = uct_record.save(Path(tmpdir))
-            self.importer.import_cve_from_file(cve_path)
+        cve_path = uct_record.save(Path(self.makeTemporaryDirectory()))
+        bug, _ = self.importer.import_cve_from_file(cve_path)
 
-        bug = self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
-        self.importer._find_existing_vulnerability(self.lp_cve, self.ubuntu)
         self.checkBug(bug, self.cve)
         self.checkVulnerabilities(bug, self.cve)
 
