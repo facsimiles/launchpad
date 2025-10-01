@@ -52,11 +52,11 @@ class UCTExporter(SVTExporter):
     ) -> UCTRecord:
         """
         Export the bug and vulnerability related to a cve in a distribution
-        and return a `CVE` instance.
+        and return a `UCTRecord` instance.
 
         :param bug: `Bug` model
         :param vulnerability: `Vulnerability` model
-        :return: `CVE` instance
+        :return: `UCTRecord` instance
         """
         if bug is None:
             raise ValueError("Bug can't be None")

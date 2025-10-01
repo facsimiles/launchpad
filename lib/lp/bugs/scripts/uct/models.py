@@ -275,7 +275,7 @@ class UCTRecord(SVTRecord):
 
     def to_str(self) -> str:
         """
-        Export UCTRecord to a yaml str format.
+        Export UCTRecord to a str format.
         """
         output = StringIO()
         if self.public_date_at_USN:
