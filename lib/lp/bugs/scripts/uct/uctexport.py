@@ -18,6 +18,7 @@ from lp.bugs.scripts.svthandler import SVTExporter
 from lp.bugs.scripts.uct.models import CVE, CVSS, UCTRecord
 from lp.bugs.scripts.uct.uctimport import UCTImporter
 from lp.registry.interfaces.role import IPersonRoles
+from lp.registry.interfaces.sourcepackagename import ISourcePackageNameSet
 from lp.registry.model.distributionsourcepackage import (
     DistributionSourcePackage,
 )
@@ -256,9 +257,6 @@ class UCTExporter(SVTExporter):
                 )
             )
 
-        packages_by_name = {
-            p.name: p for p in package_name_by_product.values()
-        }
         patch_urls = []
         for attachment in bug.attachments:
             if attachment.url:
@@ -275,10 +273,13 @@ class UCTExporter(SVTExporter):
             ):
                 continue
 
+            package_name = getUtility(ISourcePackageNameSet).queryByName(
+                attachment.title
+            )
             for patch in attachment.vulnerability_patches:
                 patch_urls.append(
                     CVE.PatchURL(
-                        package_name=packages_by_name.get(attachment.title),
+                        package_name=package_name,
                         type=patch["name"],
                         url=patch["value"],
                         notes=patch["comment"],
