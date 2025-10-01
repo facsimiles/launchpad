@@ -605,7 +605,7 @@
                     references
                     date_made_public
                     discovered_by
-                    _cvss
+                    cvss
                     metadata"/>
 
             <!-- IBugLinkTarget -->

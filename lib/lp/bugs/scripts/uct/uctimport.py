@@ -167,7 +167,6 @@ class UCTImporter(SVTImporter):
                 logger.info(
                     "%s: updated bug with ID: %s", cve.sequence, bug.id
                 )
-            self._update_launchpad_cve(lp_cve, cve)
         except Exception:
             transaction.abort()
             raise
@@ -383,6 +382,7 @@ class UCTImporter(SVTImporter):
                 creator=bug.owner,
                 information_type=self.information_type,
                 cve=lp_cve,
+                cvss=cve.cvss,
             )
         )
         self._update_vulnerability(vulnerability, cve)
@@ -592,16 +592,6 @@ class UCTImporter(SVTImporter):
             parts.extend(["", "References:"])
             parts.extend(cve.references)
         return "\n".join(parts)
-
-    def _update_launchpad_cve(self, lp_cve: CveModel, cve: CVE) -> None:
-        """
-        Update LP's `Cve` model based on the information contained in `CVE`.
-
-        :param lp_cve: LP's `CVE` model to be updated
-        :param cve: `CVE` with information from UCT
-        """
-        lp_cve.setCVSSVectorForAuthority(cve.cvss)
-        lp_cve.discovered_by = cve.discovered_by
 
     def checkUserPermissions(self, user):
         """See `SVTImporter`."""

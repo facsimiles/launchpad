@@ -14,10 +14,8 @@ from lp.bugs.enums import VulnerabilityStatus
 from lp.bugs.interfaces.bugtask import BugTaskImportance, BugTaskStatus
 from lp.bugs.model.bug import Bug
 from lp.bugs.model.bugtask import BugTask
-from lp.bugs.model.cve import Cve as CveModel
 from lp.bugs.scripts.uct import (
     CVE,
-    CVSS,
     UCTExporter,
     UCTImporter,
     UCTImportError,
@@ -45,15 +43,12 @@ class TestUCTRecord(TestCase):
                 "https://github.com/mm2/Little-CMS/issues/30",
                 "https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=745471",
             ],
-            cvss=[
-                CVSS(
-                    authority="nvd",
-                    vector_string=(
-                        "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
-                        "[7.8 HIGH]"
-                    ),
-                ),
-            ],
+            cvss={
+                "nvd": [
+                    "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
+                    "[7.8 HIGH]",
+                ]
+            },
             candidate="CVE-2022-23222",
             crd=None,
             public_date_at_USN=datetime(
@@ -66,7 +61,7 @@ class TestUCTRecord(TestCase):
                 "of the availability of pointer arithmetic\nvia certain "
                 "*_OR_NULL pointer types."
             ),
-            discovered_by="tr3e wang",
+            discovered_by="",
             mitigation=(
                 "seth-arnold> set kernel.unprivileged_bpf_disabled to 1"
             ),
@@ -186,15 +181,12 @@ class TestUCTRecord(TestCase):
                 parent_dir="sampledata",
                 assigned_to="",
                 bugs=[""],
-                cvss=[
-                    CVSS(
-                        authority="nvd",
-                        vector_string=(
-                            "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H "
-                            "[9.8 CRITICAL]"
-                        ),
-                    ),
-                ],
+                cvss={
+                    "nvd": [
+                        "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H "
+                        "[9.8 CRITICAL]",
+                    ]
+                },
                 candidate="CVE-2023-32637",
                 crd=None,
                 public_date_at_USN=None,
@@ -326,15 +318,12 @@ class TestCVE(TestCaseWithFactory):
             parent_dir="active",
             assigned_to=assignee.name,
             bugs=["https://github.com/mm2/Little-CMS/issues/29"],
-            cvss=[
-                CVSS(
-                    authority="nvd",
-                    vector_string=(
-                        "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
-                        "[7.8 HIGH]"
-                    ),
-                ),
-            ],
+            cvss={
+                "nvd": [
+                    "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
+                    "[7.8 HIGH]",
+                ],
+            },
             candidate="CVE-2022-23222",
             crd=datetime(2020, 1, 14, 8, 15, tzinfo=timezone.utc),
             public_date_at_USN=datetime(
@@ -342,7 +331,7 @@ class TestCVE(TestCaseWithFactory):
             ),
             public_date=datetime(2022, 1, 14, 8, 15, tzinfo=timezone.utc),
             description="description",
-            discovered_by="tr3e wang",
+            discovered_by="",
             mitigation="mitigation",
             notes="author> text",
             priority=UCTRecord.Priority.CRITICAL,
@@ -546,22 +535,19 @@ class TestCVE(TestCaseWithFactory):
             importance_explanation="sample priority_explanation",
             status=VulnerabilityStatus.ACTIVE,
             assignee=assignee,
-            discovered_by="tr3e wang",
+            discovered_by="",
             description="description",
             ubuntu_description="ubuntu-description",
             bug_urls=["https://github.com/mm2/Little-CMS/issues/29"],
             references=["https://ubuntu.com/security/notices/USN-5368-1"],
             notes="author> text",
             mitigation="mitigation",
-            cvss=[
-                CVSS(
-                    authority="nvd",
-                    vector_string=(
-                        "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
-                        "[7.8 HIGH]"
-                    ),
-                ),
-            ],
+            cvss={
+                "nvd": [
+                    "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
+                    "[7.8 HIGH]",
+                ],
+            },
             patch_urls=[
                 CVE.PatchURL(
                     package_name=dsp1.sourcepackagename,
@@ -839,22 +825,19 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             importance=BugTaskImportance.MEDIUM,
             status=VulnerabilityStatus.ACTIVE,
             assignee=assignee,
-            discovered_by="tr3e wang",
+            discovered_by="",
             description="description",
             ubuntu_description="ubuntu-description",
             bug_urls=["https://github.com/mm2/Little-CMS/issues/29"],
             references=["https://ubuntu.com/security/notices/USN-5368-1"],
             notes="author> text",
             mitigation="mitigation",
-            cvss=[
-                CVSS(
-                    authority="nvd",
-                    vector_string=(
-                        "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
-                        "[7.8 HIGH]"
-                    ),
-                ),
-            ],
+            cvss={
+                "nvd": [
+                    "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
+                    "[7.8 HIGH]",
+                ],
+            },
             patch_urls=[
                 CVE.PatchURL(
                     package_name=self.ubuntu_package.sourcepackagename,
@@ -895,17 +878,14 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             bugs=["https://github.com/mm2/Little-CMS/issues/29"],
             candidate="CVE-2022-23222",
             crd=datetime(2020, 1, 14, 8, 15, tzinfo=timezone.utc),
-            cvss=[
-                CVSS(
-                    authority="nvd",
-                    vector_string=(
-                        "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
-                        "[7.8 HIGH]"
-                    ),
-                ),
-            ],
+            cvss={
+                "nvd": [
+                    "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
+                    "[7.8 HIGH]",
+                ]
+            },
             description="description",
-            discovered_by="tr3e wang",
+            discovered_by="",
             global_tags={"cisa-kev"},
             mitigation="mitigation",
             notes="author> text",
@@ -1237,18 +1217,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             vulnerability.date_coordinated_release,
         )
         self.assertEqual([bug], vulnerability.bugs)
-
-    def checkLaunchpadCve(self, lp_cve: CveModel, cve: CVE):
-        cvss = defaultdict(list)
-        for c in cve.cvss:
-            cvss[c.authority].append(c.vector_string)
-        cvss = dict(cvss)
-
-        self.assertDictEqual(
-            cvss,
-            lp_cve.cvss,
-        )
-        self.assertEqual(cve.discovered_by, lp_cve.discovered_by)
+        self.assertEqual(vulnerability.cvss, cve.cvss)
 
     def checkCVE(self, expected: CVE, actual: CVE):
         self.assertEqual(expected.sequence, actual.sequence)
@@ -1276,7 +1245,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.assertListEqual(expected.references, actual.references)
         self.assertEqual(expected.notes, actual.notes)
         self.assertEqual(expected.mitigation, actual.mitigation)
-        self.assertListEqual(expected.cvss, actual.cvss)
+        self.assertEqual(expected.cvss, actual.cvss)
         self.assertListEqual(expected.patch_urls, actual.patch_urls)
         self.assertListEqual(expected.break_fix_data, actual.break_fix_data)
         self.assertEqual(expected.global_tags, actual.global_tags)
@@ -1360,22 +1329,19 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             importance=BugTaskImportance.MEDIUM,
             status=VulnerabilityStatus.ACTIVE,
             assignee=self.factory.makePerson(),
-            discovered_by="tr3e wang",
+            discovered_by="",
             description="description",
             ubuntu_description="ubuntu-description",
             bug_urls=["https://github.com/mm2/Little-CMS/issues/29"],
             references=["https://ubuntu.com/security/notices/USN-5368-1"],
             notes="author> text",
             mitigation="mitigation",
-            cvss=[
-                CVSS(
-                    authority="nvd",
-                    vector_string=(
-                        "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
-                        "[7.8 HIGH]"
-                    ),
-                ),
-            ],
+            cvss={
+                "nvd": [
+                    "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
+                    "[7.8 HIGH]",
+                ],
+            },
             patch_urls=[],
             break_fix_data=[],
             global_tags={"cisa-kev"},
@@ -1705,7 +1671,6 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         self.assertIsNotNone(
             self.importer._find_existing_bug(self.lp_cve, self.ubuntu)
         )
-        self.checkLaunchpadCve(self.lp_cve, self.cve)
 
     def test_import_cve_dry_run(self):
         importer = UCTImporter(self.ubuntu, dry_run=True)

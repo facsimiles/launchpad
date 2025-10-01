@@ -205,9 +205,6 @@ class ICve(Interface):
     def removeReference(ref):
         """Remove a CveReference."""
 
-    def setCVSSVectorForAuthority(authority, vector_string):
-        """Set the CVSS vector string from an authority."""
-
     def getDistributionVulnerability(self, distribution):
         """Return the linked vulnerability for the given distribution."""
 

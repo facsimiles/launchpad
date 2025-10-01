@@ -15,7 +15,7 @@ from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.bugtask import BugTask
 from lp.bugs.model.vulnerability import Vulnerability
 from lp.bugs.scripts.svthandler import SVTExporter
-from lp.bugs.scripts.uct.models import CVE, CVSS, UCTRecord
+from lp.bugs.scripts.uct.models import CVE, UCTRecord
 from lp.bugs.scripts.uct.uctimport import UCTImporter
 from lp.registry.interfaces.distribution import IDistributionSet
 from lp.registry.interfaces.role import IPersonRoles
@@ -322,14 +322,7 @@ class UCTExporter(SVTExporter):
             references=parsed_description.references,
             notes=vulnerability.notes,
             mitigation=vulnerability.mitigation,
-            cvss=[
-                CVSS(
-                    authority=authority,
-                    vector_string=vector_string,
-                )
-                for authority in lp_cve.cvss
-                for vector_string in lp_cve.cvss[authority]
-            ],
+            cvss=vulnerability.cvss,
             global_tags=global_tags,
             patch_urls=patch_urls,
             break_fix_data=break_fix_data,
