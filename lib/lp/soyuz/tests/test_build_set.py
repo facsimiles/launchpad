@@ -649,6 +649,47 @@ class BuildRecordCreationTests(TestNativePublishingBase):
         new_builds = self.createBuilds(spr, self.distroseries)
         self.assertBuildsMatch({}, new_builds)
 
+    def test_createForSource_linux_any(self):
+        # createForSource with a hintlist of linux-any builds for all
+        # linux architectures.
+        spr = self.factory.makeSourcePackageRelease(
+            architecturehintlist="linux-any",
+        )
+        builds = self.createBuilds(spr, self.distroseries2)
+        self.assertBuildsMatch({"sparc": False, "x32": True}, builds)
+
+    def test_createForSource_linux_any_variant(self):
+        # createForSource with a hintlist of linux-any builds for
+        # variants as well.
+        spr = self.factory.makeSourcePackageRelease(
+            architecturehintlist="linux-any",
+        )
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries2,
+            architecturetag="x32v2",
+            underlying_architecturetag="x32",
+            add_proc_to_archive_processors=True,
+        )
+        builds = self.createBuilds(spr, self.distroseries2)
+        self.assertBuildsMatch(
+            {"sparc": False, "x32": True, "x32v2": False}, builds
+        )
+
+    def test_createForSource_variant(self):
+        # createForSource with a hintlist of a specfic architecture
+        # builds variants of that architecture too.
+        spr = self.factory.makeSourcePackageRelease(
+            architecturehintlist="x32",
+        )
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries2,
+            architecturetag="x32v2",
+            underlying_architecturetag="x32",
+            add_proc_to_archive_processors=True,
+        )
+        builds = self.createBuilds(spr, self.distroseries2)
+        self.assertBuildsMatch({"x32": True, "x32v2": False}, builds)
+
     def test_createForSource_honours_filters(self):
         # If there are DistroArchSeriesFilters for some architectures,
         # createForSource honours them.
