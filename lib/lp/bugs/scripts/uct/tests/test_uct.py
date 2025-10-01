@@ -743,6 +743,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         # Note: The ubuntu-esm distribution does not have any source packages
         # published.
 
+        assignee = self.factory.makePerson()
         self.lp_cve = self.factory.makeCVE("2022-23222")
         self.cve = CVE(
             sequence="CVE-2022-23222",
@@ -837,7 +838,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             ],
             importance=BugTaskImportance.MEDIUM,
             status=VulnerabilityStatus.ACTIVE,
-            assignee=self.factory.makePerson(),
+            assignee=assignee,
             discovered_by="tr3e wang",
             description="description",
             ubuntu_description="ubuntu-description",
@@ -888,6 +889,127 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             ],
             global_tags={"cisa-kev"},
         )
+
+        self.uct_record = UCTRecord(
+            assigned_to=assignee.name,
+            bugs=["https://github.com/mm2/Little-CMS/issues/29"],
+            candidate="CVE-2022-23222",
+            crd=datetime(2020, 1, 14, 8, 15, tzinfo=timezone.utc),
+            cvss=[
+                CVSS(
+                    authority="nvd",
+                    vector_string=(
+                        "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
+                        "[7.8 HIGH]"
+                    ),
+                ),
+            ],
+            description="description",
+            discovered_by="tr3e wang",
+            global_tags={"cisa-kev"},
+            mitigation="mitigation",
+            notes="author> text",
+            packages=[
+                UCTRecord.Package(
+                    name=self.ubuntu_package.sourcepackagename.name,
+                    statuses=[
+                        UCTRecord.SeriesPackageStatus(
+                            series="focal",
+                            status=UCTRecord.PackageStatus.RELEASED,
+                            reason="released",
+                            priority=UCTRecord.Priority.HIGH,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="jammy",
+                            status=UCTRecord.PackageStatus.DOES_NOT_EXIST,
+                            reason="does not exist",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="devel",
+                            status=UCTRecord.PackageStatus.NOT_AFFECTED,
+                            reason="not affected",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="upstream",
+                            status=UCTRecord.PackageStatus.RELEASED,
+                            reason="fix released",
+                            priority=UCTRecord.Priority.HIGH,
+                        ),
+                    ],
+                    priority=UCTRecord.Priority.LOW,
+                    tags={"review-break-fix"},
+                    patches=[
+                        UCTRecord.Patch(
+                            patch_type="upstream",
+                            entry=(
+                                "https://github.com/389ds/389-ds-base/commit/123 (1.4.4)"  # noqa: E501
+                            ),
+                        ),
+                        UCTRecord.Patch(
+                            patch_type="break-fix",
+                            entry=(
+                                "457f44363a8894135c85b7a9afd2bd8196db24ab "
+                                "c25b2ae136039ffa820c26138ed4a5e5f3ab3841|"
+                                "local-CVE-2022-23222-fix"
+                            ),
+                        ),
+                    ],
+                ),
+                UCTRecord.Package(
+                    name=self.esm_package.sourcepackagename.name,
+                    statuses=[
+                        UCTRecord.SeriesPackageStatus(
+                            series="precise/esm",
+                            status=UCTRecord.PackageStatus.IGNORED,
+                            reason="ignored",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="trusty/esm",
+                            status=UCTRecord.PackageStatus.NEEDS_TRIAGE,
+                            reason="needs triage",
+                            priority=None,
+                        ),
+                        UCTRecord.SeriesPackageStatus(
+                            series="upstream",
+                            status=UCTRecord.PackageStatus.IGNORED,
+                            reason="ignored",
+                            priority=UCTRecord.Priority.LOW,
+                        ),
+                    ],
+                    priority=None,
+                    tags={"universe-binary"},
+                    patches=[
+                        UCTRecord.Patch(
+                            patch_type="upstream",
+                            entry=(
+                                "https://github.com/389ds/389-ds-base/commit/456"  # noqa: E501
+                            ),
+                        ),
+                        UCTRecord.Patch(
+                            patch_type="break-fix",
+                            entry=(
+                                "457f44363a8894135c85b7a9afd2bd8196db24ab "
+                                "c25b2ae136039ffa820c26138ed4a5e5f3ab3841|"
+                                "local-CVE-2022-23222-fix"
+                            ),
+                        ),
+                    ],
+                ),
+            ],
+            parent_dir="active",
+            priority=UCTRecord.Priority.MEDIUM,
+            priority_explanation="",
+            public_date=datetime(2022, 1, 14, 8, 15, tzinfo=timezone.utc),
+            public_date_at_USN=datetime(
+                2021, 1, 14, 8, 15, tzinfo=timezone.utc
+            ),
+            references=["https://ubuntu.com/security/notices/USN-5368-1"],
+            ubuntu_description="ubuntu-description",
+        )
+
         self.importer = UCTImporter(self.ubuntu)
         self.exporter = UCTExporter()
 
@@ -1673,3 +1795,12 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         )
         self.assertEqual(bug, bug_copy)
         self.assertEqual(vulnerability, vulnerability_copy)
+
+    def test_exporter_to_record(self):
+        """Test to_record returns expected UCTRecord"""
+        bug, vulnerability = self.importer.import_cve(self.cve)
+
+        uct_record = self.exporter.to_record(bug, vulnerability)
+
+        self.assertListEqual(self.uct_record.packages, uct_record.packages)
+        self.assertDictEqual(self.uct_record.__dict__, uct_record.__dict__)
