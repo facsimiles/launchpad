@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from testtools.matchers import MatchesStructure
 from testtools.testcase import ExpectedException
 from zope.component import getUtility
+from zope.security.interfaces import Unauthorized
+from zope.security.management import checkPermission
 from zope.security.proxy import removeSecurityProxy
 
 from lp.app.enums import InformationType
@@ -152,6 +154,10 @@ class TestCve(TestCaseWithFactory):
     """Tests for Cve fields and methods."""
 
     layer = DatabaseFunctionalLayer
+
+    def setUp(self):
+        super().setUp()
+        self.cve = self.factory.makeCVE("2025-9999")
 
     def test_cveset_new_method_optional_parameters(self):
         cve = getUtility(ICveSet).new(
@@ -383,3 +389,51 @@ class TestCve(TestCaseWithFactory):
         # Admin can see the PROPRIETARY vulnerability
         with admin_logged_in():
             self.assertEqual(vulnerability, cve.vulnerabilities[0])
+
+    def test_cve_permissions_anonymous(self):
+        """Test that anonymous user cannot view, edit or delete."""
+        self.assertFalse(checkPermission("launchpad.View", self.cve))
+        self.assertFalse(checkPermission("launchpad.Edit", self.cve))
+        self.assertFalse(checkPermission("launchpad.Delete", self.cve))
+
+    def test_cve_permissions_authenticated(self):
+        """Test that logged in user can view but not edit or delete."""
+        person = self.factory.makePerson()
+
+        with person_logged_in(person):
+            self.assertTrue(checkPermission("launchpad.View", self.cve))
+            self.assertFalse(checkPermission("launchpad.Edit", self.cve))
+            self.assertFalse(checkPermission("launchpad.Delete", self.cve))
+
+    def test_cve_permissions_admin(self):
+        """Test that admin can view, edit and delete."""
+        with admin_logged_in():
+            self.assertTrue(checkPermission("launchpad.View", self.cve))
+            self.assertTrue(checkPermission("launchpad.Edit", self.cve))
+            self.assertTrue(checkPermission("launchpad.Delete", self.cve))
+
+    def test_cve_readonly(self):
+        """Test that app code cannot update Cve attributes, but
+        InternalScripts can."""
+        failure_regex = ".*InternalScriptsOnly"
+
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.sequence = "2099-9876"
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.status = CveStatus.DEPRECATED
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.description = "example"
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.datecreated = datetime.utcnow()
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.datemodified = datetime.utcnow()
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.references = []
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.date_made_public = datetime.utcnow()
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.discovered_by = "example person"
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve._cvss = {"example authority": ["example score"]}
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.metadata = {"meta": "data"}

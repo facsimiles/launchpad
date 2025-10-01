@@ -25,6 +25,7 @@ from lp.bugs.interfaces.bugtarget import IOfficialBugTagTargetRestricted
 from lp.bugs.interfaces.bugtask import IBugTaskDelete
 from lp.bugs.interfaces.bugtracker import IBugTracker
 from lp.bugs.interfaces.bugwatch import IBugWatch
+from lp.bugs.interfaces.cve import ICve
 from lp.bugs.interfaces.hasbug import IHasBug
 from lp.bugs.interfaces.structuralsubscription import IStructuralSubscription
 from lp.bugs.interfaces.vulnerability import IVulnerability
@@ -480,3 +481,30 @@ class BugTargetOwnerOrBugSupervisorOrAdmins(AuthorizationBase):
             or user.inTeam(self.obj.owner)
             or user.in_admin
         )
+
+
+class EditCve(DelegatedAuthorization):
+    """Only Admin users can edit Cves. InternalScripts will be also able to
+    edit as we are also using InternalScriptsOnly permission."""
+
+    permission = "launchpad.Edit"
+    usedfor = ICve
+
+    def checkUnauthenticated(self):
+        return False
+
+    def checkAuthenticated(self, user):
+        return user.in_admin
+
+
+class DeleteCve(DelegatedAuthorization):
+    """Only Admin users can delete Cves."""
+
+    permission = "launchpad.Delete"
+    usedfor = ICve
+
+    def checkUnauthenticated(self):
+        return False
+
+    def checkAuthenticated(self, user):
+        return user.in_admin

@@ -76,6 +76,7 @@ class CveLinkView(LaunchpadFormView):
 
     schema = ICve
     field_names = ["sequence"]
+    for_input = ["sequence"]
 
     def validate(self, data):
         sequence = data.get("sequence")

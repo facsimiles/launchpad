@@ -77,7 +77,7 @@ class ICve(Interface):
             title=_("CVE Sequence Number"),
             description=_("Should take the form XXXX-XXXX, all digits."),
             required=True,
-            readonly=False,
+            readonly=True,
             constraint=valid_cve_sequence,
         )
     )
@@ -92,6 +92,7 @@ class ICve(Interface):
                 "Candidate, or is deprecated."
             ),
             required=True,
+            readonly=True,
             vocabulary=CveStatus,
         )
     )
@@ -103,7 +104,7 @@ class ICve(Interface):
                 "updated regularly from the CVE database."
             ),
             required=True,
-            readonly=False,
+            readonly=True,
         )
     )
     datecreated = exported(
@@ -111,7 +112,7 @@ class ICve(Interface):
         exported_as="date_created",
     )
     datemodified = exported(
-        Datetime(title=_("Date Modified"), required=True, readonly=False),
+        Datetime(title=_("Date Modified"), required=True, readonly=True),
         exported_as="date_modified",
     )
     bugs = exported(
@@ -130,6 +131,7 @@ class ICve(Interface):
                 "Return a URL to the site that has the CVE "
                 "data for this CVE reference."
             ),
+            readonly=True,
         )
     )
     displayname = exported(
@@ -138,11 +140,16 @@ class ICve(Interface):
             description=_(
                 "A very brief name describing " "the ref and state."
             ),
+            readonly=True,
         ),
         exported_as="display_name",
     )
     title = exported(
-        TextLine(title=_("Title"), description=_("A title for the CVE"))
+        TextLine(
+            title=_("Title"),
+            description=_("A title for the CVE"),
+            readonly=True,
+        )
     )
     references = Attribute("The set of CVE References for this CVE.")
 
@@ -187,7 +194,7 @@ class ICve(Interface):
             key_type=Text(),
             value_type=Text(),
             required=False,
-            readonly=False,
+            readonly=True,
         ),
         as_of="devel",
     )
