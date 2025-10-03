@@ -123,6 +123,7 @@ class SOSSRecord(SVTRecord):
     description: Optional[str] = None
     cvss: Optional[List[CVSS]] = None
     public_date: Optional[datetime] = None
+    extra_attrs: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_str(cls, string: str) -> "SOSSRecord":
@@ -189,6 +190,7 @@ class SOSSRecord(SVTRecord):
             description=raw.get("Description"),
             cvss=cvss_list,
             public_date=public_date,
+            extra_attrs=raw.get("Extra_attrs"),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -215,6 +217,8 @@ class SOSSRecord(SVTRecord):
             serialized["PublicDate"] = self.public_date.isoformat(
                 sep="T", timespec="milliseconds"
             )
+        if self.extra_attrs:
+            serialized["Extra_attrs"] = self.extra_attrs
 
         return serialized
 

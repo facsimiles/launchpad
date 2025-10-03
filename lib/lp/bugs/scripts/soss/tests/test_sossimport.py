@@ -171,6 +171,13 @@ class TestSOSSImporter(TestCaseWithFactory):
             "sample note 2"
         )
 
+        self.metadata = {
+            "extra_attrs": {
+                "Custom_attr_1_nvd_score_arrivial_date": "2025-08-03",
+                "Custom_attr_2_assigned_time": "2025-08-10T11:22:33Z",
+            }
+        }
+
     def _check_bugtasks(
         self, bugtasks, bugtask_reference, importance, assignee
     ):
@@ -197,7 +204,7 @@ class TestSOSSImporter(TestCaseWithFactory):
 
         self._check_bugtasks(
             bug.bugtasks,
-            self.bugtask_reference,
+            bugtask_reference,
             BugTaskImportance.LOW,
             self.janitor,
         )
@@ -228,6 +235,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(vulnerability.cve, self.cve)
 
         self.assertEqual(vulnerability.cvss, self.cvss)
+        self.assertEqual(vulnerability.metadata, self.metadata)
 
         self.assertEqual(len(vulnerability.bugs), 1)
         self.assertEqual(vulnerability.bugs[0], bug)
@@ -483,3 +491,63 @@ class TestSOSSImporter(TestCaseWithFactory):
         user = self.factory.makePerson()
         self.assertEqual(soss_importer.checkUserPermissions(user), False)
         self.assertEqual(soss_importer.checkUserPermissions(self.owner), True)
+
+    def test_update_extra_attrs(self):
+        """Test updating an already existing extra_attrs field"""
+
+        soss_importer = SOSSImporter(self.soss)
+
+        bug = soss_importer._create_bug(self.soss_record, self.cve)
+        vulnerability = soss_importer._create_vulnerability(
+            self.soss_record, self.cve, self.soss
+        )
+        vulnerability.linkBug(bug, check_permissions=False)
+
+        self._check_vulnerability_fields(vulnerability, bug)
+
+        # Modify the soss_record and check that the field has changed
+        self.soss_record.extra_attrs = {"test_attr": "test_value"}
+
+        soss_importer = SOSSImporter(
+            self.soss, information_type=InformationType.PROPRIETARY
+        )
+        bug = soss_importer._update_bug(bug, self.soss_record, self.cve)
+        vulnerability = soss_importer._update_vulnerability(
+            vulnerability, self.soss_record
+        )
+        transaction.commit()
+
+        # Update the reference as well
+        self.metadata["extra_attrs"] = {"test_attr": "test_value"}
+
+        self._check_vulnerability_fields(vulnerability, bug)
+
+    def test_update_extra_attrs_with_no_value(self):
+        """Test putting an empty extra_attrs field when one already exists"""
+
+        soss_importer = SOSSImporter(self.soss)
+
+        bug = soss_importer._create_bug(self.soss_record, self.cve)
+        vulnerability = soss_importer._create_vulnerability(
+            self.soss_record, self.cve, self.soss
+        )
+        vulnerability.linkBug(bug, check_permissions=False)
+
+        self._check_vulnerability_fields(vulnerability, bug)
+
+        # Modify the soss_record and check that the metadata field has changed
+        self.soss_record.extra_attrs = None
+
+        soss_importer = SOSSImporter(
+            self.soss, information_type=InformationType.PROPRIETARY
+        )
+        bug = soss_importer._update_bug(bug, self.soss_record, self.cve)
+        vulnerability = soss_importer._update_vulnerability(
+            vulnerability, self.soss_record
+        )
+        transaction.commit()
+
+        # Update the reference as well
+        self.metadata = None
+
+        self._check_vulnerability_fields(vulnerability, bug)

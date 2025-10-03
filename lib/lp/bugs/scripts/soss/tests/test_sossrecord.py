@@ -141,6 +141,10 @@ class TestSOSSRecord(TestCase):
                 ),
             ],
             public_date=datetime.fromisoformat("2025-03-06T05:15:16.213"),
+            extra_attrs={
+                "Custom_attr_1_nvd_score_arrivial_date": "2025-08-03",
+                "Custom_attr_2_assigned_time": "2025-08-10T11:22:33Z",
+            },
         )
 
         self.soss_record_dict = {
@@ -265,6 +269,10 @@ class TestSOSSRecord(TestCase):
                 },
             ],
             "PublicDate": "2025-03-06T05:15:16.213",
+            "Extra_attrs": {
+                "Custom_attr_1_nvd_score_arrivial_date": "2025-08-03",
+                "Custom_attr_2_assigned_time": "2025-08-10T11:22:33Z",
+            },
         }
 
     def test_from_dict(self):
@@ -321,6 +329,17 @@ class TestSOSSRecord(TestCase):
 
         # Output is still the same
         soss_record = SOSSRecord.from_dict(self.soss_record_dict)
+        self.assertEqual(self.soss_record, soss_record)
+
+    def test_from_dict_no_extra_attrs(self):
+        """Ensure that without Extra_attrs in input, soss_record.extra_attrs
+        is None.
+        """
+        self.soss_record_dict.pop("Extra_attrs")
+
+        soss_record = SOSSRecord.from_dict(self.soss_record_dict)
+
+        self.soss_record.extra_attrs = None
         self.assertEqual(self.soss_record, soss_record)
 
     def test_from_yaml(self):

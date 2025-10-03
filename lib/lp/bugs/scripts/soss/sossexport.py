@@ -93,6 +93,23 @@ class SOSSExporter(SVTExporter):
                 )
         return cvss_list
 
+    def _get_extra_attrs(self, vulnerability: Vulnerability) -> Optional[Dict]:
+        """Get the extra_attrs dict from vulnerability metadata if it exists"""
+
+        if isinstance(vulnerability.metadata, dict):
+            extra_attrs = vulnerability.metadata.get("extra_attrs")
+
+            # Ensure extra_attrs is a sorted dict (since the database doesn't
+            # guarantee order)
+            if isinstance(extra_attrs, dict):
+                extra_attrs = dict(
+                    sorted(extra_attrs.items(), key=lambda item: item[0])
+                )
+
+            return extra_attrs
+
+        return None
+
     def to_record(
         self,
         lp_cve: CveModel,
@@ -115,6 +132,9 @@ class SOSSExporter(SVTExporter):
             bug.bugtasks[0].assignee.name if bug.bugtasks[0].assignee else ""
         )
 
+        # Parse vulnerability.metadata["extra_attrs"]
+        extra_attrs = self._get_extra_attrs(vulnerability)
+
         # Parse vulnerability
         public_date = self._normalize_date_without_timezone(
             vulnerability.date_made_public
@@ -135,6 +155,7 @@ class SOSSExporter(SVTExporter):
             description=vulnerability.description,
             cvss=self._get_cvss(vulnerability.cvss),
             public_date=public_date,
+            extra_attrs=extra_attrs,
         )
 
     def _format_notes(self, notes: str) -> List[Union[Dict, str]]:
