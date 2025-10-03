@@ -7,6 +7,8 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
+from zope.component import getUtility
+
 from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.bugtask import BugTask
 from lp.bugs.model.vulnerability import Vulnerability
@@ -17,6 +19,7 @@ from lp.bugs.scripts.soss.sossimport import (
     PRIORITY_ENUM_MAP,
 )
 from lp.bugs.scripts.svthandler import SVTExporter
+from lp.registry.interfaces.distribution import IDistributionSet
 from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.security import SecurityAdminDistribution
 
@@ -167,7 +170,10 @@ class SOSSExporter(SVTExporter):
             return date_obj.replace(tzinfo=None)
         return date_obj
 
-    def checkUserPermissions(self, user, distribution):
-        return SecurityAdminDistribution(distribution).checkAuthenticated(
+    def checkUserPermissions(self, user):
+        """Only users with security admin permissions to SOSS can use
+        this handler"""
+        soss = getUtility(IDistributionSet).getByName("soss")
+        return SecurityAdminDistribution(soss).checkAuthenticated(
             IPersonRoles(user)
         )

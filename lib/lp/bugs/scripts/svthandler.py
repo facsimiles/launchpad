@@ -35,7 +35,7 @@ class SVTImporter:
         """Import a SVTRecord creating a bug and a vulnerability."""
         raise NotImplementedError()
 
-    def checkUserPermissions(user):
+    def checkUserPermissions(self, user):
         """Checks if the user has permissions to use this handler."""
         raise NotImplementedError()
 
@@ -50,6 +50,6 @@ class SVTExporter:
         and return a SVTRecord."""
         raise NotImplementedError()
 
-    def checkUserPermissions(self, user, distribution):
+    def checkUserPermissions(self, user):
         """Checks if the user has permissions to use this handler."""
         raise NotImplementedError()

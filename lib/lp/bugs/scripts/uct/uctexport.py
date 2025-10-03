@@ -17,6 +17,7 @@ from lp.bugs.model.vulnerability import Vulnerability
 from lp.bugs.scripts.svthandler import SVTExporter
 from lp.bugs.scripts.uct.models import CVE, CVSS, UCTRecord
 from lp.bugs.scripts.uct.uctimport import UCTImporter
+from lp.registry.interfaces.distribution import IDistributionSet
 from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.interfaces.sourcepackagename import ISourcePackageNameSet
 from lp.registry.model.distributionsourcepackage import (
@@ -66,8 +67,11 @@ class UCTExporter(SVTExporter):
         cve = self._import_cve(bug, vulnerability)
         return cve.to_uct_record()
 
-    def checkUserPermissions(self, user, distribution):
-        return SecurityAdminDistribution(distribution).checkAuthenticated(
+    def checkUserPermissions(self, user):
+        """Only users with security admin permissions to Ubuntu can use
+        this handler"""
+        ubuntu = getUtility(IDistributionSet).getByName("ubuntu")
+        return SecurityAdminDistribution(ubuntu).checkAuthenticated(
             IPersonRoles(user)
         )
 
