@@ -1586,14 +1586,24 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
         # Create builds for the remaining architectures.
         new_builds = []
         for das in sorted(need_archs, key=attrgetter("architecturetag")):
-            if das.architecturetag not in create_tag_map:
+            archtag = (
+                das.underlying_architecturetag
+                if das.underlying_architecturetag is not None
+                else das.architecturetag
+            )
+            if archtag not in create_tag_map:
                 continue
+            indep = (
+                False
+                if das.underlying_architecturetag is not None
+                else create_tag_map[das.architecturetag]
+            )
             build = self.new(
                 source_package_release=sourcepackagerelease,
                 distro_arch_series=das,
                 archive=archive,
                 pocket=pocket,
-                arch_indep=create_tag_map[das.architecturetag],
+                arch_indep=indep,
             )
             new_builds.append(build)
             # Create the builds in suspended mode for disabled archives.
