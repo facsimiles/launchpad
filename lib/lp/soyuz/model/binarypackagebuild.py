@@ -1571,6 +1571,12 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
             else None
         )
 
+        def abi_tag(das):
+            if das.underlying_architecturetag is not None:
+                return das.underlying_architecturetag
+            else:
+                return das.architecturetag
+
         # Filter the valid archs against the hint list and work out
         # their arch-indepness.
         create_tag_map = determine_architectures_to_build(
@@ -1578,7 +1584,7 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
             sourcepackagerelease.getUserDefinedField(
                 "Build-Indep-Architecture"
             ),
-            [das.architecturetag for das in need_archs],
+            [abi_tag(das) for das in need_archs],
             nominated_arch_indep_tag,
             need_arch_indep,
         )
@@ -1586,11 +1592,7 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
         # Create builds for the remaining architectures.
         new_builds = []
         for das in sorted(need_archs, key=attrgetter("architecturetag")):
-            archtag = (
-                das.underlying_architecturetag
-                if das.underlying_architecturetag is not None
-                else das.architecturetag
-            )
+            archtag = abi_tag(das)
             if archtag not in create_tag_map:
                 continue
             indep = (
