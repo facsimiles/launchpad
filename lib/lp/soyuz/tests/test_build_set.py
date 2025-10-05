@@ -681,14 +681,44 @@ class BuildRecordCreationTests(TestNativePublishingBase):
         spr = self.factory.makeSourcePackageRelease(
             architecturehintlist="x32",
         )
+        x32v2 = self.factory.makeProcessor(
+            name="x32v2", supports_virtualized=True
+        )
         self.factory.makeBuildableDistroArchSeries(
             distroseries=self.distroseries2,
             architecturetag="x32v2",
+            processor=x32v2,
             underlying_architecturetag="x32",
-            add_proc_to_archive_processors=True,
         )
         builds = self.createBuilds(spr, self.distroseries2)
         self.assertBuildsMatch({"x32": True, "x32v2": False}, builds)
+
+    def test_createForSource_variant_created_later(self):
+        # createForSource with a hintlist of a specfic architecture
+        # builds variants of that architecture too, even if the
+        # variant was created after the initial builds.
+        spr = self.factory.makeSourcePackageRelease(
+            architecturehintlist="x32",
+        )
+        builds = self.createBuilds(spr, self.distroseries2)
+        self.assertBuildsMatch({"x32": True}, builds)
+        x32v2 = self.factory.makeProcessor(
+            name="x32v2", supports_virtualized=True
+        )
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries2,
+            architecturetag="x32v2",
+            processor=x32v2,
+            underlying_architecturetag="x32",
+        )
+        self.archive.setProcessors(self.archive.processors + [x32v2])
+        builds = getUtility(IBinaryPackageBuildSet).createForSource(
+            spr,
+            self.archive,
+            self.distroseries2,
+            PackagePublishingPocket.RELEASE,
+        )
+        self.assertBuildsMatch({"x32v2": False}, builds)
 
     def test_createForSource_honours_filters(self):
         # If there are DistroArchSeriesFilters for some architectures,
