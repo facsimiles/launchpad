@@ -1592,8 +1592,7 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
         # Create builds for the remaining architectures.
         new_builds = []
         for das in sorted(need_archs, key=attrgetter("architecturetag")):
-            archtag = abi_tag(das)
-            if archtag not in create_tag_map:
+            if abi_tag(das) not in create_tag_map:
                 continue
             indep = (
                 False

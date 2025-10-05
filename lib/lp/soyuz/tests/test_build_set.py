@@ -682,7 +682,9 @@ class BuildRecordCreationTests(TestNativePublishingBase):
             architecturehintlist="x32",
         )
         x32v2 = self.factory.makeProcessor(
-            name="x32v2", supports_virtualized=True
+            name="x32v2",
+            supports_virtualized=True,
+            build_by_default=True,
         )
         self.factory.makeBuildableDistroArchSeries(
             distroseries=self.distroseries2,
@@ -690,8 +692,36 @@ class BuildRecordCreationTests(TestNativePublishingBase):
             processor=x32v2,
             underlying_architecturetag="x32",
         )
+        # self.archive is not created until we call createBuilds and
+        # has all processors with "build_by_default" set enabled,
+        # which is why x32v2 is built here.
         builds = self.createBuilds(spr, self.distroseries2)
         self.assertBuildsMatch({"x32": True, "x32v2": False}, builds)
+
+    def test_createForSource_variant_not_enabled(self):
+        # createForSource with a hintlist of a specfic architecture
+        # does not built variants of that architecture if they are not
+        # enabled for the archive.
+        spr = self.factory.makeSourcePackageRelease(
+            architecturehintlist="x32",
+        )
+        x32v2 = self.factory.makeProcessor(
+            name="x32v2",
+            supports_virtualized=True,
+            build_by_default=False,
+        )
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries2,
+            architecturetag="x32v2",
+            processor=x32v2,
+            underlying_architecturetag="x32",
+        )
+        # As in test_createForSource_variant self.archive gets all
+        # processors with build_by_default set enabled, so as x32v2
+        # does not have that flag set in this test, it is not enabled
+        # and so not built.
+        builds = self.createBuilds(spr, self.distroseries2)
+        self.assertBuildsMatch({"x32": True}, builds)
 
     def test_createForSource_variant_created_later(self):
         # createForSource with a hintlist of a specfic architecture
