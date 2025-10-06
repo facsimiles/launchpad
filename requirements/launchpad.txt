@@ -185,7 +185,7 @@ toml==0.10.2
 transaction==3.0.1
 treq==18.6.0
 # lp:~launchpad/twisted:lp-backport
-Twisted==20.3.0+lp9
+Twisted==20.3.0+lp10
 # Python 3.8 and twisted 20.3.0+lp9
 txfixtures==0.4.3
 # Python 3.10+ and twisted 24.11
