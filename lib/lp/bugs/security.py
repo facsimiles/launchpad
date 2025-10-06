@@ -17,6 +17,7 @@ from lp.bugs.interfaces.bug import IBug
 from lp.bugs.interfaces.bugactivity import IBugActivity
 from lp.bugs.interfaces.bugattachment import IBugAttachment
 from lp.bugs.interfaces.bugnomination import IBugNomination
+from lp.bugs.interfaces.bugpresence import IBugPresence
 from lp.bugs.interfaces.bugsubscription import IBugSubscription
 from lp.bugs.interfaces.bugsubscriptionfilter import IBugSubscriptionFilter
 from lp.bugs.interfaces.bugsupervisor import IHasBugSupervisor
@@ -304,6 +305,32 @@ class EditBugAttachment(AuthorizationBase):
             or user.inTeam(self.obj.message.owner)
             or _has_any_bug_role(user, self.obj.bug.bugtasks)
         )
+
+    def checkUnauthenticated(self):
+        return False
+
+
+class ViewBugPresence(DelegatedAuthorization):
+    """Security adapter for viewing a bug presence.
+
+    Anyone with permission to see the bug, can see its presence
+    """
+
+    permission = "launchpad.View"
+    usedfor = IBugPresence
+
+    def __init__(self, bugpresence):
+        super().__init__(bugpresence, bugpresence.bug, "launchpad.View")
+
+
+class DeleteBugPresence(DelegatedAuthorization):
+    """Security adapter for deleting a bug presence."""
+
+    permission = "launchpad.Delete"
+    usedfor = IBugPresence
+
+    def checkAuthenticated(self, user):
+        return user.in_admin
 
     def checkUnauthenticated(self):
         return False

@@ -7,7 +7,7 @@ __all__ = [
     "IBugPresence",
     "IBugPresenceSet",
 ]
-
+from lazr.restful.declarations import exported
 from zope.interface import Interface
 from zope.schema import Dict, Int
 
@@ -19,12 +19,14 @@ class IBugPresence(Interface):
     """A single `BugPresence` database entry."""
 
     id = Int(title=_("ID"), required=True, readonly=True)
-    bug = BugField(title=_("Bug"), readonly=True)
-    product = Int(title=_("Product"))
-    distribution = Int(title=_("Distribution"))
-    source_package_name = Int(title=_("Source Package Name"))
-    git_repository = Int(title=_("Git Repository"))
-    break_fix_data = Dict(title=_("Break-Fix"))
+    bug = exported(BugField(title=_("Bug"), readonly=True))
+    product = exported(Int(title=_("Product"), readonly=True))
+    distribution = exported(Int(title=_("Distribution"), readonly=True))
+    source_package_name = exported(
+        Int(title=_("Source Package Name"), readonly=True)
+    )
+    git_repository = exported(Int(title=_("Git Repository"), readonly=True))
+    break_fix_data = exported(Dict(title=_("Break-Fix"), readonly=True))
 
     def destroySelf(self):
         """Destroy this `IBugPresence` object."""
