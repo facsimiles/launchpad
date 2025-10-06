@@ -13,17 +13,20 @@ from lp.bugs.interfaces.bug import IBugSet
 from lp.bugs.interfaces.bugattachment import BugAttachmentType
 from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.bugtask import BugTask
-from lp.bugs.model.cve import Cve as CveModel
 from lp.bugs.model.vulnerability import Vulnerability
 from lp.bugs.scripts.svthandler import SVTExporter
-from lp.bugs.scripts.uct.models import CVE, CVSS
+from lp.bugs.scripts.uct.models import CVE, CVSS, UCTRecord
 from lp.bugs.scripts.uct.uctimport import UCTImporter
+from lp.registry.interfaces.distribution import IDistributionSet
+from lp.registry.interfaces.role import IPersonRoles
+from lp.registry.interfaces.sourcepackagename import ISourcePackageNameSet
 from lp.registry.model.distributionsourcepackage import (
     DistributionSourcePackage,
 )
 from lp.registry.model.product import Product
 from lp.registry.model.sourcepackage import SourcePackage
 from lp.registry.model.sourcepackagename import SourcePackageName
+from lp.registry.security import SecurityAdminDistribution
 
 __all__ = [
     "UCTExporter",
@@ -42,6 +45,35 @@ class UCTExporter(SVTExporter):
     class ParsedDescription(NamedTuple):
         description: str
         references: List[str]
+
+    def to_record(
+        self,
+        bug: BugModel,
+        vulnerability: Vulnerability,
+    ) -> UCTRecord:
+        """
+        Export the bug and vulnerability related to a cve in a distribution
+        and return a `UCTRecord` instance.
+
+        :param bug: `Bug` model
+        :param vulnerability: `Vulnerability` model
+        :return: `UCTRecord` instance
+        """
+        if bug is None:
+            raise ValueError("Bug can't be None")
+        if vulnerability is None:
+            raise ValueError("Vulnerability can't be None")
+
+        cve = self._import_cve(bug, vulnerability)
+        return cve.to_uct_record()
+
+    def checkUserPermissions(self, user):
+        """Only users with security admin permissions to Ubuntu can use
+        this handler"""
+        ubuntu = getUtility(IDistributionSet).getByName("ubuntu")
+        return SecurityAdminDistribution(ubuntu).checkAuthenticated(
+            IPersonRoles(user)
+        )
 
     def export_bug_to_uct_file(
         self, bug_id: int, output_dir: Path
@@ -85,13 +117,35 @@ class UCTExporter(SVTExporter):
             raise ValueError(
                 f"Bug with ID: {bug.id} does not have vulnerabilities"
             )
+
         vulnerability: Vulnerability = vulnerabilities[0]
         if not vulnerability.cve:
             raise ValueError(
                 "Bug with ID: {} - vulnerability "
                 "is not linked to a CVE".format(bug.id)
             )
-        lp_cve: CveModel = vulnerability.cve
+
+        return self._import_cve(bug, vulnerability)
+
+    def _import_cve(
+        self,
+        bug: BugModel,
+        vulnerability: Vulnerability,
+    ) -> CVE:
+        """
+        Create a `CVE` instances from a `Bug` model and the related
+        Vulnerabilities and `Cve`.
+
+        `BugTasks` are converted to `CVE.DistroPackage` and `CVE.SeriesPackage`
+        objects.
+
+        Other `CVE` fields are populated from the information contained in the
+        `Bug`, its related Vulnerabilities and LP `Cve` model.
+
+        :param bug: `Bug` model to import
+        :param vulnerability: `Vulnerability` model
+        :return: `CVE` instance
+        """
 
         parsed_description = self._parse_bug_description(bug.description)
 
@@ -207,9 +261,6 @@ class UCTExporter(SVTExporter):
                 )
             )
 
-        packages_by_name = {
-            p.name: p for p in package_name_by_product.values()
-        }
         patch_urls = []
         for attachment in bug.attachments:
             if attachment.url:
@@ -226,10 +277,13 @@ class UCTExporter(SVTExporter):
             ):
                 continue
 
+            package_name = getUtility(ISourcePackageNameSet).queryByName(
+                attachment.title
+            )
             for patch in attachment.vulnerability_patches:
                 patch_urls.append(
                     CVE.PatchURL(
-                        package_name=packages_by_name.get(attachment.title),
+                        package_name=package_name,
                         type=patch["name"],
                         url=patch["value"],
                         notes=patch["comment"],
@@ -246,6 +300,8 @@ class UCTExporter(SVTExporter):
                         fixed=break_fix.get("fix"),
                     )
                 )
+
+        lp_cve = vulnerability.cve
 
         return CVE(
             sequence=f"CVE-{lp_cve.sequence}",
