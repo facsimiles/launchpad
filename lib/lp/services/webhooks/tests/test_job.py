@@ -438,6 +438,17 @@ class TestWebhookDeliveryJob(TestCaseWithFactory):
             repr(job),
         )
 
+    def test_archive__repr__(self):
+        # `WebhookDeliveryJob` objects for archives have an informative
+        # __repr__.
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(target=archive)
+        job = WebhookDeliveryJob.create(hook, "test", payload={"foo": "bar"})
+        self.assertEqual(
+            "<WebhookDeliveryJob for webhook %d on %r>" % (hook.id, archive),
+            repr(job),
+        )
+
     def test_short_lease_and_timeout(self):
         # Webhook jobs have a request timeout of 30 seconds, a celery
         # timeout of 45 seconds, and a lease of 60 seconds, to give

@@ -110,6 +110,7 @@ from lp.services.fields import (
     PublicPersonChoice,
     StrippedTextLine,
 )
+from lp.services.webhooks.interfaces import IWebhookTarget
 from lp.soyuz.enums import (
     ArchivePublishingMethod,
     ArchivePurpose,
@@ -2285,7 +2286,7 @@ class IArchiveAppend(Interface):
         """
 
 
-class IArchiveEdit(Interface):
+class IArchiveEdit(IWebhookTarget):
     """Archive interface for operations restricted by edit privilege."""
 
     @operation_parameters(

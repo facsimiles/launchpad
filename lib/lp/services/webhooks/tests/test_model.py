@@ -562,6 +562,16 @@ class TestWebhookSetCharmRecipe(TestWebhookSetBase, TestCaseWithFactory):
             )
 
 
+class TestWebhookSetArchive(TestWebhookSetBase, TestCaseWithFactory):
+    event_type = "archive:source-package-upload:0.1"
+
+    def makeTarget(self, owner=None, **kwargs):
+        if owner is None:
+            owner = self.factory.makePerson()
+
+        return self.factory.makeArchive(name="test-archive", **kwargs)
+
+
 class TestWebhookSetCraftRecipe(TestWebhookSetBase, TestCaseWithFactory):
     event_type = "craft-recipe:build:0.1"
 

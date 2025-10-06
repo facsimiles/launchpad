@@ -99,6 +99,7 @@ from lp.services.webapp.escaping import structured
 from lp.services.webapp.interfaces import ICanonicalUrlData, IStructuredString
 from lp.services.webapp.menu import NavigationMenu
 from lp.services.webapp.publisher import RedirectionView
+from lp.services.webhooks.browser import WebhookTargetNavigationMixin
 from lp.services.worlddata.interfaces.country import ICountrySet
 from lp.soyuz.adapters.archivedependencies import (
     default_component_dependency_name,
@@ -216,7 +217,9 @@ class PPAURL:
         )
 
 
-class ArchiveNavigation(Navigation, FileNavigationMixin):
+class ArchiveNavigation(
+    WebhookTargetNavigationMixin, Navigation, FileNavigationMixin
+):
     """Navigation methods for IArchive."""
 
     usedfor = IArchive
