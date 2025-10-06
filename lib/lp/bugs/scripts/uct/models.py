@@ -50,16 +50,10 @@ from lp.services.propertycache import cachedproperty
 
 __all__ = [
     "CVE",
-    "CVSS",
     "UCTRecord",
 ]
 
 logger = logging.getLogger(__name__)
-
-
-class CVSS(NamedTuple):
-    authority: str
-    vector_string: str
 
 
 @dataclass
@@ -110,7 +104,7 @@ class UCTRecord(SVTRecord):
     parent_dir: str
     assigned_to: str
     bugs: List[str]
-    cvss: List[CVSS]
+    cvss: dict
     candidate: str
     crd: Optional[datetime]
     public_date: Optional[datetime]
@@ -219,18 +213,17 @@ class UCTRecord(SVTRecord):
         if public_date_at_USN == "unknown":
             public_date_at_USN = None
 
-        cvss = []
-        for cvss_dict in cls._pop_cve_property(cve_data, "CVSS"):
-            cvss.append(
-                CVSS(
-                    authority=cvss_dict["source"],
-                    vector_string="{} [{} {}]".format(
-                        cvss_dict["vector"],
-                        cvss_dict["baseScore"],
-                        cvss_dict["baseSeverity"],
-                    ),
+        cvss = defaultdict(list)
+        for c in cls._pop_cve_property(cve_data, "CVSS"):
+            authority = c["source"]
+            cvss[authority].append(
+                "{} [{} {}]".format(
+                    c["vector"],
+                    c["baseScore"],
+                    c["baseSeverity"],
                 )
             )
+        cvss = dict(cvss)
 
         _priority = cls._pop_cve_property(cve_data, "Priority").split("\n")
 
@@ -314,8 +307,9 @@ class UCTRecord(SVTRecord):
         self._write_field(
             "CVSS",
             [
-                "{authority}: {vector_string}".format(**c._asdict())
-                for c in self.cvss
+                f"{authority}: {v}"
+                for authority, vectors in self.cvss.items()
+                for v in vectors
             ],
             output,
         )
@@ -526,7 +520,7 @@ class CVE:
         references: List[str],
         notes: str,
         mitigation: str,
-        cvss: List[CVSS],
+        cvss: dict,
         global_tags: Set[str],
         break_fix_data: List[BreakFix],
         patch_urls: Optional[List[PatchURL]] = None,

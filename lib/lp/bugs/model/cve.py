@@ -7,7 +7,6 @@ __all__ = [
 ]
 
 import operator
-from collections import defaultdict
 from datetime import timezone
 
 from storm.databases.postgres import JSON
@@ -63,6 +62,7 @@ class Cve(StormBase, BugLinkTargetMixin):
     date_made_public = DateTime(tzinfo=timezone.utc, allow_none=True)
     discovered_by = Unicode(allow_none=True)
     _cvss = JSON(name="cvss", allow_none=True)
+    metadata = JSON(name="metadata", allow_none=True)
 
     @property
     def cvss(self):
@@ -81,6 +81,7 @@ class Cve(StormBase, BugLinkTargetMixin):
         date_made_public=None,
         discovered_by=None,
         cvss=None,
+        metadata=None,
     ):
         super().__init__()
         self.sequence = sequence
@@ -174,13 +175,6 @@ class Cve(StormBase, BugLinkTargetMixin):
         getUtility(IXRefSet).delete(
             {("cve", self.sequence): [("bug", str(bug.id))]}
         )
-
-    def setCVSSVectorForAuthority(self, cvss):
-        """See ICveReference."""
-        self._cvss = defaultdict(list)
-        for c in cvss:
-            self._cvss[c.authority].append(c.vector_string)
-        self._cvss = dict(self._cvss)
 
 
 @implementer(ICveSet)

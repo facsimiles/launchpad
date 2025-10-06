@@ -8,12 +8,13 @@ from datetime import datetime, timezone
 from testtools.matchers import MatchesStructure
 from testtools.testcase import ExpectedException
 from zope.component import getUtility
+from zope.security.interfaces import ForbiddenAttribute, Unauthorized
+from zope.security.management import checkPermission
 from zope.security.proxy import removeSecurityProxy
 
 from lp.app.enums import InformationType
 from lp.bugs.interfaces.bugtasksearch import BugTaskSearchParams
 from lp.bugs.interfaces.cve import CveStatus, ICveSet
-from lp.bugs.scripts.uct.models import CVSS
 from lp.testing import (
     TestCaseWithFactory,
     admin_logged_in,
@@ -153,6 +154,10 @@ class TestCve(TestCaseWithFactory):
 
     layer = DatabaseFunctionalLayer
 
+    def setUp(self):
+        super().setUp()
+        self.cve = self.factory.makeCVE("2025-9999")
+
     def test_cveset_new_method_optional_parameters(self):
         cve = getUtility(ICveSet).new(
             sequence="2099-1234",
@@ -232,134 +237,6 @@ class TestCve(TestCaseWithFactory):
         self.assertIsNone(cve._cvss)
         self.assertEqual({}, cve.cvss)
 
-    def test_setCVSSVectorForAuthority_initially_unset(self):
-        cve = self.factory.makeCVE(
-            sequence="2099-1234",
-            description="A critical vulnerability",
-            cvestate=CveStatus.CANDIDATE,
-        )
-        unproxied_cve = removeSecurityProxy(cve)
-        self.assertIsNone(unproxied_cve._cvss)
-        self.assertEqual({}, unproxied_cve.cvss)
-
-        cve.setCVSSVectorForAuthority(
-            [
-                CVSS(
-                    authority="nvd",
-                    vector_string=(
-                        "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-                    ),
-                ),
-            ]
-        )
-
-        self.assertEqual(
-            {"nvd": ["CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"]},
-            unproxied_cve.cvss,
-        )
-
-    def test_setCVSSVectorForAuthority_overwrite_existing_key_value(self):
-        cve = self.factory.makeCVE(
-            sequence="2099-1234",
-            description="A critical vulnerability",
-            cvestate=CveStatus.CANDIDATE,
-            cvss={"nvd": ["CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"]},
-        )
-        unproxied_cve = removeSecurityProxy(cve)
-        self.assertEqual(
-            {"nvd": ["CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"]},
-            unproxied_cve.cvss,
-        )
-
-        cve.setCVSSVectorForAuthority(
-            [
-                CVSS(
-                    authority="nvd",
-                    vector_string=(
-                        "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
-                    ),
-                )
-            ]
-        )
-
-        self.assertEqual(
-            {"nvd": ["CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"]},
-            unproxied_cve.cvss,
-        )
-
-    def test_setCVSSVectorForAuthority_add_new_when_initial_value_set(self):
-        """Checks that we override CVSS although its not the same authority"""
-        cve = self.factory.makeCVE(
-            sequence="2099-1234",
-            description="A critical vulnerability",
-            cvestate=CveStatus.CANDIDATE,
-            cvss={"nvd": ["CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"]},
-        )
-        unproxied_cve = removeSecurityProxy(cve)
-        self.assertEqual(
-            {"nvd": ["CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"]},
-            unproxied_cve.cvss,
-        )
-
-        cve.setCVSSVectorForAuthority(
-            [
-                CVSS(
-                    authority="nist",
-                    vector_string=(
-                        "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
-                    ),
-                ),
-            ]
-        )
-
-        self.assertEqual(
-            {
-                "nist": ["CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"],
-            },
-            unproxied_cve.cvss,
-        )
-
-    def test_setCVSSVectorForAuthority_remove_one_when_initial_value_set(self):
-        cve = self.factory.makeCVE(
-            sequence="2099-1234",
-            description="A critical vulnerability",
-            cvestate=CveStatus.CANDIDATE,
-            cvss={
-                "nvd": [
-                    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
-                    "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
-                ]
-            },
-        )
-        unproxied_cve = removeSecurityProxy(cve)
-        self.assertEqual(
-            {
-                "nvd": [
-                    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
-                    "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
-                ]
-            },
-            unproxied_cve.cvss,
-        )
-
-        cve.setCVSSVectorForAuthority(
-            [
-                CVSS(
-                    authority="nvd",
-                    vector_string=(
-                        "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-                    ),
-                ),
-            ]
-        )
-
-        self.assertEqual(
-            {
-                "nvd": ["CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"],
-            },
-            unproxied_cve.cvss,
-        )
-
     def test_getDistributionVulnerability(self):
         cve = self.factory.makeCVE(sequence="2099-1234")
         distribution = self.factory.makeDistribution(
@@ -383,3 +260,53 @@ class TestCve(TestCaseWithFactory):
         # Admin can see the PROPRIETARY vulnerability
         with admin_logged_in():
             self.assertEqual(vulnerability, cve.vulnerabilities[0])
+
+    def test_cve_permissions_anonymous(self):
+        """Test that anonymous user cannot view, edit or delete."""
+        self.assertFalse(checkPermission("launchpad.View", self.cve))
+        self.assertFalse(checkPermission("launchpad.Edit", self.cve))
+        self.assertFalse(checkPermission("launchpad.Delete", self.cve))
+
+    def test_cve_permissions_authenticated(self):
+        """Test that logged in user can view but not edit or delete."""
+        with person_logged_in(self.factory.makePerson()):
+            self.assertTrue(checkPermission("launchpad.View", self.cve))
+            self.assertFalse(checkPermission("launchpad.Edit", self.cve))
+            self.assertFalse(checkPermission("launchpad.Delete", self.cve))
+
+    def test_cve_permissions_admin(self):
+        """Test that admin can view but not edit or delete."""
+        with admin_logged_in():
+            self.assertTrue(checkPermission("launchpad.View", self.cve))
+            self.assertFalse(checkPermission("launchpad.Edit", self.cve))
+            self.assertFalse(checkPermission("launchpad.Delete", self.cve))
+
+    def test_cve_readonly(self):
+        """Test that app code cannot update Cve attributes, but
+        InternalScripts can."""
+        failure_regex = ".*InternalScriptsOnly"
+
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.sequence = "2099-9876"
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.status = CveStatus.DEPRECATED
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.description = "example"
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.datecreated = datetime.utcnow()
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.datemodified = datetime.utcnow()
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.references = []
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.date_made_public = datetime.utcnow()
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.discovered_by = "example person"
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.cvss = {"example authority": ["example score"]}
+        with ExpectedException(Unauthorized, failure_regex):
+            self.cve.metadata = {"meta": "data"}
+
+        # It is forbidden to use cve._cvss
+        with ExpectedException(ForbiddenAttribute):
+            self.cve._cvss = {"example authority": ["example score"]}

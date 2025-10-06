@@ -701,6 +701,9 @@ class CVEUpdater(LaunchpadCronScript):
             self.logger.debug(f"No description for CVE-{sequence}")
             return
 
+        # get affected information
+        affected = cna_data.get("affected", {})
+
         # find or create CVE entry
         cveset = getUtility(ICveSet)
         cve = cveset[sequence]
@@ -717,6 +720,13 @@ class CVEUpdater(LaunchpadCronScript):
 
         # handle references
         if self._handle_json_references(cna_data.get("references", []), cve):
+            modified = True
+
+        # handle affected
+        metadata = cve.metadata or {}
+        if metadata.get("affected", {}) != affected:
+            metadata["affected"] = affected
+            cve.metadata = metadata
             modified = True
 
         if modified:

@@ -594,6 +594,19 @@
             <require
                 permission="launchpad.AnyPerson"
                 set_schema="lp.bugs.interfaces.cve.ICve"/>
+            <require
+                permission="launchpad.InternalScriptsOnly"
+                set_attributes="
+                    sequence
+                    status
+                    description
+                    datecreated
+                    datemodified
+                    references
+                    date_made_public
+                    discovered_by
+                    cvss
+                    metadata"/>
 
             <!-- IBugLinkTarget -->
 
