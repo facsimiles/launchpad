@@ -30,8 +30,9 @@ from lp import _
 class SSHKeyType(DBEnumeratedType):
     """SSH key type
 
-    SSH (version 2) can use RSA, DSA, ECDSA, or Ed25519 keys for
-    authentication.  See OpenSSH's ssh-keygen(1) man page for details.
+    SSH (version 2) can use RSA, DSA, ECDSA or Ed25519 keys
+    and valid OpenSSH security key variants keys for authentication.
+    See OpenSSH's ssh-keygen(1) man page for details.
     """
 
     RSA = DBItem(
@@ -70,6 +71,24 @@ class SSHKeyType(DBEnumeratedType):
         """,
     )
 
+    SKED25519 = DBItem(
+        5,
+        """
+        SKED25519
+
+        SKED25519
+        """,
+    )
+
+    SKECDSA = DBItem(
+        6,
+        """
+        SKECDSA
+
+        SKECDSA
+        """,
+    )
+
 
 SSH_TEXT_TO_KEY_TYPE = {
     "ssh-rsa": SSHKeyType.RSA,
@@ -78,6 +97,8 @@ SSH_TEXT_TO_KEY_TYPE = {
     "ecdsa-sha2-nistp384": SSHKeyType.ECDSA,
     "ecdsa-sha2-nistp521": SSHKeyType.ECDSA,
     "ssh-ed25519": SSHKeyType.ED25519,
+    "sk-ssh-ed25519@openssh.com": SSHKeyType.SKED25519,
+    "sk-ecdsa-sha2-nistp256@openssh.com": SSHKeyType.SKECDSA,
 }
 
 
