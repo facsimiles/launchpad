@@ -34,6 +34,13 @@ class TestExternalPackageSeries(TestCaseWithFactory):
                 channel=self.channel,
             )
         )
+        self.externalpackageseries_matching = (
+            self.distroseries.getExternalPackageSeries(
+                name=self.sourcepackagename,
+                packagetype=ExternalPackageType.SNAP,
+                channel=("22", "candidate", "staging"),
+            )
+        )
         self.externalpackageseries_maven = (
             self.distroseries.getExternalPackageSeries(
                 name=self.sourcepackagename,
@@ -172,10 +179,16 @@ class TestExternalPackageSeries(TestCaseWithFactory):
         self.assertEqual(expected, self.externalpackageseries.bugtarget_parent)
 
     def test_matches(self):
-        """Test if two externalpackageseries matches in sourcepackagename and
-        distroseries.
+        """Test if two externalpackageseries matches in sourcepackagename,
+        distroseries and packagetype.
         """
         self.assertTrue(
+            self.externalpackageseries.isMatching(
+                self.externalpackageseries_matching
+            )
+        )
+
+        self.assertFalse(
             self.externalpackageseries.isMatching(
                 self.externalpackageseries_maven
             )
@@ -199,6 +212,9 @@ class TestExternalPackageSeries(TestCaseWithFactory):
         """Test __eq__ and __neq__"""
         self.assertEqual(
             self.externalpackageseries, self.externalpackageseries_copy
+        )
+        self.assertNotEqual(
+            self.externalpackageseries, self.externalpackageseries_matching
         )
         self.assertNotEqual(
             self.externalpackageseries, self.externalpackageseries_maven

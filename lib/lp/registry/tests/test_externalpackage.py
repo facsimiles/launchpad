@@ -28,6 +28,11 @@ class TestExternalPackage(TestCaseWithFactory):
             packagetype=ExternalPackageType.SNAP,
             channel=self.channel,
         )
+        self.externalpackage_matching = self.distribution.getExternalPackage(
+            name=self.sourcepackagename,
+            packagetype=ExternalPackageType.SNAP,
+            channel=("22", "candidate", "staging"),
+        )
         self.externalpackage_maven = self.distribution.getExternalPackage(
             name=self.sourcepackagename,
             packagetype=ExternalPackageType.MAVEN,
@@ -135,10 +140,14 @@ class TestExternalPackage(TestCaseWithFactory):
         )
 
     def test_matches(self):
-        """Test if two externalpackages matches in sourcepackagename and
-        distribution.
+        """Test if two externalpackages matches in sourcepackagename,
+        distribution and packagetype.
         """
         self.assertTrue(
+            self.externalpackage.isMatching(self.externalpackage_matching)
+        )
+
+        self.assertFalse(
             self.externalpackage.isMatching(self.externalpackage_maven)
         )
 
@@ -158,6 +167,9 @@ class TestExternalPackage(TestCaseWithFactory):
     def test_compare(self):
         """Test __eq__ and __neq__"""
         self.assertEqual(self.externalpackage, self.externalpackage_copy)
+        self.assertNotEqual(
+            self.externalpackage, self.externalpackage_matching
+        )
         self.assertNotEqual(self.externalpackage, self.externalpackage_maven)
 
     def test_hash(self):

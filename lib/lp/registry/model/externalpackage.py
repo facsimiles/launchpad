@@ -117,6 +117,7 @@ class ExternalPackage(
             IExternalPackage.providedBy(other)
             and self.sourcepackagename.id == other.sourcepackagename.id
             and self.distribution.id == other.distribution.id
+            and self.packagetype == other.packagetype
         )
 
     def __eq__(self, other: "ExternalPackage") -> str:

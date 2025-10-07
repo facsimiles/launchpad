@@ -605,12 +605,12 @@
         />
     <lp:url
         for="lp.registry.interfaces.externalpackage.IExternalPackage"
-        path_expression="string:+external/${name}"
+        urldata="lp.registry.browser.externalpackage.ExternalPackageURL"
         attribute_to_parent="distribution"
         />
     <lp:url
         for="lp.registry.interfaces.externalpackageseries.IExternalPackageSeries"
-        path_expression="string:+external/${name}"
+        urldata="lp.registry.browser.externalpackageseries.ExternalPackageSeriesURL"
         attribute_to_parent="distroseries"
         />
     <lp:navigation

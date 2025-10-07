@@ -67,7 +67,7 @@ class TestBugTaskSearchListingPage(BrowserTestCase):
         # An external package from url will use unknown type
         self.assertTextMatchesExpressionIgnoreWhitespace(
             """
-            ep - Unknown in Ep-distro
+            ep - Snap in Ep-distro
             does not use Launchpad for bug tracking.
             Getting started with bug tracking in Launchpad.""",
             extract_text(top_portlet[0]),
@@ -195,7 +195,7 @@ class TestBugTaskSearchListingPage(BrowserTestCase):
         )
         self.assertTextMatchesExpressionIgnoreWhitespace(
             """
-            test-sp - Unknown in Test-series does not
+            test-sp - Snap in Test-series does not
             use Launchpad for bug tracking.
             Getting started with bug tracking in Launchpad.""",
             extract_text(top_portlet[0]),

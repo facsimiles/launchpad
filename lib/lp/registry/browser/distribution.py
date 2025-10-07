@@ -184,10 +184,58 @@ class DistributionNavigation(
         else:
             return dsp
 
-    @stepthrough("+external")
-    def traverse_external(self, name):
+    @stepthrough("+unknown")
+    def traverse_unknown(self, name):
         return self.context.getExternalPackage(
             name, ExternalPackageType.UNKNOWN, None
+        )
+
+    @stepthrough("+generic")
+    def traverse_generic(self, name):
+        return self.context.getExternalPackage(
+            name, ExternalPackageType.GENERIC, None
+        )
+
+    @stepthrough("+snap")
+    def traverse_snap(self, name):
+        return self.context.getExternalPackage(
+            name, ExternalPackageType.SNAP, None
+        )
+
+    @stepthrough("+charm")
+    def traverse_charm(self, name):
+        return self.context.getExternalPackage(
+            name, ExternalPackageType.CHARM, None
+        )
+
+    @stepthrough("+rock")
+    def traverse_rock(self, name):
+        return self.context.getExternalPackage(
+            name, ExternalPackageType.ROCK, None
+        )
+
+    @stepthrough("+python")
+    def traverse_python(self, name):
+        return self.context.getExternalPackage(
+            name, ExternalPackageType.PYTHON, None
+        )
+
+    @stepthrough("+conda")
+    def traverse_conda(self, name):
+        return self.context.getExternalPackage(
+            name, ExternalPackageType.CONDA, None
+        )
+
+    @stepthrough("+cargo")
+    def traverse_cargo(self, name):
+        return self.context.getExternalPackage(
+            name, ExternalPackageType.CARGO, None
+        )
+
+    @stepthrough("+maven")
+    def traverse_maven(self, name):
+        return self.context.getExternalPackage(
+            name, ExternalPackageType.MAVEN, None
         )
 
     @stepthrough("+oci")
