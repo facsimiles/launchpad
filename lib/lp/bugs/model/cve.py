@@ -13,6 +13,7 @@ from storm.databases.postgres import JSON
 from storm.locals import DateTime, Desc, Int, ReferenceSet, Store, Unicode
 from zope.component import getUtility
 from zope.interface import implementer
+from zope.security.interfaces import Unauthorized
 
 from lp.app.validators.cve import CVEREF_PATTERN, valid_cve
 from lp.bugs.interfaces.buglink import IBugLinkTarget
@@ -24,7 +25,9 @@ from lp.bugs.model.vulnerability import (
     Vulnerability,
     get_vulnerability_privacy_filter,
 )
+from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.model.distribution import Distribution
+from lp.registry.security import SecurityAdminDistribution
 from lp.services.database import bulk
 from lp.services.database.constants import UTC_NOW
 from lp.services.database.decoratedresultset import DecoratedResultSet
@@ -249,6 +252,80 @@ class CveSet:
             .order_by(Desc(Cve.datemodified))
             .config(distinct=True)
         )
+
+    def advancedSearch(
+        self,
+        in_distribution=[],
+        not_in_distribution=[],
+        since=None,
+        limit=None,
+    ):
+        """See `ICveSet`."""
+
+        in_distribution_id = [d.id for d in in_distribution]
+        not_in_distribution_id = [d.id for d in not_in_distribution]
+
+        query = """
+                SELECT c.sequence
+                FROM cve c
+                LEFT JOIN vulnerability v ON c.id = v.cve
+                WHERE (%s is NULL OR c.datemodified > %s)
+                GROUP BY c.id, c.sequence
+                HAVING
+                    (
+                        %s = 0
+                        OR COUNT(DISTINCT v.distribution) FILTER (
+                            WHERE v.distribution = ANY(%s)
+                        ) = %s
+                    )
+                    AND COUNT(DISTINCT v.distribution) FILTER (
+                        WHERE v.distribution = ANY(%s)
+                    ) = 0
+                LIMIT %s;
+        """
+
+        params = (
+            since,
+            since,
+            len(set(in_distribution_id)),
+            in_distribution_id,
+            len(set(in_distribution_id)),
+            not_in_distribution_id,
+            limit,
+        )
+
+        store = IStore(Vulnerability)
+        result = store.execute(query, params)
+        for r in result:
+            yield r[0]
+
+    def api_advancedSearch(
+        self,
+        requester,
+        in_distribution=[],
+        not_in_distribution=[],
+        since=None,
+        limit=None,
+    ):
+        """See `ICveSet`."""
+        if not requester:
+            raise Unauthorized(
+                "Only authenticated users can use this endpoint"
+            )
+
+        for distro in in_distribution + not_in_distribution:
+            user = IPersonRoles(requester)
+            if not SecurityAdminDistribution(distro).checkAuthenticated(user):
+                raise Unauthorized(
+                    f"Only security admins can use {distro.name} as a filter"
+                )
+
+        cves = list(
+            self.advancedSearch(
+                in_distribution, not_in_distribution, since, limit
+            )
+        )
+        return {"cves": cves}
 
     def inText(self, text):
         """See ICveSet."""

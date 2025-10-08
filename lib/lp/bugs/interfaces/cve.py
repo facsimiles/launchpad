@@ -9,16 +9,24 @@ __all__ = [
     "ICveSet",
 ]
 
+from typing import Iterator, Optional
+
 from lazr.enum import DBEnumeratedType, DBItem
 from lazr.restful.declarations import (
+    REQUEST_USER,
+    call_with,
     collection_default_content,
+    export_operation_as,
+    export_read_operation,
     exported,
     exported_as_webservice_collection,
     exported_as_webservice_entry,
+    operation_for_version,
+    operation_parameters,
 )
 from lazr.restful.fields import CollectionField, Reference
 from zope.interface import Attribute, Interface
-from zope.schema import Choice, Datetime, Dict, Int, Text, TextLine
+from zope.schema import Choice, Datetime, Dict, Int, List, Text, TextLine
 
 from lp import _
 from lp.app.validators.validation import valid_cve_sequence
@@ -248,6 +256,66 @@ class ICveSet(Interface):
 
     def search(text):
         """Search the CVE database for matching CVE entries."""
+
+    def advancedSearch(
+        in_distribution: List = [],
+        not_in_distribution: List = [],
+        since: Optional[Datetime] = None,
+        limit: Optional[int] = None,
+    ) -> Iterator[str]:
+        """Return an iterator of cve sequences that matches the given filters.
+
+        :param in_distribution: filter cves that have a vulnerability for all
+            of these distributions
+        :param not_in_distribution: filter cves that have no vulnerability for
+            any of these distributions
+        :param since: only updated cves after `since` will be returned.
+        :param limit: return `limit` cves at max.
+        """
+
+    # in_distribution patched in lp.bugs.interfaces.webservice
+    # not_in_distribution patched in lp.bugs.interfaces.webservice
+    @operation_parameters(
+        in_distribution=List(
+            title=_("Distributions linked to the cve"),
+            value_type=Reference(schema=Interface),
+            required=False,
+        ),
+        not_in_distribution=List(
+            title=_("Distributions not linked to the cve"),
+            value_type=Reference(schema=Interface),
+            required=False,
+        ),
+        since=Datetime(
+            title=_("Minimum cve.datemodified"),
+            description=_("Ignore cves that are older than this."),
+            required=False,
+        ),
+        limit=Int(
+            title=_("Maximum number of cves to return"),
+            required=False,
+        ),
+    )
+    @export_operation_as("advancedSearch")
+    @call_with(requester=REQUEST_USER)
+    @export_read_operation()
+    @operation_for_version("devel")
+    def api_advancedSearch(
+        requester,
+        in_distribution: List = [],
+        not_in_distribution: List = [],
+        since: Optional[Datetime] = None,
+        limit: Optional[int] = None,
+    ) -> dict:
+        """Return cve sequences that matches the given filters.
+
+        :param in_distribution: filter cves that have a vulnerability for all
+            of these distributions
+        :param not_in_distribution: filter cves that have no vulnerability for
+            any of these distributions
+        :param since: only updated cves after `since` will be returned.
+        :param limit: return `limit` cves at max.
+        """
 
     def inText(text):
         """Find one or more Cve's by analysing the given text.
