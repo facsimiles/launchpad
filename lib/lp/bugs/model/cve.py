@@ -94,6 +94,7 @@ class Cve(StormBase, BugLinkTargetMixin):
         self.date_made_public = date_made_public
         self.discovered_by = discovered_by
         self._cvss = cvss
+        self.metadata = metadata
 
     @property
     def url(self):
@@ -213,6 +214,7 @@ class CveSet:
         date_made_public=None,
         discovered_by=None,
         cvss=None,
+        metadata=None,
     ):
         """See ICveSet."""
         cve = Cve(
@@ -222,6 +224,7 @@ class CveSet:
             date_made_public=date_made_public,
             discovered_by=discovered_by,
             cvss=cvss,
+            metadata=metadata,
         )
 
         IStore(Cve).add(cve)
