@@ -349,6 +349,14 @@ flag_info = sorted(
             "",
             "",
         ),
+        (
+            "archive.webhooks.enabled",
+            "boolean",
+            "If true, allow webhooks to be configured on archives",
+            "enabled",
+            "",
+            "",
+        ),
     ]
 )
 
