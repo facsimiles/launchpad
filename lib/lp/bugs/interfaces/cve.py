@@ -16,7 +16,6 @@ from lazr.restful.declarations import (
     REQUEST_USER,
     call_with,
     collection_default_content,
-    export_operation_as,
     export_read_operation,
     exported,
     exported_as_webservice_collection,
@@ -30,6 +29,7 @@ from zope.schema import Choice, Datetime, Dict, Int, List, Text, TextLine
 
 from lp import _
 from lp.app.validators.validation import valid_cve_sequence
+from lp.services.config import config
 
 
 class CveStatus(DBEnumeratedType):
@@ -257,20 +257,24 @@ class ICveSet(Interface):
     def search(text):
         """Search the CVE database for matching CVE entries."""
 
-    def advancedSearch(
-        in_distribution: List = [],
-        not_in_distribution: List = [],
-        since: Optional[Datetime] = None,
-        limit: Optional[int] = None,
+    def getFilteredCves(
+        in_distribution: Optional[List] = None,
+        not_in_distribution: Optional[List] = None,
+        modified_since: Optional[Datetime] = None,
+        offset: int = 0,
+        limit: int = config.launchpad.default_batch_size,
     ) -> Iterator[str]:
         """Return an iterator of cve sequences that matches the given filters.
 
         :param in_distribution: filter cves that have a vulnerability for all
-            of these distributions
+            of these distributions.
         :param not_in_distribution: filter cves that have no vulnerability for
-            any of these distributions
-        :param since: only updated cves after `since` will be returned.
-        :param limit: return `limit` cves at max.
+            any of these distributions.
+        :param modified_since: only updated cves after `modified_since` will be
+            returned.
+        :param offset: offset of cves to return. It defaults to 0.
+        :param limit: return `limit` cves at max. It defaults to
+            config.launchpad.default_batch_size.
         """
 
     # in_distribution patched in lp.bugs.interfaces.webservice
@@ -286,35 +290,44 @@ class ICveSet(Interface):
             value_type=Reference(schema=Interface),
             required=False,
         ),
-        since=Datetime(
+        modified_since=Datetime(
             title=_("Minimum cve.datemodified"),
             description=_("Ignore cves that are older than this."),
             required=False,
         ),
+        offset=Int(
+            title=_("Offset of cves to return"),
+            required=False,
+            default=0,
+        ),
         limit=Int(
             title=_("Maximum number of cves to return"),
             required=False,
+            default=config.launchpad.default_batch_size,
         ),
     )
-    @export_operation_as("advancedSearch")
     @call_with(requester=REQUEST_USER)
     @export_read_operation()
     @operation_for_version("devel")
-    def api_advancedSearch(
+    def advancedSearch(
         requester,
-        in_distribution: List = [],
-        not_in_distribution: List = [],
-        since: Optional[Datetime] = None,
-        limit: Optional[int] = None,
+        in_distribution: Optional[List] = None,
+        not_in_distribution: Optional[List] = None,
+        modified_since: Optional[Datetime] = None,
+        offset: int = 0,
+        limit: int = config.launchpad.default_batch_size,
     ) -> dict:
         """Return cve sequences that matches the given filters.
 
         :param in_distribution: filter cves that have a vulnerability for all
-            of these distributions
+            of these distributions.
         :param not_in_distribution: filter cves that have no vulnerability for
-            any of these distributions
-        :param since: only updated cves after `since` will be returned.
-        :param limit: return `limit` cves at max.
+            any of these distributions.
+        :param modified_since: only updated cves after `modified_since` will be
+            returned.
+        :param offset: offset of cves to return. It defaults to 0.
+        :param limit: return `limit` cves at max. It defaults to
+            config.launchpad.default_batch_size.
         """
 
     def inText(text):

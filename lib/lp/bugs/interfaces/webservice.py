@@ -168,13 +168,13 @@ patch_entry_return_type(
 # ICve
 patch_list_parameter_type(
     ICveSet,
-    "api_advancedSearch",
+    "advancedSearch",
     "in_distribution",
     Reference(schema=IDistribution),
 )
 patch_list_parameter_type(
     ICveSet,
-    "api_advancedSearch",
+    "advancedSearch",
     "not_in_distribution",
     Reference(schema=IDistribution),
 )

@@ -28,6 +28,7 @@ from lp.bugs.model.vulnerability import (
 from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.model.distribution import Distribution
 from lp.registry.security import SecurityAdminDistribution
+from lp.services.config import config
 from lp.services.database import bulk
 from lp.services.database.constants import UTC_NOW
 from lp.services.database.decoratedresultset import DecoratedResultSet
@@ -253,24 +254,28 @@ class CveSet:
             .config(distinct=True)
         )
 
-    def advancedSearch(
+    def getFilteredCves(
         self,
-        in_distribution=[],
-        not_in_distribution=[],
-        since=None,
-        limit=None,
+        in_distribution=None,
+        not_in_distribution=None,
+        modified_since=None,
+        offset=0,
+        limit=config.launchpad.default_batch_size,
     ):
         """See `ICveSet`."""
+        in_distribution_id = [d.id for d in in_distribution or []]
+        in_distribution_len = len(in_distribution_id)
 
-        in_distribution_id = [d.id for d in in_distribution]
-        not_in_distribution_id = [d.id for d in not_in_distribution]
+        not_in_distribution_id = [d.id for d in not_in_distribution or []]
 
+        # Storm does not support the FILTER and ANY
+        # same query using storm models would be less performant
         query = """
                 SELECT c.sequence
                 FROM cve c
                 LEFT JOIN vulnerability v ON c.id = v.cve
                 WHERE (%s is NULL OR c.datemodified > %s)
-                GROUP BY c.id, c.sequence
+                GROUP BY c.id
                 HAVING
                     (
                         %s = 0
@@ -281,16 +286,20 @@ class CveSet:
                     AND COUNT(DISTINCT v.distribution) FILTER (
                         WHERE v.distribution = ANY(%s)
                     ) = 0
+                ORDER BY c.datemodified DESC
+                OFFSET %s
                 LIMIT %s;
         """
 
+        # params are sanitized using store.execute() second param
         params = (
-            since,
-            since,
-            len(set(in_distribution_id)),
+            modified_since,
+            modified_since,
+            in_distribution_len,
             in_distribution_id,
-            len(set(in_distribution_id)),
+            in_distribution_len,
             not_in_distribution_id,
+            offset,
             limit,
         )
 
@@ -299,13 +308,14 @@ class CveSet:
         for r in result:
             yield r[0]
 
-    def api_advancedSearch(
+    def advancedSearch(
         self,
         requester,
-        in_distribution=[],
-        not_in_distribution=[],
-        since=None,
-        limit=None,
+        in_distribution=None,
+        not_in_distribution=None,
+        modified_since=None,
+        offset=0,
+        limit=config.launchpad.default_batch_size,
     ):
         """See `ICveSet`."""
         if not requester:
@@ -313,7 +323,7 @@ class CveSet:
                 "Only authenticated users can use this endpoint"
             )
 
-        for distro in in_distribution + not_in_distribution:
+        for distro in (in_distribution or []) + (not_in_distribution or []):
             user = IPersonRoles(requester)
             if not SecurityAdminDistribution(distro).checkAuthenticated(user):
                 raise Unauthorized(
@@ -321,8 +331,12 @@ class CveSet:
                 )
 
         cves = list(
-            self.advancedSearch(
-                in_distribution, not_in_distribution, since, limit
+            self.getFilteredCves(
+                in_distribution,
+                not_in_distribution,
+                modified_since,
+                offset,
+                limit,
             )
         )
         return {"cves": cves}

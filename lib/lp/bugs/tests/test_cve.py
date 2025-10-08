@@ -116,66 +116,72 @@ class TestCveSet(TestCaseWithFactory):
         self.assertEqual(base, getUtility(ICveSet).getBugCveCount())
 
 
-class TestCveSetAdvancedSearch(TestCaseWithFactory):
+class TestCveSetGetFilteredCves(TestCaseWithFactory):
     layer = DatabaseFunctionalLayer
 
     def setUp(self):
         super().setUp()
         self.cves = getUtility(ICveSet)
 
-    def test_advancedSearch_default_arguments(self):
-        # All cves will be returned as there are not vulnerabilities created
-        result = self.cves.advancedSearch()
-        self.assertEqual(10, len(list(result)))
+    def test_getFilteredCves_default_arguments(self):
+        # 5 cves will be returned as there are not vulnerabilities created
+        # and limit = config.launchpad.default_batch_size = 5
+        result = self.cves.getFilteredCves()
+        self.assertEqual(5, len(list(result)))
 
-    def test_advancedSearch_in_distribution(self):
+    def test_getFilteredCves_in_distribution(self):
         distribution1 = self.factory.makeDistribution()
         distribution2 = self.factory.makeDistribution()
 
         # No result as there is no cve with a vulnerability for distribution1
-        result = self.cves.advancedSearch(in_distribution=[distribution1])
+        result = self.cves.getFilteredCves(in_distribution=[distribution1])
         self.assertEqual(0, len(list(result)))
 
         cve = self.factory.makeCVE(sequence="2099-9876")
         self.factory.makeVulnerability(distribution1, cve=cve)
 
         # There is 1 cve with a vulnerability for distribution
-        result = self.cves.advancedSearch(in_distribution=[distribution1])
+        result = self.cves.getFilteredCves(in_distribution=[distribution1])
         cves = list(result)
         self.assertEqual(1, len(cves))
         self.assertEqual("2099-9876", cves[0])
 
         # No result as there is no cve with a vulnerability for distribution2
-        result = self.cves.advancedSearch(in_distribution=[distribution2])
+        result = self.cves.getFilteredCves(in_distribution=[distribution2])
         self.assertEqual(0, len(list(result)))
 
-    def test_advancedSearch_not_in_distribution(self):
+    def test_getFilteredCves_not_in_distribution(self):
         distribution1 = self.factory.makeDistribution()
         distribution2 = self.factory.makeDistribution()
 
-        # No result as there is no cve with a vulnerability for distributions
-        result = self.cves.advancedSearch(
-            not_in_distribution=[distribution1, distribution2]
+        # 10 cves as they don't have a vulnerability for distributions yet
+        result = self.cves.getFilteredCves(
+            not_in_distribution=[distribution1, distribution2],
+            limit=20,
         )
         self.assertEqual(10, len(list(result)))
 
         cve = self.factory.makeCVE(sequence="2099-9876")
 
         # There are 11 cve without a vulnerability for distributions
-        result = self.cves.advancedSearch(
-            not_in_distribution=[distribution1, distribution2]
+        result = self.cves.getFilteredCves(
+            not_in_distribution=[distribution1, distribution2],
+            limit=20,
         )
         self.assertEqual(11, len(list(result)))
 
+        # Creating a vulnerability for distribution1 will make this cve not to
+        # appear in the search
         self.factory.makeVulnerability(distribution1, cve=cve)
 
         # There are 10 cve without a vulnerability for any of distributions
-        result = self.cves.advancedSearch(
-            not_in_distribution=[distribution1, distribution2]
+        result = self.cves.getFilteredCves(
+            not_in_distribution=[distribution1, distribution2],
+            limit=20,
         )
         self.assertEqual(10, len(list(result)))
 
-    def test_advancedSearch_both_in_distribution(self):
+    def test_getFilteredCves_both_in_distribution(self):
         distribution1 = self.factory.makeDistribution()
         distribution2 = self.factory.makeDistribution()
         distribution3 = self.factory.makeDistribution()
@@ -183,7 +189,7 @@ class TestCveSetAdvancedSearch(TestCaseWithFactory):
         # No result as there are no cves that:
         #   - has a vulnerability for distribution1 and distribution2
         #   - has no vulnerability for distribution3
-        result = self.cves.advancedSearch(
+        result = self.cves.getFilteredCves(
             in_distribution=[distribution1, distribution2],
             not_in_distribution=[distribution3],
         )
@@ -193,7 +199,7 @@ class TestCveSetAdvancedSearch(TestCaseWithFactory):
         self.factory.makeVulnerability(distribution1, cve=cve)
 
         # No result as we only created the vulnerability for distribution1
-        result = self.cves.advancedSearch(
+        result = self.cves.getFilteredCves(
             in_distribution=[distribution1, distribution2],
             not_in_distribution=[distribution3],
         )
@@ -202,7 +208,7 @@ class TestCveSetAdvancedSearch(TestCaseWithFactory):
         # 1 result as we created a vulnerability for distribution1 and
         # distribution2
         self.factory.makeVulnerability(distribution2, cve=cve)
-        result = self.cves.advancedSearch(
+        result = self.cves.getFilteredCves(
             in_distribution=[distribution1, distribution2],
             not_in_distribution=[distribution3],
         )
@@ -212,24 +218,45 @@ class TestCveSetAdvancedSearch(TestCaseWithFactory):
 
         # No result as we created a vulnerability for distribution3 for the cve
         self.factory.makeVulnerability(distribution3, cve=cve)
-        result = self.cves.advancedSearch(
+        result = self.cves.getFilteredCves(
             in_distribution=[distribution1, distribution2],
             not_in_distribution=[distribution3],
         )
         self.assertEqual(0, len(list(result)))
 
-    def test_advancedSearch_since(self):
-        since = datetime.utcnow() - timedelta(days=1)
+    def test_getFilteredCves_modified_since(self):
+        modified_since = datetime.utcnow() - timedelta(days=1)
         self.factory.makeCVE(sequence="2099-9876")
 
-        result = self.cves.advancedSearch(since=since)
+        result = self.cves.getFilteredCves(modified_since=modified_since)
         cves = list(result)
         self.assertEqual(1, len(cves))
         self.assertEqual("2099-9876", cves[0])
 
-    def test_advancedSearch_limit(self):
-        result = self.cves.advancedSearch(limit=5)
+    def test_getFilteredCves_offset(self):
+        self.factory.makeCVE(sequence="2099-9876")
+
+        result = self.cves.getFilteredCves(offset=1, limit=20)
+        cves = list(result)
+        self.assertEqual(10, len(cves))
+
+        # Using offset = 1 we skipped the latest modified cve
+        self.assertNotIn("2099-9876", cves)
+
+    def test_getFilteredCves_limit(self):
+        result = self.cves.getFilteredCves(limit=5)
         self.assertEqual(5, len(list(result)))
+
+    def test_getFilteredCves_order_by(self):
+        """Test that getFilteredCves orders by descending datemodified."""
+
+        # Get all cves and sort them by desc datemodified
+        cves = self.cves.getAll()
+        cves = sorted(cves, key=lambda cve: cve.datemodified, reverse=True)
+        sequences = [cve.sequence for cve in cves]
+
+        result = self.cves.getFilteredCves(limit=10)
+        self.assertEqual(sequences, list(result))
 
 
 class TestCveSetAdvancedSearchWebService(TestCaseWithFactory):
@@ -261,7 +288,9 @@ class TestCveSetAdvancedSearchWebService(TestCaseWithFactory):
         )
 
         self.assertEqual(200, response.status)
-        self.assertEqual(10, len(response.jsonBody()["cves"]))
+
+        # config.launchpad.default_batch_size = 5
+        self.assertEqual(5, len(response.jsonBody()["cves"]))
 
     def test_advancedSearch_in_distribution(self):
         cve = self.factory.makeCVE(sequence="2099-9876")
@@ -294,12 +323,13 @@ class TestCveSetAdvancedSearchWebService(TestCaseWithFactory):
             self.cves_url,
             "advancedSearch",
             not_in_distribution=not_in_distribution,
+            limit=20,
         )
 
         self.assertEqual(200, response.status)
         self.assertEqual(10, len(response.jsonBody()["cves"]))
 
-    def test_advancedSearch_since(self):
+    def test_advancedSearch_modified_since(self):
         self.factory.makeCVE(sequence="2099-9876")
 
         webservice = webservice_for_person(
@@ -310,11 +340,68 @@ class TestCveSetAdvancedSearchWebService(TestCaseWithFactory):
         response = webservice.named_get(
             self.cves_url,
             "advancedSearch",
-            since=(datetime.utcnow() - timedelta(days=1)).isoformat(),
+            modified_since=(datetime.utcnow() - timedelta(days=1)).isoformat(),
         )
 
         self.assertEqual(200, response.status)
         self.assertEqual(1, len(response.jsonBody()["cves"]))
+
+    def test_advancedSearch_modified_since_str(self):
+        self.factory.makeCVE(sequence="2099-9876")
+
+        webservice = webservice_for_person(
+            self.person,
+            permission=OAuthPermission.WRITE_PRIVATE,
+            default_api_version="devel",
+        )
+        response = webservice.named_get(
+            self.cves_url,
+            "advancedSearch",
+            modified_since="2025-10-08T13:43:26",
+        )
+
+        self.assertEqual(200, response.status)
+        self.assertEqual(1, len(response.jsonBody()["cves"]))
+
+    def test_advancedSearch_modified_since_wrong(self):
+        self.factory.makeCVE(sequence="2099-9876")
+
+        webservice = webservice_for_person(
+            self.person,
+            permission=OAuthPermission.WRITE_PRIVATE,
+            default_api_version="devel",
+        )
+        response = webservice.named_get(
+            self.cves_url,
+            "advancedSearch",
+            modified_since="not a date",
+        )
+
+        self.assertEqual(400, response.status)
+        self.assertEqual(
+            b"modified_since: Value doesn't look like a date.", response.body
+        )
+
+    def test_advancedSearch_offset(self):
+        self.factory.makeCVE(sequence="2099-9876")
+
+        webservice = webservice_for_person(
+            self.person,
+            permission=OAuthPermission.WRITE_PRIVATE,
+            default_api_version="devel",
+        )
+        response = webservice.named_get(
+            self.cves_url,
+            "advancedSearch",
+            offset=1,
+            limit=20,
+        )
+
+        self.assertEqual(200, response.status)
+        self.assertEqual(10, len(response.jsonBody()["cves"]))
+
+        # Using offset = 1 we skipped the latest modified cve
+        self.assertNotIn("2099-9876", response.jsonBody()["cves"])
 
     def test_advancedSearch_limit(self):
         webservice = webservice_for_person(
