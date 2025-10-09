@@ -520,12 +520,14 @@ class TestCve(TestCaseWithFactory):
                 date_made_public=None,
                 discovered_by=None,
                 cvss={},
+                metadata=None,
             ),
         )
 
     def test_cveset_new_method_parameters(self):
         today = datetime.now(tz=timezone.utc)
         cvss = {"nvd": ["CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"]}
+        metadata = {"example key": "example value"}
         cve = getUtility(ICveSet).new(
             sequence="2099-1234",
             description="A critical vulnerability",
@@ -533,6 +535,7 @@ class TestCve(TestCaseWithFactory):
             date_made_public=today,
             discovered_by="A person",
             cvss=cvss,
+            metadata=metadata,
         )
         self.assertThat(
             cve,
@@ -543,6 +546,7 @@ class TestCve(TestCaseWithFactory):
                 date_made_public=today,
                 discovered_by="A person",
                 cvss=cvss,
+                metadata=metadata,
             ),
         )
 

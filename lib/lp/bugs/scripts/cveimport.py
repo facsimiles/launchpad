@@ -722,10 +722,11 @@ class CVEUpdater(LaunchpadCronScript):
         if self._handle_json_references(cna_data.get("references", []), cve):
             modified = True
 
-        # handle affected
-        metadata = cve.metadata or {}
-        if metadata.get("affected", {}) != affected:
-            metadata["affected"] = affected
+        # Build metadata dict
+        metadata = {"affected": affected}
+
+        # If anything changed, update cve.metadata
+        if metadata != cve.metadata:
             cve.metadata = metadata
             modified = True
 

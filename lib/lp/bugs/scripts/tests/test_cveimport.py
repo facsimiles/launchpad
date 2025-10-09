@@ -263,11 +263,24 @@ class TestCVEUpdater(TestCase):
         """Test updating an existing CVE with new data."""
         # First create a CVE
         original_desc = "Original description"
+        original_metadata = {
+            "affected": [
+                {
+                    "vendor": "original vendor",
+                    "product": "original product",
+                }
+            ],
+        }
         cveset = getUtility(ICveSet)
 
         # Create initial CVE using a properly initialized updater
         updater = self.make_updater()
-        cveset.new("2024-0004", original_desc, CveStatus.ENTRY)
+        cveset.new(
+            "2024-0004",
+            original_desc,
+            CveStatus.ENTRY,
+            metadata=original_metadata,
+        )
         updater.txn.commit()
 
         # Create updated data
