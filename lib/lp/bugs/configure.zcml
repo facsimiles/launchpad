@@ -208,6 +208,7 @@
                     milestone_id
                     product_id
                     productseries_id
+                    packagetype
                     sourcepackagename_id
                     task_age
                     bug_subscribers

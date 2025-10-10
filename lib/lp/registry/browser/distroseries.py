@@ -182,10 +182,58 @@ class DistroSeriesNavigation(
 
         return distroserieslang
 
-    @stepthrough("+external")
-    def external(self, name):
+    @stepthrough("+unknown")
+    def traverse_unknown(self, name):
         return self.context.getExternalPackageSeries(
             name, ExternalPackageType.UNKNOWN, None
+        )
+
+    @stepthrough("+generic")
+    def traverse_generic(self, name):
+        return self.context.getExternalPackageSeries(
+            name, ExternalPackageType.GENERIC, None
+        )
+
+    @stepthrough("+snap")
+    def traverse_snap(self, name):
+        return self.context.getExternalPackageSeries(
+            name, ExternalPackageType.SNAP, None
+        )
+
+    @stepthrough("+charm")
+    def traverse_charm(self, name):
+        return self.context.getExternalPackageSeries(
+            name, ExternalPackageType.CHARM, None
+        )
+
+    @stepthrough("+rock")
+    def traverse_rock(self, name):
+        return self.context.getExternalPackageSeries(
+            name, ExternalPackageType.ROCK, None
+        )
+
+    @stepthrough("+python")
+    def traverse_python(self, name):
+        return self.context.getExternalPackageSeries(
+            name, ExternalPackageType.PYTHON, None
+        )
+
+    @stepthrough("+conda")
+    def traverse_conda(self, name):
+        return self.context.getExternalPackageSeries(
+            name, ExternalPackageType.CONDA, None
+        )
+
+    @stepthrough("+cargo")
+    def traverse_cargo(self, name):
+        return self.context.getExternalPackageSeries(
+            name, ExternalPackageType.CARGO, None
+        )
+
+    @stepthrough("+maven")
+    def traverse_maven(self, name):
+        return self.context.getExternalPackageSeries(
+            name, ExternalPackageType.MAVEN, None
         )
 
     @stepthrough("+source")

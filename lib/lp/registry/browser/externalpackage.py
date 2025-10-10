@@ -5,6 +5,7 @@ __all__ = [
     "ExternalPackageBreadcrumb",
     "ExternalPackageNavigation",
     "ExternalPackageFacets",
+    "ExternalPackageURL",
 ]
 
 
@@ -18,7 +19,10 @@ from lp.bugs.browser.structuralsubscription import (
 from lp.registry.interfaces.externalpackage import IExternalPackage
 from lp.services.webapp import Navigation, StandardLaunchpadFacets, redirection
 from lp.services.webapp.breadcrumb import Breadcrumb
-from lp.services.webapp.interfaces import IMultiFacetedBreadcrumb
+from lp.services.webapp.interfaces import (
+    ICanonicalUrlData,
+    IMultiFacetedBreadcrumb,
+)
 
 
 @implementer(IHeadingBreadcrumb, IMultiFacetedBreadcrumb)
@@ -29,7 +33,10 @@ class ExternalPackageBreadcrumb(Breadcrumb):
 
     @property
     def text(self):
-        return "%s external package" % self.context.sourcepackagename.name
+        return "%s %s package" % (
+            self.context.sourcepackagename.name,
+            self.context.packagetype.name.lower(),
+        )
 
 
 class ExternalPackageFacets(StandardLaunchpadFacets):
@@ -49,3 +56,22 @@ class ExternalPackageNavigation(
     @redirection("+editbugcontact")
     def redirect_editbugcontact(self):
         return "+subscribe"
+
+
+@implementer(ICanonicalUrlData)
+class ExternalPackageURL:
+    """External Package URL creation rules."""
+
+    rootsite = None
+
+    def __init__(self, context):
+        self.context = context
+
+    @property
+    def inside(self):
+        return self.context.distribution
+
+    @property
+    def path(self):
+        packagetype = self.context.packagetype.name.lower()
+        return f"+{packagetype}/{self.context.name}"

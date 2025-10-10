@@ -393,6 +393,10 @@ class BugTaskNavigation(Navigation):
             return
         if bugtask.distribution != self.context.distribution:
             return
+        if bugtask.distroseries != self.context.distroseries:
+            return
+        if bugtask.packagetype != self.context.packagetype:
+            return
 
         return bugtask
 
