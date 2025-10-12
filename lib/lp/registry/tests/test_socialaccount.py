@@ -13,7 +13,7 @@ from lp.testing import TestCaseWithFactory, login_person
 from lp.testing.layers import DatabaseFunctionalLayer
 
 
-class TestSocialAccount(TestCaseWithFactory):
+class TestMatrixSocialAccount(TestCaseWithFactory):
     layer = DatabaseFunctionalLayer
 
     def test_social_account(self):
@@ -47,6 +47,22 @@ class TestSocialAccount(TestCaseWithFactory):
 
         self.assertEqual(social_account.platform, SocialPlatformType.MATRIX)
         self.assertEqual(social_account.identity["homeserver"], "abc.org")
+        self.assertEqual(social_account.identity["username"], "test-nickname")
+
+    def test_github_account(self):
+        # GitHub Social Account is created as expected and
+        # associated to the user.
+        user = self.factory.makePerson()
+        attributes = {}
+        attributes["username"] = "test-nickname"
+        social_account = getUtility(ISocialAccountSet).new(
+            user, SocialPlatformType.GITHUB, attributes
+        )
+
+        self.assertEqual(len(user.social_accounts), 1)
+        social_account = user.social_accounts[0]
+
+        self.assertEqual(social_account.platform, SocialPlatformType.GITHUB)
         self.assertEqual(social_account.identity["username"], "test-nickname")
 
     def test_multilevel_domain_matrix_account(self):
@@ -173,6 +189,21 @@ class TestSocialAccount(TestCaseWithFactory):
             attributes,
         )
 
+    def test_malformed_github_account_username(self):
+        # Username must be a string
+        user = self.factory.makePerson()
+        attributes = {}
+        attributes["username"] = "@username!(*)"
+        utility = getUtility(ISocialAccountSet)
+
+        self.assertRaises(
+            SocialAccountIdentityError,
+            utility.new,
+            user,
+            SocialPlatformType.GITHUB,
+            attributes,
+        )
+
     def test_malformed_matrix_account_homeserver(self):
         # Homeserver must be a valid address
         user = self.factory.makePerson()
@@ -202,6 +233,21 @@ class TestSocialAccount(TestCaseWithFactory):
             utility.new,
             user,
             SocialPlatformType.MATRIX,
+            attributes,
+        )
+
+    def test_empty_fields_github_account(self):
+        # Identity field must be not empty
+        user = self.factory.makePerson()
+        attributes = {}
+        attributes["username"] = ""
+        utility = getUtility(ISocialAccountSet)
+
+        self.assertRaises(
+            SocialAccountIdentityError,
+            utility.new,
+            user,
+            SocialPlatformType.GITHUB,
             attributes,
         )
 
@@ -250,16 +296,14 @@ class TestSocialAccount(TestCaseWithFactory):
 
         user_two = self.factory.makePerson()
         attributes = {}
-        attributes["homeserver"] = "ghi.org"
         attributes["username"] = "test-nickname"
         getUtility(ISocialAccountSet).new(
-            user_two, SocialPlatformType.MATRIX, attributes
+            user_two, SocialPlatformType.GITHUB, attributes
         )
         attributes = {}
-        attributes["homeserver"] = "lmn.org"
-        attributes["username"] = "test-nickname"
+        attributes["username"] = "test-nickname2"
         getUtility(ISocialAccountSet).new(
-            user_two, SocialPlatformType.MATRIX, attributes
+            user_two, SocialPlatformType.GITHUB, attributes
         )
 
         self.assertEqual(len(user.social_accounts), 2)
@@ -275,11 +319,9 @@ class TestSocialAccount(TestCaseWithFactory):
 
         self.assertEqual(len(user_two.social_accounts), 2)
         social_account = user_two.social_accounts[0]
-        self.assertEqual(social_account.platform, SocialPlatformType.MATRIX)
-        self.assertEqual(social_account.identity["homeserver"], "ghi.org")
+        self.assertEqual(social_account.platform, SocialPlatformType.GITHUB)
         self.assertEqual(social_account.identity["username"], "test-nickname")
 
         social_account = user_two.social_accounts[1]
-        self.assertEqual(social_account.platform, SocialPlatformType.MATRIX)
-        self.assertEqual(social_account.identity["homeserver"], "lmn.org")
-        self.assertEqual(social_account.identity["username"], "test-nickname")
+        self.assertEqual(social_account.platform, SocialPlatformType.GITHUB)
+        self.assertEqual(social_account.identity["username"], "test-nickname2")

@@ -6,6 +6,7 @@
 __all__ = [
     "ISocialAccount",
     "ISocialAccountSet",
+    "GithubPlatform",
     "MatrixPlatform",
     "SocialPlatformType",
     "SOCIAL_PLATFORM_TYPES_MAP",
@@ -43,6 +44,15 @@ class SocialPlatformType(DBEnumeratedType):
         Matrix platform
 
         The Social Account will hold Matrix account info.
+        """,
+    )
+
+    GITHUB = DBItem(
+        2,
+        """
+        GitHub platform
+
+        The Social Account will hold GitHub account info.
         """,
     )
 
@@ -160,7 +170,39 @@ class MatrixPlatform(SocialPlatform):
             )
 
 
+class GithubPlatform(SocialPlatform):
+    title = "GitHub"
+    identity_fields = ["username"]
+    identity_fields_example = {
+        "username": "mark",
+        "homeserver": "ubuntu.com",
+    }
+    platform_type = SocialPlatformType.GITHUB
+    icon = "social-github"
+    display_format = "<strong>/{username}</strong>"
+    url = "https://github.com/{username}"
+
+    @classmethod
+    def validate_identity(cls, identity):
+        if not all(
+            identity.get(required_field)
+            for required_field in cls.identity_fields
+        ):
+            raise SocialAccountIdentityError(
+                f"You must provide the following fields: "
+                f"{', '.join(cls.identity_fields)}."
+            )
+        if not isinstance(identity["username"], str):
+            raise SocialAccountIdentityError("Username must be a string.")
+        # GitHub username can contain a-z, 0-9, and -
+        # ref: https://docs.github.com/en/enterprise-cloud@latest/admin/managing-iam/iam-configuration-reference/username-considerations-for-external-authentication#about-username-normalization  # noqa: E501
+        username_regex = r"^[A-z0-9-]+"
+        if not re.match(username_regex, identity["username"]):
+            raise SocialAccountIdentityError("Username must be valid.")
+
+
 SOCIAL_PLATFORM_TYPES_MAP = {
+    SocialPlatformType.GITHUB: GithubPlatform,
     SocialPlatformType.MATRIX: MatrixPlatform,
 }
 
