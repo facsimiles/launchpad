@@ -1594,6 +1594,11 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
         for das in sorted(need_archs, key=attrgetter("architecturetag")):
             if abi_tag(das) not in create_tag_map:
                 continue
+            if (
+                sourcepackagerelease.architecturehintlist == "all"
+                and das.underlying_architecturetag is not None
+            ):
+                continue
             indep = (
                 False
                 if das.underlying_architecturetag is not None
