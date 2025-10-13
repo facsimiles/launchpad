@@ -1012,7 +1012,14 @@ class InlineObject(Object):
 class SnapBuildChannelsField(Dict):
     """A field that holds source snap channels for builds."""
 
-    _core_snap_names = ["core", "core18", "core20", "core22", "core24"]
+    _core_snap_names = [
+        "core",
+        "core18",
+        "core20",
+        "core22",
+        "core24",
+        "core26",
+    ]
 
     def __init__(
         self,
