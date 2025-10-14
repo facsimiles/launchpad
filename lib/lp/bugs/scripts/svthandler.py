@@ -18,7 +18,7 @@ class SVTRecord:
     """A dataclass that contains the exact same info as a cve file."""
 
     @classmethod
-    def from_str(string: str) -> "SVTRecord":
+    def from_str(cls, string: str) -> "SVTRecord":
         """Parse a string and return a SVTRecord."""
         raise NotImplementedError()
 
@@ -30,12 +30,12 @@ class SVTRecord:
 class SVTImporter:
 
     def from_record(
-        record: SVTRecord, cve_sequence: str
+        self, record: SVTRecord, cve_sequence: str
     ) -> (IBug, IVulnerability):
         """Import a SVTRecord creating a bug and a vulnerability."""
         raise NotImplementedError()
 
-    def checkUserPermissions(user):
+    def checkUserPermissions(self, user):
         """Checks if the user has permissions to use this handler."""
         raise NotImplementedError()
 
@@ -50,6 +50,6 @@ class SVTExporter:
         and return a SVTRecord."""
         raise NotImplementedError()
 
-    def checkUserPermissions(self, user, distribution):
+    def checkUserPermissions(self, user):
         """Checks if the user has permissions to use this handler."""
         raise NotImplementedError()

@@ -84,6 +84,7 @@ from lp.bugs.interfaces.structuralsubscription import (
 )
 from lp.bugs.interfaces.vulnerability import IVulnerability, IVulnerabilitySet
 from lp.code.interfaces.branchmergeproposal import IBranchMergeProposal
+from lp.registry.interfaces.distribution import IDistribution
 from lp.registry.interfaces.distributionsourcepackage import (
     IDistributionSourcePackage,
 )
@@ -162,4 +163,18 @@ patch_entry_return_type(
     IStructuralSubscriptionTarget,
     "addBugSubscriptionFilter",
     IBugSubscriptionFilter,
+)
+
+# ICve
+patch_list_parameter_type(
+    ICveSet,
+    "advancedSearch",
+    "in_distribution",
+    Reference(schema=IDistribution),
+)
+patch_list_parameter_type(
+    ICveSet,
+    "advancedSearch",
+    "not_in_distribution",
+    Reference(schema=IDistribution),
 )

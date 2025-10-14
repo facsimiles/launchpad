@@ -7,13 +7,13 @@ __all__ = [
 ]
 
 import operator
-from collections import defaultdict
 from datetime import timezone
 
 from storm.databases.postgres import JSON
 from storm.locals import DateTime, Desc, Int, ReferenceSet, Store, Unicode
 from zope.component import getUtility
 from zope.interface import implementer
+from zope.security.interfaces import Unauthorized
 
 from lp.app.validators.cve import CVEREF_PATTERN, valid_cve
 from lp.bugs.interfaces.buglink import IBugLinkTarget
@@ -25,7 +25,10 @@ from lp.bugs.model.vulnerability import (
     Vulnerability,
     get_vulnerability_privacy_filter,
 )
+from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.model.distribution import Distribution
+from lp.registry.security import SecurityAdminDistribution
+from lp.services.config import config
 from lp.services.database import bulk
 from lp.services.database.constants import UTC_NOW
 from lp.services.database.decoratedresultset import DecoratedResultSet
@@ -63,6 +66,7 @@ class Cve(StormBase, BugLinkTargetMixin):
     date_made_public = DateTime(tzinfo=timezone.utc, allow_none=True)
     discovered_by = Unicode(allow_none=True)
     _cvss = JSON(name="cvss", allow_none=True)
+    metadata = JSON(name="metadata", allow_none=True)
 
     @property
     def cvss(self):
@@ -81,6 +85,7 @@ class Cve(StormBase, BugLinkTargetMixin):
         date_made_public=None,
         discovered_by=None,
         cvss=None,
+        metadata=None,
     ):
         super().__init__()
         self.sequence = sequence
@@ -89,6 +94,7 @@ class Cve(StormBase, BugLinkTargetMixin):
         self.date_made_public = date_made_public
         self.discovered_by = discovered_by
         self._cvss = cvss
+        self.metadata = metadata
 
     @property
     def url(self):
@@ -175,13 +181,6 @@ class Cve(StormBase, BugLinkTargetMixin):
             {("cve", self.sequence): [("bug", str(bug.id))]}
         )
 
-    def setCVSSVectorForAuthority(self, cvss):
-        """See ICveReference."""
-        self._cvss = defaultdict(list)
-        for c in cvss:
-            self._cvss[c.authority].append(c.vector_string)
-        self._cvss = dict(self._cvss)
-
 
 @implementer(ICveSet)
 class CveSet:
@@ -215,6 +214,7 @@ class CveSet:
         date_made_public=None,
         discovered_by=None,
         cvss=None,
+        metadata=None,
     ):
         """See ICveSet."""
         cve = Cve(
@@ -224,6 +224,7 @@ class CveSet:
             date_made_public=date_made_public,
             discovered_by=discovered_by,
             cvss=cvss,
+            metadata=metadata,
         )
 
         IStore(Cve).add(cve)
@@ -255,6 +256,93 @@ class CveSet:
             .order_by(Desc(Cve.datemodified))
             .config(distinct=True)
         )
+
+    def getFilteredCves(
+        self,
+        in_distribution=None,
+        not_in_distribution=None,
+        modified_since=None,
+        offset=0,
+        limit=config.launchpad.default_batch_size,
+    ):
+        """See `ICveSet`."""
+        in_distribution_id = [d.id for d in in_distribution or []]
+        in_distribution_len = len(in_distribution_id)
+
+        not_in_distribution_id = [d.id for d in not_in_distribution or []]
+
+        # Storm does not support the FILTER and ANY
+        # same query using storm models would be less performant
+        query = """
+                SELECT c.sequence
+                FROM cve c
+                LEFT JOIN vulnerability v ON c.id = v.cve
+                WHERE (%s is NULL OR c.datemodified > %s)
+                GROUP BY c.id
+                HAVING
+                    (
+                        %s = 0
+                        OR COUNT(DISTINCT v.distribution) FILTER (
+                            WHERE v.distribution = ANY(%s)
+                        ) = %s
+                    )
+                    AND COUNT(DISTINCT v.distribution) FILTER (
+                        WHERE v.distribution = ANY(%s)
+                    ) = 0
+                ORDER BY c.datemodified DESC
+                OFFSET %s
+                LIMIT %s;
+        """
+
+        # params are sanitized using store.execute() second param
+        params = (
+            modified_since,
+            modified_since,
+            in_distribution_len,
+            in_distribution_id,
+            in_distribution_len,
+            not_in_distribution_id,
+            offset,
+            limit,
+        )
+
+        store = IStore(Vulnerability)
+        result = store.execute(query, params)
+        for r in result:
+            yield r[0]
+
+    def advancedSearch(
+        self,
+        requester,
+        in_distribution=None,
+        not_in_distribution=None,
+        modified_since=None,
+        offset=0,
+        limit=config.launchpad.default_batch_size,
+    ):
+        """See `ICveSet`."""
+        if not requester:
+            raise Unauthorized(
+                "Only authenticated users can use this endpoint"
+            )
+
+        for distro in (in_distribution or []) + (not_in_distribution or []):
+            user = IPersonRoles(requester)
+            if not SecurityAdminDistribution(distro).checkAuthenticated(user):
+                raise Unauthorized(
+                    f"Only security admins can use {distro.name} as a filter"
+                )
+
+        cves = list(
+            self.getFilteredCves(
+                in_distribution,
+                not_in_distribution,
+                modified_since,
+                offset,
+                limit,
+            )
+        )
+        return {"cves": cves}
 
     def inText(self, text):
         """See ICveSet."""

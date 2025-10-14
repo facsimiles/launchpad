@@ -134,10 +134,11 @@ class TestBugTaskTraversal(TestCaseWithFactory):
         for bugtask in bugtasks[:3]:
             self.assertEqual(
                 canonical_url(bugtask),
-                "http://bugs.launchpad.test/%s/+external/%s/+bug/%d/"
+                "http://bugs.launchpad.test/%s/+%s/%s/+bug/%d/"
                 "+bugtask/%s"
                 % (
                     bugtask.distribution.name,
+                    bugtask.target.packagetype.name.lower(),
                     bugtask.target.name,
                     bugtask.bug.id,
                     bugtask.id,
@@ -150,11 +151,12 @@ class TestBugTaskTraversal(TestCaseWithFactory):
         for bugtask in bugtasks[3:]:
             self.assertEqual(
                 canonical_url(bugtask),
-                "http://bugs.launchpad.test/%s/%s/+external/%s/+bug/%d/"
+                "http://bugs.launchpad.test/%s/%s/+%s/%s/+bug/%d/"
                 "+bugtask/%s"
                 % (
                     bugtask.target.distribution.name,
                     bugtask.distroseries.name,
+                    bugtask.target.packagetype.name.lower(),
                     bugtask.target.name,
                     bugtask.bug.id,
                     bugtask.id,
@@ -178,9 +180,10 @@ class TestBugTaskTraversal(TestCaseWithFactory):
         )
         self.assertEqual(
             removeSecurityProxy(view).target,
-            "http://bugs.launchpad.test/%s/+external/%s/+bug/%d/+bugtask/%s"
+            "http://bugs.launchpad.test/%s/+%s/%s/+bug/%d/+bugtask/%s"
             % (
                 bug.default_bugtask.distribution.name,
+                bug.default_bugtask.target.packagetype.name.lower(),
                 bug.default_bugtask.target.name,
                 bug.default_bugtask.bug.id,
                 bug.default_bugtask.id,
@@ -213,10 +216,11 @@ class TestBugTaskTraversal(TestCaseWithFactory):
         )
         self.assertEqual(
             removeSecurityProxy(view).target,
-            "http://bugs.launchpad.test/%s/%s/+external/%s/+bug/%d/+bugtask/%s"
+            "http://bugs.launchpad.test/%s/%s/+%s/%s/+bug/%d/+bugtask/%s"
             % (
                 bug.default_bugtask.target.distribution.name,
                 bug.default_bugtask.distroseries.name,
+                bug.default_bugtask.target.packagetype.name.lower(),
                 bug.default_bugtask.target.name,
                 bug.default_bugtask.bug.id,
                 bug.default_bugtask.id,
@@ -236,9 +240,10 @@ class TestBugTaskTraversal(TestCaseWithFactory):
         )
         self.assertEqual(
             removeSecurityProxy(view).target,
-            "http://api.launchpad.test/1.0/%s/+external/%s/+bug/%d/+bugtask/%s"
+            "http://api.launchpad.test/1.0/%s/+%s/%s/+bug/%d/+bugtask/%s"
             % (
                 bug.default_bugtask.distribution.name,
+                bug.default_bugtask.target.packagetype.name.lower(),
                 bug.default_bugtask.target.name,
                 bug.default_bugtask.bug.id,
                 bug.default_bugtask.id,
@@ -267,11 +272,12 @@ class TestBugTaskTraversal(TestCaseWithFactory):
         )
         self.assertEqual(
             removeSecurityProxy(view).target,
-            "http://api.launchpad.test/1.0/%s/%s/+external/%s/+bug/%d/"
+            "http://api.launchpad.test/1.0/%s/%s/+%s/%s/+bug/%d/"
             "+bugtask/%s"
             % (
                 bug.default_bugtask.target.distribution.name,
                 bug.default_bugtask.distroseries.name,
+                bug.default_bugtask.target.packagetype.name.lower(),
                 bug.default_bugtask.target.name,
                 bug.default_bugtask.bug.id,
                 bug.default_bugtask.id,

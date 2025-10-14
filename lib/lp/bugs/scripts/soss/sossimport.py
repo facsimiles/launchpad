@@ -231,6 +231,11 @@ class SOSSImporter(SVTImporter):
         :param distribution: a Distribution affected by the vulnerability
         :return: a Vulnerability
         """
+
+        metadata = None
+        if soss_record.extra_attrs:
+            metadata = {"extra_attrs": soss_record.extra_attrs}
+
         vulnerability: Vulnerability = removeSecurityProxy(
             self.vulnerability_set.new(
                 distribution=distribution,
@@ -249,6 +254,7 @@ class SOSSImporter(SVTImporter):
                 date_notice_issued=None,
                 date_coordinated_release=None,
                 cvss=self._prepare_cvss_data(soss_record),
+                metadata=metadata,
             )
         )
 
@@ -287,6 +293,10 @@ class SOSSImporter(SVTImporter):
         vulnerability.date_notice_issued = None
         vulnerability.date_coordinated_release = None
         vulnerability.cvss = self._prepare_cvss_data(soss_record)
+
+        vulnerability.metadata = None
+        if soss_record.extra_attrs:
+            vulnerability.metadata = {"extra_attrs": soss_record.extra_attrs}
 
         logger.info(
             "[SOSSImporter] Updated Vulnerability with ID: "

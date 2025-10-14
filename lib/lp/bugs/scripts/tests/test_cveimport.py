@@ -94,6 +94,12 @@ class TestCVEUpdater(TestCase):
             "cveMetadata": {"cveId": f"CVE-{cve_id}"},
             "containers": {
                 "cna": {
+                    "affected": [
+                        {
+                            "vendor": "example vendor",
+                            "product": "example product",
+                        }
+                    ],
                     "descriptions": [{"lang": "en", "value": description}],
                     "references": [
                         {
@@ -257,11 +263,24 @@ class TestCVEUpdater(TestCase):
         """Test updating an existing CVE with new data."""
         # First create a CVE
         original_desc = "Original description"
+        original_metadata = {
+            "affected": [
+                {
+                    "vendor": "original vendor",
+                    "product": "original product",
+                }
+            ],
+        }
         cveset = getUtility(ICveSet)
 
         # Create initial CVE using a properly initialized updater
         updater = self.make_updater()
-        cveset.new("2024-0004", original_desc, CveStatus.ENTRY)
+        cveset.new(
+            "2024-0004",
+            original_desc,
+            CveStatus.ENTRY,
+            metadata=original_metadata,
+        )
         updater.txn.commit()
 
         # Create updated data
@@ -269,6 +288,14 @@ class TestCVEUpdater(TestCase):
         cve_data = self.create_test_json_cve(
             cve_id="2024-0004", description=new_desc
         )
+        new_metadata = {
+            "affected": [
+                {
+                    "vendor": "example vendor",
+                    "product": "example product",
+                }
+            ],
+        }
 
         # Process the update with a fresh updater
         updater = self.make_updater()
@@ -278,6 +305,7 @@ class TestCVEUpdater(TestCase):
         # Verify the update
         updated_cve = cveset["2024-0004"]
         self.assertEqual(new_desc, updated_cve.description)
+        self.assertEqual(new_metadata, updated_cve.metadata)
 
     def test_extract_github_zip(self):
         """Test extract_github_zip for complete releases."""

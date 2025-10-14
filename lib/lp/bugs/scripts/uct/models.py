@@ -8,6 +8,7 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from io import StringIO
 from pathlib import Path
 from typing import (
     Any,
@@ -49,16 +50,10 @@ from lp.services.propertycache import cachedproperty
 
 __all__ = [
     "CVE",
-    "CVSS",
     "UCTRecord",
 ]
 
 logger = logging.getLogger(__name__)
-
-
-class CVSS(NamedTuple):
-    authority: str
-    vector_string: str
 
 
 @dataclass
@@ -109,7 +104,7 @@ class UCTRecord(SVTRecord):
     parent_dir: str
     assigned_to: str
     bugs: List[str]
-    cvss: List[CVSS]
+    cvss: dict
     candidate: str
     crd: Optional[datetime]
     public_date: Optional[datetime]
@@ -218,18 +213,17 @@ class UCTRecord(SVTRecord):
         if public_date_at_USN == "unknown":
             public_date_at_USN = None
 
-        cvss = []
-        for cvss_dict in cls._pop_cve_property(cve_data, "CVSS"):
-            cvss.append(
-                CVSS(
-                    authority=cvss_dict["source"],
-                    vector_string="{} [{} {}]".format(
-                        cvss_dict["vector"],
-                        cvss_dict["baseScore"],
-                        cvss_dict["baseSeverity"],
-                    ),
+        cvss = defaultdict(list)
+        for c in cls._pop_cve_property(cve_data, "CVSS"):
+            authority = c["source"]
+            cvss[authority].append(
+                "{} [{} {}]".format(
+                    c["vector"],
+                    c["baseScore"],
+                    c["baseSeverity"],
                 )
             )
+        cvss = dict(cvss)
 
         _priority = cls._pop_cve_property(cve_data, "Priority").split("\n")
 
@@ -272,17 +266,11 @@ class UCTRecord(SVTRecord):
 
         return entry
 
-    def save(self, output_dir: Path) -> Path:
+    def to_str(self) -> str:
         """
-        Save UCTRecord to a file in UCT format.
+        Export UCTRecord to a str format.
         """
-        if not output_dir.is_dir():
-            raise ValueError(
-                "{} does not exist or is not a directory", output_dir
-            )
-        output_path = output_dir / self.parent_dir / self.candidate
-        output_path.parent.mkdir(exist_ok=True)
-        output = open(str(output_path), "w")
+        output = StringIO()
         if self.public_date_at_USN:
             self._write_field(
                 "PublicDateAtUSN",
@@ -319,8 +307,9 @@ class UCTRecord(SVTRecord):
         self._write_field(
             "CVSS",
             [
-                "{authority}: {vector_string}".format(**c._asdict())
-                for c in self.cvss
+                f"{authority}: {v}"
+                for authority, vectors in self.cvss.items()
+                for v in vectors
             ],
             output,
         )
@@ -362,7 +351,20 @@ class UCTRecord(SVTRecord):
                     output,
                 )
 
-        output.close()
+        return output.getvalue()
+
+    def save(self, output_dir: Path) -> Path:
+        """
+        Save UCTRecord to a file in UCT format.
+        """
+        if not output_dir.is_dir():
+            raise ValueError(
+                "{} does not exist or is not a directory", output_dir
+            )
+        output_path = output_dir / self.parent_dir / self.candidate
+        output_path.parent.mkdir(exist_ok=True)
+        yaml_content = self.to_str()
+        output_path.write_text(yaml_content)
         return output_path
 
     @classmethod
@@ -518,7 +520,7 @@ class CVE:
         references: List[str],
         notes: str,
         mitigation: str,
-        cvss: List[CVSS],
+        cvss: dict,
         global_tags: Set[str],
         break_fix_data: List[BreakFix],
         patch_urls: Optional[List[PatchURL]] = None,

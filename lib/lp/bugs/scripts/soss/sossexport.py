@@ -7,6 +7,8 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
+from zope.component import getUtility
+
 from lp.bugs.model.bug import Bug as BugModel
 from lp.bugs.model.bugtask import BugTask
 from lp.bugs.model.vulnerability import Vulnerability
@@ -17,6 +19,7 @@ from lp.bugs.scripts.soss.sossimport import (
     PRIORITY_ENUM_MAP,
 )
 from lp.bugs.scripts.svthandler import SVTExporter
+from lp.registry.interfaces.distribution import IDistributionSet
 from lp.registry.interfaces.role import IPersonRoles
 from lp.registry.security import SecurityAdminDistribution
 
@@ -84,6 +87,23 @@ class SOSSExporter(SVTExporter):
                 )
         return cvss_list
 
+    def _get_extra_attrs(self, vulnerability: Vulnerability) -> Optional[Dict]:
+        """Get the extra_attrs dict from vulnerability metadata if it exists"""
+
+        if isinstance(vulnerability.metadata, dict):
+            extra_attrs = vulnerability.metadata.get("extra_attrs")
+
+            # Ensure extra_attrs is a sorted dict (since the database doesn't
+            # guarantee order)
+            if isinstance(extra_attrs, dict):
+                extra_attrs = dict(
+                    sorted(extra_attrs.items(), key=lambda item: item[0])
+                )
+
+            return extra_attrs
+
+        return None
+
     def to_record(
         self,
         bug: BugModel,
@@ -103,6 +123,9 @@ class SOSSExporter(SVTExporter):
         assigned_to = (
             bug.bugtasks[0].assignee.name if bug.bugtasks[0].assignee else ""
         )
+
+        # Parse vulnerability.metadata["extra_attrs"]
+        extra_attrs = self._get_extra_attrs(vulnerability)
 
         # Parse vulnerability
         public_date = self._normalize_date_without_timezone(
@@ -124,6 +147,7 @@ class SOSSExporter(SVTExporter):
             description=vulnerability.description,
             cvss=self._get_cvss(vulnerability.cvss),
             public_date=public_date,
+            extra_attrs=extra_attrs,
         )
 
     def _format_notes(self, notes: str) -> List[Union[Dict, str]]:
@@ -167,7 +191,10 @@ class SOSSExporter(SVTExporter):
             return date_obj.replace(tzinfo=None)
         return date_obj
 
-    def checkUserPermissions(self, user, distribution):
-        return SecurityAdminDistribution(distribution).checkAuthenticated(
+    def checkUserPermissions(self, user):
+        """Only users with security admin permissions to SOSS can use
+        this handler"""
+        soss = getUtility(IDistributionSet).getByName("soss")
+        return SecurityAdminDistribution(soss).checkAuthenticated(
             IPersonRoles(user)
         )

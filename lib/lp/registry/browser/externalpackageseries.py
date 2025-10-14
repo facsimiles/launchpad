@@ -5,6 +5,7 @@ __all__ = [
     "ExternalPackageSeriesBreadcrumb",
     "ExternalPackageSeriesNavigation",
     "ExternalPackageSeriesFacets",
+    "ExternalPackageSeriesURL",
 ]
 
 
@@ -24,7 +25,10 @@ from lp.services.webapp import (
     stepto,
 )
 from lp.services.webapp.breadcrumb import Breadcrumb
-from lp.services.webapp.interfaces import IMultiFacetedBreadcrumb
+from lp.services.webapp.interfaces import (
+    ICanonicalUrlData,
+    IMultiFacetedBreadcrumb,
+)
 
 
 @implementer(IHeadingBreadcrumb, IMultiFacetedBreadcrumb)
@@ -35,8 +39,9 @@ class ExternalPackageSeriesBreadcrumb(Breadcrumb):
 
     @property
     def text(self):
-        return "%s external package in %s" % (
+        return "%s %s package in %s" % (
             self.context.sourcepackagename.name,
+            self.context.packagetype.name.lower(),
             self.context.distroseries.named_version,
         )
 
@@ -68,3 +73,22 @@ class ExternalPackageSeriesNavigation(
         if self.request.form.get("no-redirect") is not None:
             redirection_url += "?no-redirect"
         return self.redirectSubTree(redirection_url, status=303)
+
+
+@implementer(ICanonicalUrlData)
+class ExternalPackageSeriesURL:
+    """External Package URL creation rules."""
+
+    rootsite = None
+
+    def __init__(self, context):
+        self.context = context
+
+    @property
+    def inside(self):
+        return self.context.distroseries
+
+    @property
+    def path(self):
+        packagetype = self.context.packagetype.name.lower()
+        return f"+{packagetype}/{self.context.name}"

@@ -208,6 +208,7 @@
                     milestone_id
                     product_id
                     productseries_id
+                    packagetype
                     sourcepackagename_id
                     task_age
                     bug_subscribers
@@ -594,6 +595,19 @@
             <require
                 permission="launchpad.AnyPerson"
                 set_schema="lp.bugs.interfaces.cve.ICve"/>
+            <require
+                permission="launchpad.InternalScriptsOnly"
+                set_attributes="
+                    sequence
+                    status
+                    description
+                    datecreated
+                    datemodified
+                    references
+                    date_made_public
+                    discovered_by
+                    cvss
+                    metadata"/>
 
             <!-- IBugLinkTarget -->
 
@@ -947,7 +961,6 @@
                 permission="launchpad.View"
                 set_schema="lp.bugs.interfaces.bugpresence.IBugPresence"
                 attributes="
-                    id
                     bug
                     product
                     distribution
@@ -955,7 +968,7 @@
                     git_repository
                     break_fix_data"/>
             <require
-                permission="launchpad.Edit"
+                permission="launchpad.Delete"
                 attributes="destroySelf"/>
         </class>
 

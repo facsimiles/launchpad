@@ -38,7 +38,7 @@ from lp.bugs.interfaces.bugtask import (
     IBugTask,
 )
 from lp.services.fields import SearchTag
-from lp.services.searchbuilder import NULL, all, any, not_equals
+from lp.services.searchbuilder import NULL, all, any
 from lp.soyuz.interfaces.component import IComponent
 
 
@@ -315,15 +315,15 @@ class BugTaskSearchParams:
     def setExternalPackage(self, externalpackage):
         """Set the externalpackage context on which to filter the search."""
         self.distribution = externalpackage.distribution
-        # Currently we are only filtering by having any packagetype
-        self.packagetype = not_equals(None)
+        # Currently we are not filtering by channel
+        self.packagetype = externalpackage.packagetype.value
         self.sourcepackagename = externalpackage.sourcepackagename
 
     def setExternalPackageSeries(self, externalpackageseries):
         """Set the externalpackage context on which to filter the search."""
         self.distroseries = externalpackageseries.distroseries
-        # Currently we are only filtering by having any packagetype
-        self.packagetype = not_equals(None)
+        # Currently we are not filtering by channel
+        self.packagetype = externalpackageseries.packagetype.value
         self.sourcepackagename = externalpackageseries.sourcepackagename
 
     def setOCIProject(self, ociproject):
