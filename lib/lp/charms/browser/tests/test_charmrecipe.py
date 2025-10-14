@@ -1728,6 +1728,7 @@ class TestCharmRecipeRequestBuildsView(BaseTestCharmRecipeView):
             core20
             core22
             core24
+            core26
             The channels to use for build tools when building the charm
             recipe.
             or
