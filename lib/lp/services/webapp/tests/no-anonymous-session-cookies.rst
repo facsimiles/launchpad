@@ -57,10 +57,10 @@ time for browsers with bad system clocks.
     >>> print(browser.headers["Status"])
     303 See Other
     >>> print(browser.headers["Location"])
-    https://bazaar.launchpad.test/+logout?next_to=...
+    http://testopenid.test:8085/+logout
 
-After ensuring the browser has not left the launchpad.test domain, the
-single cookie is shown to have the ten minute expiration.
+After going back to launchpad.test domain, the single cookie is shown to have
+the ten minute expiration.
 
     >>> browser.open(root_url)
     >>> len(browser.cookies)
