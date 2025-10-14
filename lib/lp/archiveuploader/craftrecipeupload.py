@@ -104,12 +104,6 @@ class CraftRecipeUpload:
                         "Only one .crate file is allowed per build."
                     )
 
-                if len(jar_files) > 1:
-                    raise UploadError(
-                        "Archive contains multiple JAR files. "
-                        "Only one .jar file is allowed per build."
-                    )
-
                 if len(pom_files) > 1:
                     raise UploadError(
                         "Archive contains multiple pom.xml files. "
@@ -168,17 +162,20 @@ class CraftRecipeUpload:
                             "Failed to parse metadata.yaml: %s", e
                         )
 
-                    # Upload the JAR file
-                    jar_path = jar_files[0]
-                    with open(jar_path, "rb") as file:
-                        libraryfile = self.librarian.create(
-                            os.path.basename(str(jar_path)),
-                            os.stat(jar_path).st_size,
-                            file,
-                            filenameToContentType(str(jar_path)),
-                            restricted=build.is_private,
-                        )
-                    build.addFile(libraryfile)
+                    # Upload all JAR files
+                    self.logger.debug(
+                        "Uploading %d JAR file(s)", len(jar_files)
+                    )
+                    for jar_path in sorted(jar_files):
+                        with open(jar_path, "rb") as file:
+                            libraryfile = self.librarian.create(
+                                os.path.basename(str(jar_path)),
+                                os.stat(jar_path).st_size,
+                                file,
+                                filenameToContentType(str(jar_path)),
+                                restricted=build.is_private,
+                            )
+                        build.addFile(libraryfile)
 
                     # Upload the POM file
                     pom_path = pom_files[0]
