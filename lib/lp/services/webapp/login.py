@@ -608,11 +608,8 @@ class CookieLogoutPage:
     def logout(self):
         logoutPerson(self.request)
         openid_root = config.launchpad.openid_provider_root
-        target = "%s+logout?%s" % (
-            config.codehosting.secure_codebrowse_root,
-            urlencode(dict(next_to="%s+logout" % (openid_root,))),
-        )
-        self.request.response.redirect(target)
+        next_url = f"{openid_root}+logout"
+        self.request.response.redirect(next_url)
         return ""
 
 
