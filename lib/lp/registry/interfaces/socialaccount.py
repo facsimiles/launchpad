@@ -175,7 +175,6 @@ class GithubPlatform(SocialPlatform):
     identity_fields = ["username"]
     identity_fields_example = {
         "username": "mark",
-        "homeserver": "ubuntu.com",
     }
     platform_type = SocialPlatformType.GITHUB
     icon = "social-github"
