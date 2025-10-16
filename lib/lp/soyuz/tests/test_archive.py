@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 import responses
 import transaction
 from aptsources.sourceslist import SourceEntry
+from storm.exceptions import LostObjectError
 from storm.store import Store
 from testtools.matchers import (
     AfterPreprocessing,
@@ -7340,3 +7341,17 @@ class TestArchiveMetadataOverrides(TestCaseWithFactory):
             Unauthorized,
             lambda: primary_archive.setMetadataOverrides(overrides),
         )
+
+
+class TestArchiveWebhooks(TestCaseWithFactory):
+    layer = LaunchpadZopelessLayer
+
+    def test_related_webhooks_deleted(self):
+        owner = self.factory.makePerson()
+        archive = self.factory.makeArchive(name="test-archive", owner=owner)
+        webhook = self.factory.makeWebhook(target=archive)
+        with person_logged_in(archive.owner):
+            webhook.ping()
+            archive.delete(archive.owner)
+            transaction.commit()
+            self.assertRaises(LostObjectError, getattr, webhook, "event_types")

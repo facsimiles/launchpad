@@ -574,6 +574,14 @@ class TestWebhookTargetCharmRecipe(TestWebhookTargetBase, TestCaseWithFactory):
             return self.factory.makeCharmRecipe(registrant=owner, owner=owner)
 
 
+class TestWebhookTargetArchive(TestWebhookTargetBase, TestCaseWithFactory):
+    event_type = "archive:source-package-upload:0.1"
+
+    def makeTarget(self):
+        owner = self.factory.makePerson()
+        return self.factory.makeArchive(name="test-archive", owner=owner)
+
+
 class TestWebhookTargetProduct(TestWebhookTargetBase, TestCaseWithFactory):
     event_type = "bug:0.1"
 

@@ -67,6 +67,7 @@ WEBHOOK_EVENT_TYPES = {
     "oci-recipe:build:0.1": "OCI recipe build",
     "snap:build:0.1": "Snap build",
     "craft-recipe:build:0.1": "Craft recipe build",
+    "archive:source-package-upload:0.1": "Source package upload",
 }
 
 
