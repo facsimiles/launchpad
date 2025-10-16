@@ -39,6 +39,7 @@ We publish a subset of their attributes.
     signing_key_fingerprint: None
     suppress_subscription_notifications: False
     web_link: 'http://launchpad.../~cprov/+archive/ubuntu/ppa'
+    webhooks_collection_link: 'http://.../~cprov/+archive/ubuntu/ppa/webhooks'
 
 For "devel" additional attributes are available.
 
@@ -76,6 +77,7 @@ For "devel" additional attributes are available.
     status: 'Active'
     suppress_subscription_notifications: False
     web_link: 'http://launchpad.../~cprov/+archive/ubuntu/ppa'
+    webhooks_collection_link: 'http://.../~cprov/+archive/ubuntu/ppa/webhooks'
 
 While the Archive signing key is being generated its
 'signing_key_fingerprint' attribute is None.
@@ -158,6 +160,7 @@ The archive has the following attributes:
     signing_key_fingerprint: None
     suppress_subscription_notifications: False
     web_link: 'http://launchpad.../ubuntutest/+archive/primary'
+    webhooks_collection_link: 'http://.../ubuntutest/+archive/primary/webhooks'
 
 A distribution can also provide a list of all its archives:
 
@@ -1401,8 +1404,13 @@ for admins, commercial admins, and PPA admins.
     >>> import json
     >>> def modify_archive(service, archive):
     ...     headers = {"Content-type": "application/json"}
+    ...     archive_data = dict(archive)
+    ...
+    ...     # We never want to edit the webhooks link in these tests
+    ...     del archive_data["webhooks_collection_link"]
+    ...
     ...     return service(
-    ...         archive["self_link"], "PUT", json.dumps(archive), headers
+    ...         archive["self_link"], "PUT", json.dumps(archive_data), headers
     ...     )
     ...
 
@@ -1512,6 +1520,7 @@ the IArchive context, in this case only Celso has it.
     signing_key_fingerprint: 'tag:launchpad.net:2008:redacted'
     suppress_subscription_notifications: False
     web_link: 'http://launchpad.../~cprov/+archive/ubuntu/p3a'
+    webhooks_collection_link: 'http://.../~cprov/+archive/ubuntu/p3a/webhooks'
 
     >>> pprint_entry(
     ...     cprov_webservice.get("/~cprov/+archive/ubuntu/p3a").jsonBody()
@@ -1537,6 +1546,7 @@ the IArchive context, in this case only Celso has it.
     signing_key_fingerprint: 'ABCDEF0123456789ABCDDCBA0000111112345678'
     suppress_subscription_notifications: False
     web_link: 'http://launchpad.../~cprov/+archive/ubuntu/p3a'
+    webhooks_collection_link: 'http://.../~cprov/+archive/ubuntu/p3a/webhooks'
 
 Creating subscriptions to a (private) archive
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
