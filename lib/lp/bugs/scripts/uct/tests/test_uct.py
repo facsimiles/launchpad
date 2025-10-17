@@ -738,7 +738,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
                 2021, 1, 14, 8, 15, tzinfo=timezone.utc
             ),
             date_coordinated_release=datetime(
-                2020, 1, 14, 8, 15, tzinfo=timezone.utc
+                2022, 1, 14, 8, 15, tzinfo=timezone.utc
             ),
             distro_packages=[
                 CVE.DistroPackage(
@@ -763,7 +763,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
                     package_name=self.ubuntu_package.sourcepackagename,
                     importance=BugTaskImportance.HIGH,
                     status=BugTaskStatus.FIXRELEASED,
-                    status_explanation="released",
+                    status_explanation="2.56+dfsg-1",
                 ),
                 CVE.SeriesPackage(
                     target=SourcePackage(
@@ -877,7 +877,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             assigned_to=assignee.name,
             bugs=["https://github.com/mm2/Little-CMS/issues/29"],
             candidate="CVE-2022-23222",
-            crd=datetime(2020, 1, 14, 8, 15, tzinfo=timezone.utc),
+            crd=datetime(2022, 1, 14, 8, 15, tzinfo=timezone.utc),
             cvss={
                 "nvd": [
                     "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
@@ -896,7 +896,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
                         UCTRecord.SeriesPackageStatus(
                             series="focal",
                             status=UCTRecord.PackageStatus.RELEASED,
-                            reason="released",
+                            reason="2.56+dfsg-1",
                             priority=UCTRecord.Priority.HIGH,
                         ),
                         UCTRecord.SeriesPackageStatus(
