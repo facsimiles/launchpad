@@ -473,7 +473,11 @@ class CodeReviewVoteReferenceEdit(DelegatedAuthorization):
     usedfor = ICodeReviewVoteReference
 
     def __init__(self, obj):
-        super().__init__(obj, obj.branch_merge_proposal.target_branch)
+        target = (
+            obj.branch_merge_proposal.target_branch
+            or obj.branch_merge_proposal.target_git_repository
+        )
+        super().__init__(obj, target)
 
     def checkAuthenticated(self, user):
         """Only the affected teams may change the review request.

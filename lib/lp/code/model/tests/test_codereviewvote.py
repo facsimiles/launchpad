@@ -1,6 +1,7 @@
 # Copyright 2009 Canonical Ltd.  This software is licensed under the
 # GNU Affero General Public License version 3 (see the file LICENSE).
 
+from testscenarios.testcase import WithScenarios
 from zope.security.interfaces import Unauthorized
 
 from lp.app.enums import InformationType
@@ -18,18 +19,40 @@ from lp.testing import ANONYMOUS, TestCaseWithFactory, login, login_person
 from lp.testing.layers import DatabaseFunctionalLayer
 
 
-class TestCodeReviewVote(TestCaseWithFactory):
+class TestCodeReviewVote(WithScenarios, TestCaseWithFactory):
     layer = DatabaseFunctionalLayer
+
+    scenarios = [
+        ("bazaar", {"cvs": "BAZAAR"}),
+        ("git", {"cvs": "GIT"}),
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.reviewer = self.factory.makePerson()
+        self.owner = self.factory.makePerson()
+
+        if self.cvs == "BAZAAR":
+            self.for_git = False
+            self.bmp = self.factory.makeBranchMergeProposal()
+            self.bmp_without_reviewers = make_merge_proposal_without_reviewers(
+                self.factory
+            )
+        elif self.cvs == "GIT":
+            self.for_git = True
+            self.bmp = self.factory.makeBranchMergeProposalForGit()
+            self.bmp_without_reviewers = make_merge_proposal_without_reviewers(
+                self.factory, for_git=True
+            )
 
     def test_create_vote(self):
         """CodeReviewVotes can be created"""
-        merge_proposal = make_merge_proposal_without_reviewers(self.factory)
-        reviewer = self.factory.makePerson()
+        merge_proposal = self.bmp_without_reviewers
         login_person(merge_proposal.registrant)
         vote = merge_proposal.nominateReviewer(
-            reviewer, merge_proposal.registrant
+            self.reviewer, merge_proposal.registrant
         )
-        self.assertEqual(reviewer, vote.reviewer)
+        self.assertEqual(self.reviewer, vote.reviewer)
         self.assertEqual(merge_proposal.registrant, vote.registrant)
         self.assertEqual(merge_proposal, vote.branch_merge_proposal)
         self.assertEqual([vote], list(merge_proposal.votes))
@@ -38,42 +61,58 @@ class TestCodeReviewVote(TestCaseWithFactory):
 
     def test_anonymous_public(self):
         """Anonymous users can see votes on public merge proposals."""
-        merge_proposal = make_merge_proposal_without_reviewers(self.factory)
-        reviewer = self.factory.makePerson()
+        merge_proposal = self.bmp_without_reviewers
         login_person(merge_proposal.registrant)
         vote = merge_proposal.nominateReviewer(
-            reviewer, merge_proposal.registrant
+            self.reviewer, merge_proposal.registrant
         )
         login(ANONYMOUS)
         self.assertTrue(check_permission("launchpad.View", vote))
 
     def test_anonymous_private(self):
         """Anonymous users cannot see votes on private merge proposals."""
-        owner = self.factory.makePerson()
-        login_person(owner)
-        target_branch = self.factory.makeBranch(
-            owner=owner, information_type=InformationType.USERDATA
-        )
+        login_person(self.owner)
+        if self.cvs == "BAZAAR":
+            target_branch = self.factory.makeBranch(
+                owner=self.owner, information_type=InformationType.USERDATA
+            )
+        elif self.cvs == "GIT":
+            [target_branch] = self.factory.makeGitRefs(
+                owner=self.owner, information_type=InformationType.USERDATA
+            )
         merge_proposal = make_merge_proposal_without_reviewers(
-            self.factory, target=target_branch, registrant=owner
+            self.factory,
+            for_git=self.for_git,
+            target=target_branch,
+            registrant=self.owner,
         )
-        reviewer = self.factory.makePerson()
-        vote = merge_proposal.nominateReviewer(reviewer, owner)
+        vote = merge_proposal.nominateReviewer(self.reviewer, self.owner)
         login(ANONYMOUS)
         self.assertFalse(check_permission("launchpad.View", vote))
 
 
-class TestCodeReviewVoteReferenceClaimReview(TestCaseWithFactory):
+class TestCodeReviewVoteReferenceClaimReview(
+    WithScenarios, TestCaseWithFactory
+):
     """Tests for CodeReviewVoteReference.claimReview."""
 
     layer = DatabaseFunctionalLayer
 
+    scenarios = [
+        ("bazaar", {"cvs": "BAZAAR"}),
+        ("git", {"cvs": "GIT"}),
+    ]
+
     def setUp(self):
         TestCaseWithFactory.setUp(self)
         # Setup the proposal, claimant and team reviewer.
-        self.bmp = self.factory.makeBranchMergeProposal()
         self.claimant = self.factory.makePerson(name="eric")
         self.review_team = self.factory.makeTeam()
+
+        if self.cvs == "BAZAAR":
+            self.bmp = self.factory.makeBranchMergeProposal()
+        elif self.cvs == "GIT":
+            self.bmp = self.factory.makeBranchMergeProposalForGit()
 
     def _addPendingReview(self):
         """Add a pending review for the review_team."""
@@ -159,15 +198,39 @@ class TestCodeReviewVoteReferenceClaimReview(TestCaseWithFactory):
         review.claimReview(review.reviewer)
 
 
-class TestCodeReviewVoteReferenceDelete(TestCaseWithFactory):
+class TestCodeReviewVoteReferenceDelete(WithScenarios, TestCaseWithFactory):
     """Tests for CodeReviewVoteReference.delete."""
 
     layer = DatabaseFunctionalLayer
 
+    scenarios = [
+        ("bazaar", {"cvs": "BAZAAR"}),
+        ("git", {"cvs": "GIT"}),
+    ]
+
+    def setUp(self):
+        super().setUp()
+        if self.cvs == "BAZAAR":
+            self.bmp = self.factory.makeBranchMergeProposal()
+            self.bmp_without_reviewers = make_merge_proposal_without_reviewers(
+                self.factory
+            )
+            self.bmp_without_reviewers_owner = (
+                self.bmp_without_reviewers.target_branch.owner
+            )
+        elif self.cvs == "GIT":
+            self.bmp = self.factory.makeBranchMergeProposalForGit()
+            self.bmp_without_reviewers = make_merge_proposal_without_reviewers(
+                self.factory, for_git=True
+            )
+            self.bmp_without_reviewers_owner = (
+                self.bmp_without_reviewers.target_git_repository.owner
+            )
+
     def test_delete_pending_by_registrant(self):
         # A pending review can be deleted by the person requesting the review.
         reviewer = self.factory.makePerson()
-        bmp = make_merge_proposal_without_reviewers(self.factory)
+        bmp = self.bmp_without_reviewers
         login_person(bmp.registrant)
         review = bmp.nominateReviewer(
             reviewer=reviewer, registrant=bmp.registrant
@@ -178,7 +241,7 @@ class TestCodeReviewVoteReferenceDelete(TestCaseWithFactory):
     def test_delete_pending_by_reviewer(self):
         # A pending review can be deleted by the person requesting the review.
         reviewer = self.factory.makePerson()
-        bmp = make_merge_proposal_without_reviewers(self.factory)
+        bmp = self.bmp_without_reviewers
         login_person(bmp.registrant)
         review = bmp.nominateReviewer(
             reviewer=reviewer, registrant=bmp.registrant
@@ -190,7 +253,7 @@ class TestCodeReviewVoteReferenceDelete(TestCaseWithFactory):
     def test_delete_pending_by_review_team_member(self):
         # A pending review can be deleted by the person requesting the review.
         review_team = self.factory.makeTeam()
-        bmp = make_merge_proposal_without_reviewers(self.factory)
+        bmp = self.bmp_without_reviewers
         login_person(bmp.registrant)
         review = bmp.nominateReviewer(
             reviewer=review_team, registrant=bmp.registrant
@@ -203,19 +266,19 @@ class TestCodeReviewVoteReferenceDelete(TestCaseWithFactory):
         # A pending review can be deleted by anyone with edit permissions on
         # the target branch.
         reviewer = self.factory.makePerson()
-        bmp = make_merge_proposal_without_reviewers(self.factory)
+        bmp = self.bmp_without_reviewers
         login_person(bmp.registrant)
         review = bmp.nominateReviewer(
             reviewer=reviewer, registrant=bmp.registrant
         )
-        login_person(bmp.target_branch.owner)
+        login_person(self.bmp_without_reviewers_owner)
         review.delete()
         self.assertEqual([], list(bmp.votes))
 
     def test_delete_by_others_unauthorized(self):
         # A pending review can be deleted by the person requesting the review.
         reviewer = self.factory.makePerson()
-        bmp = self.factory.makeBranchMergeProposal()
+        bmp = self.bmp
         login_person(bmp.registrant)
         review = bmp.nominateReviewer(
             reviewer=reviewer, registrant=bmp.registrant
@@ -226,7 +289,7 @@ class TestCodeReviewVoteReferenceDelete(TestCaseWithFactory):
     def test_delete_not_pending(self):
         # A non-pending review reference cannot be deleted.
         reviewer = self.factory.makePerson()
-        bmp = make_merge_proposal_without_reviewers(self.factory)
+        bmp = self.bmp_without_reviewers
         login_person(reviewer)
         bmp.createComment(
             reviewer,
@@ -238,14 +301,27 @@ class TestCodeReviewVoteReferenceDelete(TestCaseWithFactory):
         self.assertRaises(ReviewNotPending, review.delete)
 
 
-class TestCodeReviewVoteReferenceReassignReview(TestCaseWithFactory):
+class TestCodeReviewVoteReferenceReassignReview(
+    WithScenarios, TestCaseWithFactory
+):
     """Tests for CodeReviewVoteReference.reassignReview."""
 
     layer = DatabaseFunctionalLayer
 
+    scenarios = [
+        ("bazaar", {"cvs": "BAZAAR"}),
+        ("git", {"cvs": "GIT"}),
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.for_git = True if self.cvs == "GIT" else False
+
     def makeMergeProposalWithReview(self, completed=False):
         """Return a new merge proposal with a review."""
-        bmp = make_merge_proposal_without_reviewers(self.factory)
+        bmp = make_merge_proposal_without_reviewers(
+            self.factory, for_git=self.for_git
+        )
         reviewer = self.factory.makePerson()
         if completed:
             login_person(reviewer)
