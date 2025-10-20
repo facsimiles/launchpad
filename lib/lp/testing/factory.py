@@ -5958,7 +5958,7 @@ class LaunchpadObjectFactory(ObjectFactory):
 
     def makeCVE(
         self,
-        sequence,
+        sequence=None,
         description=None,
         cvestate=CveStatus.CANDIDATE,
         date_made_public=None,
@@ -5966,6 +5966,9 @@ class LaunchpadObjectFactory(ObjectFactory):
         cvss=None,
     ):
         """Create a new CVE record."""
+        if sequence is None:
+            sequence = "2000-%04i" % self.getUniqueInteger()
+        
         if description is None:
             description = self.getUniqueUnicode()
 
