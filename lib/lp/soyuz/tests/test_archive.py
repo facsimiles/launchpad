@@ -7509,3 +7509,126 @@ class TestSourcePackageUploadWebhooks(TestCaseWithFactory):
         upload_unwrapped.setAccepted()
 
         self.assertEqual(hook.deliveries.count(), 0)
+
+
+class TestBinaryBuildFinishWebhooks(TestCaseWithFactory):
+    """Tests that webhooks trigger correctly on binary package
+    status change."""
+
+    layer = LaunchpadZopelessLayer
+
+    def test_binary_build_status_change_triggers_webhook(self):
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:binary-build:0.1"],
+        )
+
+        build = self.factory.makeBinaryPackageBuild(
+            archive=archive, status=BuildStatus.UPLOADING
+        )
+        build.updateStatus(BuildStatus.FULLYBUILT)
+
+        job = hook.deliveries.one()
+        self.assertEqual(job.event_type, "archive:binary-build:0.1")
+
+        payload = job.payload
+        self.assertEqual(
+            payload["build"],
+            canonical_url(build, force_local_path=True),
+        )
+        self.assertEqual(payload["action"], "status-changed")
+        self.assertEqual(payload["status"], "FULLYBUILT")
+        self.assertEqual(
+            payload["archive"],
+            canonical_url(archive, force_local_path=True),
+        )
+
+        self.assertIsNotNone(build.source_package_release.sourcepackagename)
+
+    def test_binary_build_no_status_change_does_not_trigger_webhook(self):
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:binary-build:0.1"],
+        )
+
+        self.factory.makeBinaryPackageBuild(
+            archive=archive, status=BuildStatus.UPLOADING
+        )
+
+        self.assertEqual(hook.deliveries.count(), 0)
+
+    def test_only_webhook_for_chosen_subscope_is_triggered(self):
+        """If the webhook is configured only for the subscope 'fullybuilt',
+        then a status update to 'FAILEDTOBUILD' should not trigger a
+        webhook, but 'FULLYBUILT' should.
+        """
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:binary-build:0.1::fullybuilt"],
+        )
+
+        failed_build = self.factory.makeBinaryPackageBuild(
+            archive=archive, status=BuildStatus.GATHERING
+        )
+        failed_build.updateStatus(BuildStatus.FAILEDTOBUILD)
+
+        self.assertEqual(hook.deliveries.count(), 0)
+
+        successful_build = self.factory.makeBinaryPackageBuild(
+            archive=archive, status=BuildStatus.UPLOADING
+        )
+        successful_build.updateStatus(BuildStatus.FULLYBUILT)
+
+        self.assertEqual(hook.deliveries.count(), 1)
+
+    def test_no_webhook_triggered_when_feature_flag_is_not_on(self):
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "",
+                }
+            )
+        )
+
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:binary-build:0.1"],
+        )
+
+        build = self.factory.makeBinaryPackageBuild(
+            archive=archive, status=BuildStatus.UPLOADING
+        )
+        build.updateStatus(BuildStatus.FULLYBUILT)
+
+        self.assertEqual(hook.deliveries.count(), 0)

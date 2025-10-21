@@ -60,6 +60,7 @@ from lp.services.macaroons.interfaces import (
     IMacaroonIssuer,
 )
 from lp.services.macaroons.model import MacaroonIssuerBase
+from lp.services.webapp.snapshot import notify_modified
 from lp.soyuz.adapters.buildarch import determine_architectures_to_build
 from lp.soyuz.enums import ArchivePurpose, BinarySourceReferenceType
 from lp.soyuz.interfaces.archive import (
@@ -538,6 +539,30 @@ class BinaryPackageBuild(PackageBuildMixin, StormBase):
             DistroArchSeriesBinaryPackageRelease(self.distro_arch_series, bp)
             for bp in self.binarypackages
         ]
+
+    def updateStatus(
+        self,
+        status,
+        builder=None,
+        worker_status=None,
+        date_started=None,
+        date_finished=None,
+        force_invalid_transition=False,
+    ):
+        edited_fields = set()
+        with notify_modified(
+            self, edited_fields, snapshot_names=("status",)
+        ) as previous_obj:
+            super().updateStatus(
+                status,
+                builder=builder,
+                worker_status=worker_status,
+                date_started=date_started,
+                date_finished=date_finished,
+                force_invalid_transition=force_invalid_transition,
+            )
+            if self.status != previous_obj.status:
+                edited_fields.add("status")
 
     @property
     def can_be_retried(self):
