@@ -171,7 +171,7 @@ class UCTRecord(SVTRecord):
                         status=cls.PackageStatus(status),
                         reason=reason,
                         priority=(
-                            cls.Priority(series_priority)
+                            cls.Priority(series_priority[0])
                             if series_priority
                             else None
                         ),
@@ -187,7 +187,7 @@ class UCTRecord(SVTRecord):
                     name=package,
                     statuses=statuses,
                     priority=(
-                        cls.Priority(package_priority)
+                        cls.Priority(package_priority[0])
                         if package_priority
                         else None
                     ),
@@ -225,7 +225,7 @@ class UCTRecord(SVTRecord):
             )
         cvss = dict(cvss)
 
-        _priority = cls._pop_cve_property(cve_data, "Priority").split("\n")
+        _priority = cls._pop_cve_property(cve_data, "Priority")
 
         entry = UCTRecord(
             parent_dir=cve_path.absolute().parent.name,
@@ -249,7 +249,7 @@ class UCTRecord(SVTRecord):
             ),
             notes=cls._format_notes(cls._pop_cve_property(cve_data, "Notes")),
             priority=cls.Priority(_priority[0]),
-            priority_explanation="\n".join(_priority[1:]),
+            priority_explanation="\n".join(_priority[1]),
             references=cls._pop_cve_property(cve_data, "References").split(
                 "\n"
             ),
