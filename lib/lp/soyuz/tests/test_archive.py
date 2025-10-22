@@ -70,6 +70,7 @@ from lp.services.signing.interfaces.signingkey import IArchiveSigningKeySet
 from lp.services.timeout import default_timeout
 from lp.services.webapp.authorization import check_permission
 from lp.services.webapp.interfaces import OAuthPermission
+from lp.services.webapp.publisher import canonical_url
 from lp.services.worlddata.interfaces.country import ICountrySet
 from lp.soyuz.adapters.archivedependencies import get_sources_list_for_building
 from lp.soyuz.adapters.overrides import BinaryOverride, SourceOverride
@@ -81,8 +82,10 @@ from lp.soyuz.enums import (
     ArchiveStatus,
     PackageCopyPolicy,
     PackagePublishingStatus,
+    PackageUploadStatus,
 )
 from lp.soyuz.interfaces.archive import (
+    ARCHIVE_WEBHOOKS_FEATURE_FLAG,
     NAMED_AUTH_TOKEN_FEATURE_FLAG,
     ArchiveDependencyError,
     ArchiveDisabled,
@@ -7355,3 +7358,154 @@ class TestArchiveWebhooks(TestCaseWithFactory):
             archive.delete(archive.owner)
             transaction.commit()
             self.assertRaises(LostObjectError, getattr, webhook, "event_types")
+
+
+class TestSourcePackageUploadWebhooks(TestCaseWithFactory):
+    """Tests that source package upload webhooks trigger correctly."""
+
+    layer = LaunchpadZopelessLayer
+
+    def test_source_package_upload_status_change_triggers_webhook(self):
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:source-package-upload:0.1"],
+        )
+
+        upload = self.factory.makePackageUpload(
+            archive=archive,
+            status=PackageUploadStatus.NEW,
+        )
+        upload.addSource(
+            self.factory.makeSourcePackageRelease(
+                sourcepackagename=self.factory.makeSourcePackageName(
+                    name="mypkg"
+                ),
+                version="1.0.0",
+            )
+        )
+
+        upload_unwrapped = removeSecurityProxy(upload)
+        upload_unwrapped.setAccepted()
+
+        job = hook.deliveries.one()
+        self.assertEqual(job.event_type, "archive:source-package-upload:0.1")
+
+        payload = job.payload
+        self.assertEqual(
+            payload["package_upload"],
+            canonical_url(upload, force_local_path=True),
+        )
+        self.assertEqual(payload["action"], "status-changed")
+        self.assertEqual(payload["status"], "ACCEPTED")
+        self.assertEqual(
+            payload["archive"],
+            canonical_url(archive, force_local_path=True),
+        )
+        self.assertEqual(payload["package_name"], "mypkg")
+        self.assertEqual(payload["package_version"], "1.0.0")
+
+    def test_source_package_upload_no_status_change_does_not_trigger_webhook(
+        self,
+    ):
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:source-package-upload:0.1"],
+        )
+
+        upload = self.factory.makePackageUpload(
+            archive=archive,
+            status=PackageUploadStatus.NEW,
+        )
+        upload.addSource(
+            self.factory.makeSourcePackageRelease(
+                sourcepackagename=self.factory.makeSourcePackageName(
+                    name="mypkg"
+                ),
+                version="1.0.0",
+            )
+        )
+
+        self.assertEqual(hook.deliveries.count(), 0)
+
+    def test_only_webhook_for_chosen_subscope_is_triggered(self):
+        """If the webhook is configured only for the subscope 'accepted',
+        then rejection should not trigger a webhook, but acceptance should."""
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:source-package-upload:0.1::accepted"],
+        )
+
+        upload = self.factory.makePackageUpload(
+            archive=archive,
+            status=PackageUploadStatus.NEW,
+        )
+
+        upload_unwrapped = removeSecurityProxy(upload)
+        upload_unwrapped.setRejected()
+
+        self.assertEqual(hook.deliveries.count(), 0)
+
+        upload_unwrapped.setAccepted()
+
+        job = hook.deliveries.one()
+        self.assertEqual(job.event_type, "archive:source-package-upload:0.1")
+
+    def test_no_webhook_triggered_when_feature_flag_is_not_on(self):
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "",
+                }
+            )
+        )
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:source-package-upload:0.1"],
+        )
+
+        upload = self.factory.makePackageUpload(
+            archive=archive,
+            status=PackageUploadStatus.NEW,
+        )
+        upload.addSource(
+            self.factory.makeSourcePackageRelease(
+                sourcepackagename=self.factory.makeSourcePackageName(
+                    name="mypkg"
+                ),
+                version="1.0.0",
+            )
+        )
+
+        upload_unwrapped = removeSecurityProxy(upload)
+        upload_unwrapped.setAccepted()
+
+        self.assertEqual(hook.deliveries.count(), 0)

@@ -232,7 +232,12 @@ class Archive(StormBase, WebhookTargetMixin):
 
     @property
     def valid_webhook_event_types(self):
-        return ["archive:source-package-upload:0.1"]
+        return [
+            "archive:source-package-upload:0.1",
+            "archive:source-package-upload:0.1::accepted",
+            "archive:source-package-upload:0.1::rejected",
+            "archive:source-package-upload:0.1::unapproved",
+        ]
 
     def _validate_archive_name(self, attr, value):
         """Only allow renaming of COPY archives.

@@ -10,6 +10,7 @@ __all__ = [
     "ArchiveDependencyError",
     "ArchiveDisabled",
     "ArchiveNotPrivate",
+    "ARCHIVE_WEBHOOKS_FEATURE_FLAG",
     "CannotCopy",
     "CannotSwitchPrivacy",
     "ComponentNotFound",
@@ -121,6 +122,7 @@ from lp.soyuz.interfaces.buildrecords import IHasBuildRecords
 from lp.soyuz.interfaces.component import IComponent
 
 NAMED_AUTH_TOKEN_FEATURE_FLAG = "soyuz.named_auth_token.allow_new"
+ARCHIVE_WEBHOOKS_FEATURE_FLAG = "archive.webhooks.enabled"
 
 
 @error_status(http.client.BAD_REQUEST)

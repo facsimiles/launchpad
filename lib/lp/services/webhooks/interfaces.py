@@ -68,6 +68,12 @@ WEBHOOK_EVENT_TYPES = {
     "snap:build:0.1": "Snap build",
     "craft-recipe:build:0.1": "Craft recipe build",
     "archive:source-package-upload:0.1": "Source package upload",
+    "archive:source-package-upload:0.1::accepted": "Source package"
+    "upload accepted",
+    "archive:source-package-upload:0.1::rejected": "Source package"
+    "upload rejected",
+    "archive:source-package-upload:0.1::unapproved": "Source package"
+    "upload unapproved",
 }
 
 

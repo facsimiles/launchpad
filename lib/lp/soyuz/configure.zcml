@@ -43,6 +43,13 @@
                 set_schema="lp.soyuz.interfaces.publishing.IBinaryPackagePublishingHistory"/>
         </class>
 
+    <!-- PackageUploadStatusChange -->
+    <subscriber
+        for="lp.soyuz.interfaces.queue.IPackageUpload
+            lazr.lifecycle.interfaces.IObjectModifiedEvent"
+        handler="lp.soyuz.subscribers.archive.package_status_change_webhook"
+    />
+
     <!-- DistroSeriesPackageCache -->
     <class
         class="lp.soyuz.model.distroseriespackagecache.DistroSeriesPackageCache">
