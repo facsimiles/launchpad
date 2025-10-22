@@ -83,7 +83,11 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         self.useFixture(FakeLogger())
         self.useFixture(FeatureFixture({CRAFT_RECIPE_ALLOW_CREATE: "on"}))
         self.recipe = self.factory.makeCraftRecipe()
-        self.build = self.factory.makeCraftRecipeBuild(recipe=self.recipe)
+        ds = self.factory.makeDistroSeries(name="noble")
+        das = self.factory.makeDistroArchSeries(distroseries=ds)
+        self.build = self.factory.makeCraftRecipeBuild(
+            recipe=self.recipe, distro_arch_series=das
+        )
 
         # Set up the Artifactory fixture
         self.base_url = "https://example.com/artifactory"
@@ -548,7 +552,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         self.assertEqual(artifact["properties"]["soss.type"], "source")
         self.assertEqual(artifact["properties"]["soss.license"], license_value)
         self.assertEqual(
-            artifact["properties"].get("launchpad.channel"), "0.1.0/stable"
+            artifact["properties"].get("launchpad.channel"),
+            "noble:0.1.0/stable",
         )
 
     def test_run_missing_maven_config(self):
@@ -773,7 +778,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         self.assertEqual(artifact["properties"]["soss.type"], "source")
         self.assertEqual(artifact["properties"]["soss.license"], license_value)
         self.assertEqual(
-            artifact["properties"].get("launchpad.channel"), "0.1.0/stable"
+            artifact["properties"].get("launchpad.channel"),
+            "noble:0.1.0/stable",
         )
 
     def test__publish_properties_sets_expected_properties(self):
@@ -819,7 +825,7 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         self.assertEqual(props["soss.type"], "source")
         self.assertEqual(props["soss.license"], "MIT")
         self.assertIn("launchpad.channel", props)
-        self.assertEqual(props["launchpad.channel"], "unknown/stable")
+        self.assertEqual(props["launchpad.channel"], "noble:unknown/stable")
 
     def test__publish_properties_artifact_not_found(self):
         """Test that _publish_properties raises NotFoundError if artifact is
@@ -867,7 +873,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         artifact = self._artifactory_search("repository", "artifact.file")
         self.assertEqual(artifact["properties"]["soss.license"], "unknown")
         self.assertEqual(
-            artifact["properties"].get("launchpad.channel"), "unknown/stable"
+            artifact["properties"].get("launchpad.channel"),
+            "noble:unknown/stable",
         )
 
     def test__publish_properties_no_license_in_metadata_yaml(self):
@@ -912,7 +919,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         artifact = self._artifactory_search("repository", "artifact.file")
         self.assertEqual(artifact["properties"]["soss.license"], "unknown")
         self.assertEqual(
-            artifact["properties"].get("launchpad.channel"), "unknown/stable"
+            artifact["properties"].get("launchpad.channel"),
+            "noble:unknown/stable",
         )
 
     def test__publish_properties_license_from_metadata_yaml(self):
@@ -958,7 +966,8 @@ class TestCraftPublishingJob(TestCaseWithFactory):
         artifact = self._artifactory_search("repository", "artifact.file")
         self.assertEqual(artifact["properties"]["soss.license"], license_value)
         self.assertEqual(
-            artifact["properties"].get("launchpad.channel"), "0.1.0/stable"
+            artifact["properties"].get("launchpad.channel"),
+            "noble:0.1.0/stable",
         )
 
     def test__publish_properties_git_repository_source_url(self):

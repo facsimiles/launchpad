@@ -692,9 +692,7 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
         new_properties["soss.type"] = ["source"]
         new_properties["soss.license"] = [self._get_license_metadata()]
         version_str = self._get_version_metadata()
-        channel_value = (
-            f"{version_str}/stable" if version_str else "unknown/stable"
-        )
+        channel_value = self._build_channel_value(version_str)
         new_properties["launchpad.channel"] = [channel_value]
 
         # Repo name is derived from the URL
@@ -829,3 +827,31 @@ class CraftPublishingJob(CraftRecipeBuildJobDerived):
             log.info("No version found in metadata.yaml, returning 'unknown'.")
             return "unknown"
         return str(metadata.get("version"))
+
+    def _get_series_name(self) -> str:
+        """Return the distro series name for this build, or 'unknown'.
+
+        We derive the series from the build's `distro_arch_series` to prefix
+        the channel value.
+        """
+        das = getattr(self.build, "distro_arch_series", None)
+        if das is not None and getattr(das, "distroseries", None) is not None:
+            series_attr = getattr(das.distroseries, "name", None)
+            if series_attr:
+                return series_attr
+        log.warning(
+            f"Could not determine distro series for build {self.build.id}; "
+            "defaulting to 'unknown'."
+        )
+        return "unknown"
+
+    def _build_channel_value(self, version_str: str) -> str:
+        """Compose the channel value as '<series>:<version>/stable'.
+
+        Falls back to 'unknown' when version or series cannot be resolved.
+        """
+        series_name = self._get_series_name()
+        channel_suffix = (
+            f"{version_str}/stable" if version_str else "unknown/stable"
+        )
+        return f"{series_name}:{channel_suffix}"
