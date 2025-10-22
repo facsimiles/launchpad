@@ -74,6 +74,15 @@ class CveStatus(DBEnumeratedType):
         """,
     )
 
+    REJECTED = DBItem(
+        4,
+        """
+        Rejected
+
+        This CVE has been rejected or withdrawn by its CVE Numbering Authority.
+        """,
+    )
+
 
 @exported_as_webservice_entry(as_of="beta")
 class ICve(Interface):

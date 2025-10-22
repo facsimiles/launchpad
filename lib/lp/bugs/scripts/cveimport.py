@@ -35,6 +35,11 @@ from lp.services.timeout import override_timeout, urlfetch
 
 CVEDB_NS = "{http://cve.mitre.org/cve/downloads/1.0}"
 
+CVE_STATE_TO_STATUS = {
+    "PUBLISHED": CveStatus.ENTRY,
+    "REJECTED": CveStatus.REJECTED,
+}
+
 
 def getText(elem):
     """Get the text content of the given element"""
@@ -684,7 +689,9 @@ class CVEUpdater(LaunchpadCronScript):
 
         # process each CVE record
         cve_metadata = data.get("cveMetadata", {})
-        state = cve_metadata.get("state", "")
+        status = CVE_STATE_TO_STATUS.get(
+            cve_metadata.get("state", ""), CveStatus.ENTRY
+        )
         containers = data.get("containers", {})
         cna_data = containers.get("cna", {})
 
@@ -693,7 +700,7 @@ class CVEUpdater(LaunchpadCronScript):
 
         # get description (required to be in English)
         description = None
-        if state == "REJECTED":
+        if status == CveStatus.REJECTED:
             description_key = "rejectedReasons"
         else:
             description_key = "descriptions"
@@ -714,7 +721,7 @@ class CVEUpdater(LaunchpadCronScript):
         cveset = getUtility(ICveSet)
         cve = cveset[sequence]
         if cve is None:
-            cve = cveset.new(sequence, description, CveStatus.ENTRY)
+            cve = cveset.new(sequence, description, status)
             self.logger.info(f"CVE-{sequence} created")
 
         # update CVE if needed

@@ -243,6 +243,24 @@ class TestCVEUpdater(TestCase):
             expected = f"_delta_CVEs_at_{current_hour:02d}00Z.zip"
             self.assertThat(url, Contains(expected))
 
+    def test_processCVEJSON(self):
+        """Test handling of CVE JSON data."""
+        updater = CVEUpdater(
+            "cve-updater", test_args=[], logger=DevNullLogger()
+        )
+
+        test_cve = self.create_test_json_cve(
+            cve_id="2024-0003", description="Test CVE 2024-0003"
+        )
+        updater.processCVEJSON(test_cve)
+
+        # Verify CVE was created
+        cveset = getUtility(ICveSet)
+        cve = cveset["2024-0003"]
+        self.assertEqual("2024-0003", cve.sequence)
+        self.assertEqual("Test CVE 2024-0003", cve.description)
+        self.assertEqual(CveStatus.ENTRY, cve.status)
+
     def test_processCVEJSON_rejected(self):
         """Test handling of rejected CVE JSON data."""
         updater = CVEUpdater(
@@ -262,11 +280,13 @@ class TestCVEUpdater(TestCase):
         }
 
         updater.processCVEJSON(rejected_cve)
+
         # Verify CVE was created
         cveset = getUtility(ICveSet)
         cve = cveset["2024-0004"]
         self.assertEqual("2024-0004", cve.sequence)
         self.assertEqual("This CVE has been rejected.", cve.description)
+        self.assertEqual(CveStatus.REJECTED, cve.status)
 
     def test_invalid_json_cve(self):
         """Test handling of invalid CVE JSON data."""
