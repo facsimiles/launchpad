@@ -684,6 +684,7 @@ class CVEUpdater(LaunchpadCronScript):
 
         # process each CVE record
         cve_metadata = data.get("cveMetadata", {})
+        state = cve_metadata.get("state", "")
         containers = data.get("containers", {})
         cna_data = containers.get("cna", {})
 
@@ -692,7 +693,12 @@ class CVEUpdater(LaunchpadCronScript):
 
         # get description (required to be in English)
         description = None
-        for desc in cna_data.get("descriptions", []):
+        if state == "REJECTED":
+            description_key = "rejectedReasons"
+        else:
+            description_key = "descriptions"
+
+        for desc in cna_data.get(description_key, []):
             if desc.get("lang", "").startswith("en"):
                 description = desc.get("value")
                 break
