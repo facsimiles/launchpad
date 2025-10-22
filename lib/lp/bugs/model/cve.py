@@ -65,17 +65,8 @@ class Cve(StormBase, BugLinkTargetMixin):
 
     date_made_public = DateTime(tzinfo=timezone.utc, allow_none=True)
     discovered_by = Unicode(allow_none=True)
-    _cvss = JSON(name="cvss", allow_none=True)
+    cvss = JSON(name="cvss", allow_none=True)
     metadata = JSON(name="metadata", allow_none=True)
-
-    @property
-    def cvss(self):
-        return self._cvss or {}
-
-    @cvss.setter
-    def cvss(self, value):
-        assert value is None or isinstance(value, dict)
-        self._cvss = value
 
     def __init__(
         self,
@@ -93,7 +84,7 @@ class Cve(StormBase, BugLinkTargetMixin):
         self.description = description
         self.date_made_public = date_made_public
         self.discovered_by = discovered_by
-        self._cvss = cvss
+        self.cvss = cvss
         self.metadata = metadata
 
     @property

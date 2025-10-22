@@ -107,6 +107,26 @@ class TestCVEUpdater(TestCase):
                             "name": "Reference 1",
                         }
                     ],
+                    "metrics": [
+                        {
+                            "cvssV3_0": {
+                                "version": "3.0",
+                                "baseScore": 7.3,
+                                "vectorString": (
+                                    "CVSS:3.0"
+                                    "/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L"
+                                ),
+                                "baseSeverity": "HIGH",
+                            }
+                        },
+                        {
+                            "cvssV2_0": {
+                                "version": "2.0",
+                                "baseScore": 7.5,
+                                "vectorString": "AV:N/AC:L/Au:N/C:P/I:P/A:P",
+                            }
+                        },
+                    ],
                 }
             },
         }
@@ -257,9 +277,15 @@ class TestCVEUpdater(TestCase):
         # Verify CVE was created
         cveset = getUtility(ICveSet)
         cve = cveset["2024-0003"]
+
         self.assertEqual("2024-0003", cve.sequence)
         self.assertEqual("Test CVE 2024-0003", cve.description)
         self.assertEqual(CveStatus.ENTRY, cve.status)
+
+        metrics = test_cve.get("containers").get("cna").get("metrics")
+        self.assertEqual(metrics, cve.cvss)
+        affected = test_cve.get("containers").get("cna").get("affected")
+        self.assertEqual({"affected": affected}, cve.metadata)
 
     def test_processCVEJSON_rejected(self):
         """Test handling of rejected CVE JSON data."""
@@ -287,6 +313,8 @@ class TestCVEUpdater(TestCase):
         self.assertEqual("2024-0004", cve.sequence)
         self.assertEqual("This CVE has been rejected.", cve.description)
         self.assertEqual(CveStatus.REJECTED, cve.status)
+        self.assertEqual(None, cve.cvss)
+        self.assertEqual(None, cve.metadata)
 
     def test_invalid_json_cve(self):
         """Test handling of invalid CVE JSON data."""

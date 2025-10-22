@@ -736,11 +736,20 @@ class CVEUpdater(LaunchpadCronScript):
             modified = True
 
         # Build metadata dict
-        metadata = {"affected": affected}
+        metadata = None
+        if affected:
+            metadata = {"affected": affected}
 
         # If anything changed, update cve.metadata
         if metadata != cve.metadata:
             cve.metadata = metadata
+            modified = True
+
+        # Get CVSS metrics
+        cvss_list = cna_data.get("metrics", None)
+        # If anything changed, update cve.cvss
+        if cvss_list != cve.cvss:
+            cve.cvss = cvss_list
             modified = True
 
         if modified:
