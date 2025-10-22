@@ -27,6 +27,7 @@ from lp.bugs.interfaces.bugnomination import (
 )
 from lp.bugs.interfaces.bugtask import IBugTaskSet
 from lp.registry.interfaces.distroseries import IDistroSeries
+from lp.registry.interfaces.externalpackageseries import IExternalPackageSeries
 from lp.registry.interfaces.person import validate_public_person
 from lp.registry.interfaces.productseries import IProductSeries
 from lp.registry.interfaces.sourcepackage import ISourcePackage
@@ -240,9 +241,10 @@ class BugNominationSet:
             filter_args = dict(productseries_id=target.id)
         elif ISourcePackage.providedBy(target):
             filter_args = dict(distroseries_id=target.series.id)
+        elif IExternalPackageSeries.providedBy(target):
+            filter_args = dict(distroseries_id=target.series.id)
         else:
             return None
-        # IExternalPackageSeries does not support bug nominations
         store = IStore(BugNomination)
         return store.find(BugNomination, bug=bug, **filter_args).one()
 

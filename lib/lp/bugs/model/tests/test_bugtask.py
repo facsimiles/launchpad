@@ -58,6 +58,7 @@ from lp.registry.interfaces.distributionsourcepackage import (
     IDistributionSourcePackage,
 )
 from lp.registry.interfaces.distroseries import IDistroSeriesSet
+from lp.registry.interfaces.externalpackage import ExternalPackageType
 from lp.registry.interfaces.person import IPersonSet
 from lp.registry.interfaces.product import IProductSet
 from lp.registry.interfaces.projectgroup import IProjectGroupSet
@@ -2170,6 +2171,99 @@ class TestConjoinedBugTasks(TestCaseWithFactory):
         )
         self.assertIsNone(gentoo_netapplet_task.conjoined_primary)
         self.assertIsNone(gentoo_netapplet_task.conjoined_replica)
+
+    def test_conjoined_external_package(self):
+        """Test conjoined primary/replica logic for external packages.
+
+        Conjoined tasks must match on sourcepackagename, packagetype,
+        and channel, all within the same distribution.
+        """
+        login("foo.bar@canonical.com")
+        launchbag = getUtility(ILaunchBag)
+        user = launchbag.user
+        task_set = getUtility(IBugTaskSet)
+
+        series_older = self.factory.makeDistroSeries(name="older")
+        distribution = removeSecurityProxy(series_older.distribution)
+        series_newer = self.factory.makeDistroSeries(
+            name="newer", distribution=distribution
+        )
+
+        pkg_name = self.factory.makeSourcePackageName()
+        pkg_type_rock = ExternalPackageType.ROCK
+        pkg_type_snap = ExternalPackageType.SNAP
+        channel_stable = (None, "stable", None)
+        channel_edge = (None, "edge", None)
+
+        # 1. Create the bug with a distribution-level task
+        dist_target = distribution.getExternalPackage(
+            pkg_name, pkg_type_rock, channel_stable
+        )
+        params = CreateBugParams(
+            owner=user, title="conjoined bug", comment="test"
+        )
+        bug = dist_target.createBug(params)
+        dist_task = bug.bugtasks[0]
+
+        # Initially, no conjoined tasks
+        self.assertIsNone(dist_task.conjoined_primary)
+        self.assertIsNone(dist_task.conjoined_replica)
+
+        # 2. Add "primary" series task
+        # Adding a task for the newest series. This will become the primary.
+        primary_target = series_newer.getExternalPackageSeries(
+            pkg_name, pkg_type_rock, channel_stable
+        )
+        primary_task = task_set.createTask(bug, user, primary_target)
+
+        # The new series task becomes primary
+        self.assertIsNone(primary_task.conjoined_primary)
+        self.assertEqual(dist_task, primary_task.conjoined_replica)
+        # The original dist task now points to the new primary
+        self.assertEqual(primary_task, dist_task.conjoined_primary)
+        self.assertIsNone(dist_task.conjoined_replica)
+
+        # 3. Test: Negative case (older series)
+        older_target = series_older.getExternalPackageSeries(
+            pkg_name, pkg_type_rock, channel_stable
+        )
+        older_task = task_set.createTask(bug, user, older_target)
+
+        # A series task conjoined_primary is always None
+        self.assertIsNone(older_task.conjoined_primary)
+        # A series task only gets a conjoined_replica if it's the currentseries
+        self.assertIsNone(older_task.conjoined_replica)
+
+        # 4. Test: Negative case (different channel)
+        # This task has a different channel and should NOT be conjoined.
+        edge_target = series_newer.getExternalPackageSeries(
+            pkg_name, pkg_type_rock, channel_edge
+        )
+        edge_task = task_set.createTask(bug, user, edge_target)
+
+        self.assertIsNone(edge_task.conjoined_primary)
+        self.assertIsNone(edge_task.conjoined_replica)
+
+        # 5. Test: Negative case (different packagetype)
+        # This task has a different package type and should NOT be conjoined.
+        snap_target = series_newer.getExternalPackageSeries(
+            pkg_name, pkg_type_snap, channel_stable
+        )
+        snap_task = task_set.createTask(bug, user, snap_target)
+
+        self.assertIsNone(snap_task.conjoined_primary)
+        self.assertIsNone(snap_task.conjoined_replica)
+
+        # 6. Test: Negative case (different distribution)
+        # This task is on a different distribution and should NOT be conjoined.
+        other_distro = self.factory.makeDistribution(name="other")
+        other_target = other_distro.getExternalPackage(
+            pkg_name, pkg_type_rock, channel_stable
+        )
+        other_task = task_set.createTask(bug, user, other_target)
+
+        self.assertIsNone(other_task.conjoined_primary)
+        self.assertIsNone(other_task.conjoined_replica)
 
     def test_conjoined_broken_relationship(self):
         """A conjoined relationship can be broken, though.

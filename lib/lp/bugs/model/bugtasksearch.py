@@ -349,6 +349,9 @@ def _build_query(params):
         if where_cond is not None:
             extra_clauses.append(where_cond)
 
+    if params.channel is not None:
+        extra_clauses.append(BugTaskFlat.channel == params.channel)
+
     if params.status is not None:
         extra_clauses.append(
             _build_status_clause(BugTaskFlat.status, params.status)

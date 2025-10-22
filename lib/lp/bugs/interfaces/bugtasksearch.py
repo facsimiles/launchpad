@@ -156,6 +156,7 @@ class BugTaskSearchParams:
         assignee=None,
         sourcepackagename=None,
         packagetype=None,
+        channel=None,
         owner=None,
         attachmenttype=None,
         orderby=None,
@@ -202,6 +203,7 @@ class BugTaskSearchParams:
         self.assignee = assignee
         self.sourcepackagename = sourcepackagename
         self.packagetype = packagetype
+        self.channel = channel
         self.owner = owner
         self.attachmenttype = attachmenttype
         self.user = user
@@ -315,14 +317,14 @@ class BugTaskSearchParams:
     def setExternalPackage(self, externalpackage):
         """Set the externalpackage context on which to filter the search."""
         self.distribution = externalpackage.distribution
-        # Currently we are not filtering by channel
+        self.channel = externalpackage.channel
         self.packagetype = externalpackage.packagetype.value
         self.sourcepackagename = externalpackage.sourcepackagename
 
     def setExternalPackageSeries(self, externalpackageseries):
         """Set the externalpackage context on which to filter the search."""
         self.distroseries = externalpackageseries.distroseries
-        # Currently we are not filtering by channel
+        self.channel = externalpackageseries.channel
         self.packagetype = externalpackageseries.packagetype.value
         self.sourcepackagename = externalpackageseries.sourcepackagename
 
@@ -349,6 +351,9 @@ class BugTaskSearchParams:
         )
         from lp.registry.interfaces.distroseries import IDistroSeries
         from lp.registry.interfaces.externalpackage import IExternalPackage
+        from lp.registry.interfaces.externalpackageseries import (
+            IExternalPackageSeries,
+        )
         from lp.registry.interfaces.milestone import IMilestone
         from lp.registry.interfaces.ociproject import IOCIProject
         from lp.registry.interfaces.product import IProduct
@@ -379,6 +384,8 @@ class BugTaskSearchParams:
             self.setSourcePackage(target)
         elif IExternalPackage.providedBy(instance):
             self.setExternalPackage(target)
+        elif IExternalPackageSeries.providedBy(instance):
+            self.setExternalPackageSeries(target)
         elif IProjectGroup.providedBy(instance):
             self.setProjectGroup(target)
         elif IOCIProject.providedBy(instance):

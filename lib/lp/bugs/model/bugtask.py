@@ -918,6 +918,8 @@ class BugTask(StormBase):
                 if (
                     bugtask.distroseries is not None
                     and bugtask.sourcepackagename == self.sourcepackagename
+                    and bugtask.packagetype == self.packagetype
+                    and bugtask.channel == self.channel
                 )
             ]
             # Return early, so that we don't have to get currentseries,
@@ -944,6 +946,7 @@ class BugTask(StormBase):
             and conjoined_primary.status in self._NON_CONJOINED_STATUSES
         ):
             conjoined_primary = None
+
         return conjoined_primary
 
     def _get_shortlisted_bugtasks(self):
@@ -967,6 +970,8 @@ class BugTask(StormBase):
                 if (
                     bugtask.distribution == distribution
                     and bugtask.sourcepackagename == self.sourcepackagename
+                    and bugtask.packagetype == self.packagetype
+                    and bugtask.channel == self.channel
                 ):
                     conjoined_replica = bugtask
                     break
