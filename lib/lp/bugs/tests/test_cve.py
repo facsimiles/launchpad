@@ -519,7 +519,7 @@ class TestCve(TestCaseWithFactory):
                 description="A critical vulnerability",
                 date_made_public=None,
                 discovered_by=None,
-                cvss={},
+                cvss=None,
                 metadata=None,
             ),
         )
@@ -566,27 +566,6 @@ class TestCve(TestCaseWithFactory):
         for invalid_value in invalid_values:
             with ExpectedException(TypeError, "Expected datetime,.*"):
                 removeSecurityProxy(cve).date_made_public = invalid_value
-
-    def test_cve_cvss_invalid_values(self):
-        invalid_values = ["", "abcd", "2022-01-01", datetime.now()]
-        cve = self.factory.makeCVE(
-            sequence="2099-1234",
-            description="A critical vulnerability",
-            cvestate=CveStatus.CANDIDATE,
-        )
-        for invalid_value in invalid_values:
-            with ExpectedException(AssertionError):
-                removeSecurityProxy(cve).cvss = invalid_value
-
-    def test_cvss_value_returned_when_null(self):
-        cve = self.factory.makeCVE(
-            sequence="2099-1234",
-            description="A critical vulnerability",
-            cvestate=CveStatus.CANDIDATE,
-        )
-        cve = removeSecurityProxy(cve)
-        self.assertIsNone(cve._cvss)
-        self.assertEqual({}, cve.cvss)
 
     def test_getDistributionVulnerability(self):
         cve = self.factory.makeCVE(sequence="2099-1234")

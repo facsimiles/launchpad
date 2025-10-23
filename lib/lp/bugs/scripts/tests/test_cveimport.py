@@ -107,6 +107,26 @@ class TestCVEUpdater(TestCase):
                             "name": "Reference 1",
                         }
                     ],
+                    "metrics": [
+                        {
+                            "cvssV3_0": {
+                                "version": "3.0",
+                                "baseScore": 7.3,
+                                "vectorString": (
+                                    "CVSS:3.0"
+                                    "/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L"
+                                ),
+                                "baseSeverity": "HIGH",
+                            }
+                        },
+                        {
+                            "cvssV2_0": {
+                                "version": "2.0",
+                                "baseScore": 7.5,
+                                "vectorString": "AV:N/AC:L/Au:N/C:P/I:P/A:P",
+                            }
+                        },
+                    ],
                 }
             },
         }
@@ -242,6 +262,59 @@ class TestCVEUpdater(TestCase):
         if current_hour not in (0, 23):
             expected = f"_delta_CVEs_at_{current_hour:02d}00Z.zip"
             self.assertThat(url, Contains(expected))
+
+    def test_processCVEJSON(self):
+        """Test handling of CVE JSON data."""
+        updater = CVEUpdater(
+            "cve-updater", test_args=[], logger=DevNullLogger()
+        )
+
+        test_cve = self.create_test_json_cve(
+            cve_id="2024-0003", description="Test CVE 2024-0003"
+        )
+        updater.processCVEJSON(test_cve)
+
+        # Verify CVE was created
+        cveset = getUtility(ICveSet)
+        cve = cveset["2024-0003"]
+
+        self.assertEqual("2024-0003", cve.sequence)
+        self.assertEqual("Test CVE 2024-0003", cve.description)
+        self.assertEqual(CveStatus.ENTRY, cve.status)
+
+        metrics = test_cve.get("containers").get("cna").get("metrics")
+        self.assertEqual(metrics, cve.cvss)
+        affected = test_cve.get("containers").get("cna").get("affected")
+        self.assertEqual({"affected": affected}, cve.metadata)
+
+    def test_processCVEJSON_rejected(self):
+        """Test handling of rejected CVE JSON data."""
+        updater = CVEUpdater(
+            "cve-updater", test_args=[], logger=DevNullLogger()
+        )
+
+        rejected_cve = {
+            "dataType": "CVE_RECORD",
+            "cveMetadata": {"cveId": "CVE-2024-0004", "state": "REJECTED"},
+            "containers": {
+                "cna": {
+                    "rejectedReasons": [
+                        {"lang": "en", "value": "This CVE has been rejected."}
+                    ],
+                }
+            },
+        }
+
+        updater.processCVEJSON(rejected_cve)
+
+        # Verify CVE was created
+        cveset = getUtility(ICveSet)
+        cve = cveset["2024-0004"]
+        self.assertEqual("2024-0004", cve.sequence)
+        self.assertEqual("This CVE has been rejected.", cve.description)
+        self.assertEqual(CveStatus.REJECTED, cve.status)
+        self.assertEqual(None, cve.cvss)
+        self.assertEqual(None, cve.metadata)
 
     def test_invalid_json_cve(self):
         """Test handling of invalid CVE JSON data."""
