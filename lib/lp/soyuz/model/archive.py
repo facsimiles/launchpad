@@ -240,6 +240,10 @@ class Archive(StormBase, WebhookTargetMixin):
             "archive:binary-build:0.1",
             "archive:binary-build:0.1::fullybuilt",
             "archive:binary-build:0.1::failedtobuild",
+            "archive:binary-build:0.1::chrootwait",
+            "archive:binary-build:0.1::cancelled",
+            "archive:binary-build:0.1::failedtoupload",
+            "archive:binary-build:0.1::superseded",
         ]
 
     def _validate_archive_name(self, attr, value):
