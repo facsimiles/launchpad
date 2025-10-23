@@ -45,10 +45,14 @@ def package_status_change_webhook(upload, event):
     # there are instances of rejected source package uploads which do not have
     # any sources
     if not upload.builds:
-        if "status" in event.edited_fields and (
-            upload.status == PackageUploadStatus.ACCEPTED
-            or upload.status == PackageUploadStatus.REJECTED
-            or upload.status == PackageUploadStatus.UNAPPROVED
+        if (
+            event.edited_fields
+            and "status" in event.edited_fields
+            and (
+                upload.status == PackageUploadStatus.ACCEPTED
+                or upload.status == PackageUploadStatus.REJECTED
+                or upload.status == PackageUploadStatus.UNAPPROVED
+            )
         ):
             _trigger_source_package_status_change_webhook(
                 upload,
