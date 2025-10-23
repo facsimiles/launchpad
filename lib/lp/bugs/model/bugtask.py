@@ -103,6 +103,7 @@ from lp.registry.interfaces.sourcepackagename import ISourcePackageNameSet
 from lp.registry.model.pillar import pillar_sort_key
 from lp.registry.model.sourcepackagename import SourcePackageName
 from lp.services import features
+from lp.services.channels import channel_list_to_string
 from lp.services.database.bulk import create, load, load_related
 from lp.services.database.constants import UTC_NOW
 from lp.services.database.decoratedresultset import DecoratedResultSet
@@ -137,6 +138,8 @@ def bugtask_sort_key(bugtask):
     distroseries_name = ""
     sourcepackage_name = ""
     ociproject = ""
+    packagetype = ""
+    channel = ""
 
     if bugtask.product:
         product_name = bugtask.product.name
@@ -154,6 +157,12 @@ def bugtask_sort_key(bugtask):
     if bugtask.sourcepackagename:
         sourcepackage_name = bugtask.sourcepackagename.name
 
+    if bugtask.packagetype:
+        packagetype = bugtask.packagetype.name
+
+    if bugtask.channel:
+        channel = channel_list_to_string(*bugtask.channel)
+
     # Move ubuntu to the top.
     if distribution_name == "ubuntu":
         distribution_name = "-"
@@ -166,6 +175,8 @@ def bugtask_sort_key(bugtask):
         distroseries_name,
         sourcepackage_name,
         ociproject,
+        packagetype,
+        channel,
     )
 
 

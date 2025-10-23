@@ -38,6 +38,7 @@ from lp.bugs.model.bugtask import (
     IllegalTarget,
     bug_target_from_key,
     bug_target_to_key,
+    bugtask_sort_key,
     validate_new_target,
     validate_target,
 )
@@ -61,6 +62,7 @@ from lp.registry.interfaces.person import IPersonSet
 from lp.registry.interfaces.product import IProductSet
 from lp.registry.interfaces.projectgroup import IProjectGroupSet
 from lp.registry.interfaces.sourcepackage import ISourcePackage
+from lp.registry.model.externalpackage import ExternalPackageType
 from lp.registry.model.sourcepackage import SourcePackage
 from lp.registry.tests.test_accesspolicy import get_policies_for_artifact
 from lp.services.database.sqlbase import (
@@ -4109,3 +4111,125 @@ class TestTargetNameCache(TestCase):
         self.assertEqual(
             upstream_task.bugtargetdisplayname, "Mozilla Thunderbird"
         )
+
+
+class TestBugTaskSortKey(TestCaseWithFactory):
+    layer = DatabaseFunctionalLayer
+
+    def setUp(self):
+        super().setUp()
+        # Set up group a
+        product_a = self.factory.makeProduct(name="product-a")
+        productseries_a = self.factory.makeProductSeries(
+            product=product_a, name="a"
+        )
+        distro_a = self.factory.makeDistribution(name="distro-a")
+        distroseries_a = self.factory.makeDistroSeries(
+            distribution=distro_a, name="a"
+        )
+        sourcepackage_a = self.factory.makeSourcePackage(
+            sourcepackagename="source-a",
+            distroseries=distroseries_a,
+        )
+        distrosourcepackage_a = self.factory.makeDistributionSourcePackage(
+            distribution=distro_a, sourcepackagename="source-a"
+        )
+        externalpackage_a = self.factory.makeExternalPackage(
+            distribution=distro_a,
+            sourcepackagename="source-a",
+            packagetype=ExternalPackageType.SNAP,
+            channel=("12.1", "stable", None),
+        )
+        externalpackage_a2 = self.factory.makeExternalPackage(
+            distribution=distro_a,
+            sourcepackagename="source-a",
+            packagetype=ExternalPackageType.SNAP,
+            channel=("12.1", "stable", "branch"),
+        )
+        externalpackageseries_a = self.factory.makeExternalPackageSeries(
+            distroseries=distroseries_a,
+            sourcepackagename="source-a",
+            packagetype=ExternalPackageType.SNAP,
+            channel=("12.1", "stable"),
+        )
+
+        # Set up group b
+        product_b = self.factory.makeProduct(name="product-b")
+        productseries_b = self.factory.makeProductSeries(
+            product=product_b, name="b"
+        )
+        distro_b = self.factory.makeDistribution(name="distro-b")
+        distroseries_b = self.factory.makeDistroSeries(
+            distribution=distro_b, name="b"
+        )
+        sourcepackage_b = self.factory.makeSourcePackage(
+            sourcepackagename="source-b",
+            distroseries=distroseries_b,
+        )
+        distrosourcepackage_b = self.factory.makeDistributionSourcePackage(
+            distribution=distro_b, sourcepackagename="source-b"
+        )
+        externalpackage_b = self.factory.makeExternalPackage(
+            distribution=distro_b,
+            sourcepackagename="source-b",
+            packagetype=ExternalPackageType.CHARM,
+            channel=("12.1", "stable", None),
+        )
+        externalpackageseries_b = self.factory.makeExternalPackageSeries(
+            distroseries=distroseries_b,
+            sourcepackagename="source-b",
+            packagetype=ExternalPackageType.CHARM,
+            channel="stable",
+        )
+        self.bugtasks_targets = [
+            product_a,
+            productseries_a,
+            distrosourcepackage_a,
+            sourcepackage_a,
+            externalpackage_a,
+            externalpackage_a2,
+            externalpackageseries_a,
+            product_b,
+            productseries_b,
+            sourcepackage_b,
+            distrosourcepackage_b,
+            externalpackage_b,
+            externalpackageseries_b,
+        ]
+        # Expected order after sorting
+        self.ordered_bugtasks_targets = [
+            product_a,
+            productseries_a,
+            product_b,
+            productseries_b,
+            distrosourcepackage_a,
+            externalpackage_a,
+            externalpackage_a2,
+            sourcepackage_a,
+            externalpackageseries_a,
+            distrosourcepackage_b,
+            externalpackage_b,
+            sourcepackage_b,
+            externalpackageseries_b,
+        ]
+
+    def test_sorting_key_comparisons(self):
+        """
+        Tests the 'bugtask_sort_key' logic.
+
+        The key function returns a tuple, and Python's tuple sorting rules
+        determine the order.
+        """
+        bug = self.factory.makeBug()
+
+        bugtasks = []
+        for target in self.bugtasks_targets:
+            bugtask = self.factory.makeBugTask(bug=bug, target=target)
+            bugtasks.append(bugtask)
+
+        bugtasks.sort(key=bugtask_sort_key)
+
+        for bugtask, expected_target in zip(
+            bugtasks, self.ordered_bugtasks_targets
+        ):
+            self.assertEqual(expected_target, bugtask.target)
