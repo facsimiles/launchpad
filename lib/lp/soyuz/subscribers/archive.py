@@ -5,6 +5,7 @@
 
 from zope.component import getUtility
 
+from lp.buildmaster.enums import BuildStatus
 from lp.services.features import getFeatureFlag
 from lp.services.webapp.publisher import canonical_url
 from lp.services.webhooks.interfaces import IWebhookSet
@@ -33,6 +34,24 @@ def _trigger_source_package_status_change_webhook(upload, event_type):
         getUtility(IWebhookSet).trigger(upload.archive, event_type, payload)
 
 
+def _trigger_build_status_change_webhook(build, event_type):
+    if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
+        payload = {
+            "build": canonical_url(build, force_local_path=True),
+            "action": "status-changed",
+            "status": build.status.name,
+            "archive": canonical_url(build.archive, force_local_path=True),
+            "source_package_name": str(
+                build.source_package_release.sourcepackagename
+            ),
+        }
+
+        if getattr(build, "log", None):
+            payload["buildlog"] = build.log
+
+        getUtility(IWebhookSet).trigger(build.archive, event_type, payload)
+
+
 def package_status_change_webhook(upload, event):
     """Webhook for source package uploads."""
 
@@ -59,3 +78,19 @@ def package_status_change_webhook(upload, event):
                 f"archive:source-package-upload:0.1::"
                 f"{upload.status.name.lower()}",
             )
+
+
+def build_status_change_webhook(build, event):
+    """Webhook for binary builds"""
+
+    if (
+        event.edited_fields
+        and "status" in event.edited_fields
+        and (
+            build.status == BuildStatus.FULLYBUILT
+            or build.status == BuildStatus.FAILEDTOBUILD
+        )
+    ):
+        _trigger_build_status_change_webhook(
+            build, f"archive:binary-build:0.1::{build.status.name.lower()}"
+        )

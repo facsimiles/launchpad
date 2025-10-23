@@ -74,6 +74,9 @@ WEBHOOK_EVENT_TYPES = {
     "upload rejected",
     "archive:source-package-upload:0.1::unapproved": "Source package"
     "upload unapproved",
+    "archive:binary-build:0.1": "Binary build",
+    "archive:binary-build:0.1::fullybuilt": "Binary build fully built",
+    "archive:binary-build:0.1::failedtobuild": "Binary build failed to build",
 }
 
 
