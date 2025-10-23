@@ -89,6 +89,10 @@ def build_status_change_webhook(build, event):
         and (
             build.status == BuildStatus.FULLYBUILT
             or build.status == BuildStatus.FAILEDTOBUILD
+            or build.status == BuildStatus.CHROOTWAIT
+            or build.status == BuildStatus.CANCELLED
+            or build.status == BuildStatus.FAILEDTOUPLOAD
+            or build.status == BuildStatus.SUPERSEDED
         )
     ):
         _trigger_build_status_change_webhook(
