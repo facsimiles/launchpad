@@ -209,6 +209,7 @@
                     product_id
                     productseries_id
                     packagetype
+                    channel
                     sourcepackagename_id
                     task_age
                     bug_subscribers

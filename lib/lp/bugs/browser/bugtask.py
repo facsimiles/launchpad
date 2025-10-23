@@ -138,6 +138,7 @@ from lp.registry.interfaces.product import IProduct
 from lp.registry.interfaces.productseries import IProductSeries
 from lp.registry.interfaces.sourcepackage import ISourcePackage
 from lp.registry.model.personroles import PersonRoles
+from lp.services.channels import channel_list_to_string
 from lp.services.config import config
 from lp.services.features import getFeatureFlag
 from lp.services.feeds.browser import FeedsMixin
@@ -1885,7 +1886,7 @@ def bugtask_sort_key(bugtask):
             bugtask.target.sourcepackagename.name,
             bugtask.target.distribution.displayname,
             bugtask.target.packagetype,
-            bugtask.target.channel,
+            channel_list_to_string(*bugtask.target.channel),
             None,
             None,
             None,
@@ -1905,7 +1906,7 @@ def bugtask_sort_key(bugtask):
             bugtask.target.sourcepackagename.name,
             bugtask.target.distribution.displayname,
             bugtask.target.packagetype,
-            bugtask.target.channel,
+            channel_list_to_string(*bugtask.target.channel),
             Version(bugtask.target.distroseries.version),
             None,
             None,
