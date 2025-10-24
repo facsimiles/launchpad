@@ -78,12 +78,12 @@ WEBHOOK_EVENT_TYPES = {
     "archive:binary-build:0.1::fullybuilt": "Binary build fully built",
     "archive:binary-build:0.1::failedtobuild": "Binary build failed to build",
     "archive:binary-build:0.1::chrootwait": "Binary build failed due"
-    "to chroot problem",
+    " to chroot problem",
     "archive:binary-build:0.1::cancelled": "Binary build cancelled",
     "archive:binary-build:0.1::failedtoupload": "Binary build failed"
-    "to upload",
+    " to upload",
     "archive:binary-build:0.1::superseded": "Binary build for"
-    "superseded source",
+    " superseded source",
 }
 
 

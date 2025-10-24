@@ -44,10 +44,8 @@ def _trigger_build_status_change_webhook(build, event_type):
             "source_package_name": str(
                 build.source_package_release.sourcepackagename
             ),
+            "buildlog": build.log_url,
         }
-
-        if getattr(build, "log", None):
-            payload["buildlog"] = build.log
 
         getUtility(IWebhookSet).trigger(build.archive, event_type, payload)
 
