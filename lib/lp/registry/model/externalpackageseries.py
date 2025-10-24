@@ -84,14 +84,14 @@ class ExternalPackageSeries(
         if self.channel:
             return "%s - %s @%s in %s" % (
                 self.sourcepackagename.name,
-                self.packagetype,
+                self.packagetype.title,
                 self.display_channel,
                 self.distroseries.display_name,
             )
 
         return "%s - %s in %s" % (
             self.sourcepackagename.name,
-            self.packagetype,
+            self.packagetype.title,
             self.distroseries.display_name,
         )
 
