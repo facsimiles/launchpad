@@ -7511,6 +7511,158 @@ class TestSourcePackageUploadWebhooks(TestCaseWithFactory):
         self.assertEqual(hook.deliveries.count(), 0)
 
 
+class TestBinaryPackageUploadWebhooks(TestCaseWithFactory):
+    """Tests that binary package upload webhooks trigger correctly."""
+
+    layer = LaunchpadZopelessLayer
+
+    def test_binary_package_upload_status_change_triggers_webhook(self):
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:binary-package-upload:0.1"],
+        )
+
+        upload = self.factory.makePackageUpload(
+            archive=archive,
+            status=PackageUploadStatus.NEW,
+        )
+
+        upload.addBuild(
+            self.factory.makeBinaryPackageBuild(
+                archive=archive, status=BuildStatus.FULLYBUILT
+            )
+        )
+
+        upload_unwrapped = removeSecurityProxy(upload)
+        upload_unwrapped.setAccepted()
+
+        job = hook.deliveries.one()
+        self.assertEqual(job.event_type, "archive:binary-package-upload:0.1")
+
+        payload = job.payload
+        self.assertEqual(
+            payload["package_upload"],
+            canonical_url(upload, force_local_path=True),
+        )
+        self.assertEqual(payload["action"], "status-changed")
+        self.assertEqual(payload["status"], "ACCEPTED")
+        self.assertEqual(
+            payload["archive"],
+            canonical_url(archive, force_local_path=True),
+        )
+        self.assertIsNotNone(
+            upload.builds[0].build.source_package_release.sourcepackagename
+        )
+
+    def test_binary_package_upload_no_status_change_does_not_trigger_webhook(
+        self,
+    ):
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:binary-package-upload:0.1"],
+        )
+
+        upload = self.factory.makePackageUpload(
+            archive=archive,
+            status=PackageUploadStatus.NEW,
+        )
+
+        upload.addBuild(
+            self.factory.makeBinaryPackageBuild(
+                archive=archive, status=BuildStatus.FULLYBUILT
+            )
+        )
+
+        self.assertEqual(hook.deliveries.count(), 0)
+
+    def test_only_webhook_for_chosen_subscope_is_triggered(self):
+        """If the webhook is configured only for the subscope 'accepted',
+        then rejection should not trigger a webhook, but acceptance should."""
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:binary-package-upload:0.1::accepted"],
+        )
+
+        upload = self.factory.makePackageUpload(
+            archive=archive,
+            status=PackageUploadStatus.NEW,
+        )
+
+        upload.addBuild(
+            self.factory.makeBinaryPackageBuild(
+                archive=archive, status=BuildStatus.FULLYBUILT
+            )
+        )
+
+        upload_unwrapped = removeSecurityProxy(upload)
+        upload_unwrapped.setRejected()
+
+        self.assertEqual(hook.deliveries.count(), 0)
+
+        upload_unwrapped.setAccepted()
+
+        job = hook.deliveries.one()
+        self.assertEqual(job.event_type, "archive:binary-package-upload:0.1")
+
+    def test_no_webhook_triggered_when_feature_flag_is_not_on(self):
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "",
+                }
+            )
+        )
+        archive = self.factory.makeArchive(name="test-archive")
+        hook = self.factory.makeWebhook(
+            target=archive,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:binary-package-upload:0.1"],
+        )
+
+        upload = self.factory.makePackageUpload(
+            archive=archive,
+            status=PackageUploadStatus.NEW,
+        )
+
+        upload.addBuild(
+            self.factory.makeBinaryPackageBuild(
+                archive=archive, status=BuildStatus.FULLYBUILT
+            )
+        )
+
+        upload_unwrapped = removeSecurityProxy(upload)
+        upload_unwrapped.setAccepted()
+
+        self.assertEqual(hook.deliveries.count(), 0)
+
+
 class TestBinaryBuildFinishWebhooks(TestCaseWithFactory):
     """Tests that webhooks trigger correctly on binary package
     status change."""
