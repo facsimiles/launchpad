@@ -218,13 +218,13 @@
           </dd>
         </tal:matrix>
 
-        <tal:matrix condition="view/should_show_github_accounts_section">
-          <dd class="user-social-accounts__item" tal:condition="not: view/github_accounts"  id="empty-matrix">
-            <img class="user-social-accounts__icon" alt="Matrix" title="Matrix" src="/@@/social-github" />
+        <tal:github condition="view/should_show_github_accounts_section">
+          <dd class="user-social-accounts__item" tal:condition="not: view/github_accounts"  id="empty-github">
+            <img class="user-social-accounts__icon" alt="GitHub" title="GitHub" src="/@@/social-github" />
             <span>No github accounts registered.</span>
             <a tal:replace="structure overview_menu/editgithubaccounts/fmt:icon" />
           </dd>
-        </tal:matrix>
+        </tal:github>
 
       </dl>
     </div>

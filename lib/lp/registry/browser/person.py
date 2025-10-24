@@ -1708,7 +1708,7 @@ class PersonView(LaunchpadView, FeedsMixin, ContactViaWebLinksMixin):
     def should_show_github_accounts_section(self):
         """Should the github accounts section be shown?
 
-        It's shown when the person has social accounts for the Matrix platform
+        It's shown when the person has social accounts for the GitHub platform
         registered or has rights to register new ones.
         """
         return bool(self.github_accounts) or (

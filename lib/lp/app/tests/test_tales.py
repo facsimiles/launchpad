@@ -390,7 +390,7 @@ class TestIRCNicknameFormatterAPI(TestCaseWithFactory):
         )
 
 
-class TestSocialAccountFormatterAPI(TestCaseWithFactory, WithScenarios):
+class TestSocialAccountFormatterAPI(WithScenarios, TestCaseWithFactory):
     """Tests for SocialAccountFormatterAPI"""
 
     layer = DatabaseFunctionalLayer
@@ -400,6 +400,7 @@ class TestSocialAccountFormatterAPI(TestCaseWithFactory, WithScenarios):
             "Matrix",
             {
                 "platform": SocialPlatformType.MATRIX,
+                "name": "Matrix",
                 "identity": {"username": "fred", "homeserver": "ubuntu.com"},
                 "icon": "social-matrix",
                 "href": "https://matrix.to//#/@fred:ubuntu.com",
@@ -410,9 +411,8 @@ class TestSocialAccountFormatterAPI(TestCaseWithFactory, WithScenarios):
             "GitHub",
             {
                 "platform": SocialPlatformType.GITHUB,
-                "identity": {
-                    "username": "fred",
-                },
+                "name": "GitHub",
+                "identity": {"username": "fred"},
                 "icon": "social-github",
                 "href": "https://github.com/fred",
                 "display": "/fred",
@@ -428,9 +428,9 @@ class TestSocialAccountFormatterAPI(TestCaseWithFactory, WithScenarios):
             person, self.platform, self.identity
         )
         expected_html = (
-            '<img class="user-social-accounts__icon" alt="Matrix" '
-            'title="Matrix" src="/@@/{self.icon}" /> <a href={self.href} '
-            'target="_blank"><strong>{display}</strong></a>'
+            f'<img class="user-social-accounts__icon" alt="{self.name}" '
+            f'title="{self.name}" src="/@@/{self.icon}" /> <a href={self.href}'
+            f' target="_blank"><strong>{self.display}</strong></a>'
         )
 
         self.assertEqual(

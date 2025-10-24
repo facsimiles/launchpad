@@ -13,7 +13,7 @@ from lp.testing import TestCaseWithFactory, login_person
 from lp.testing.layers import DatabaseFunctionalLayer
 
 
-class TestMatrixSocialAccount(TestCaseWithFactory):
+class TestSocialAccount(TestCaseWithFactory):
     layer = DatabaseFunctionalLayer
 
     def test_social_account(self):
