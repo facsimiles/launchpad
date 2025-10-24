@@ -9,11 +9,16 @@ import six
 from pymacaroons import Macaroon
 from storm.exceptions import DisconnectionError
 from twisted.internet import abstract, defer, reactor
+from twisted.internet.endpoints import TCP4ClientEndpoint
 from twisted.internet.interfaces import IPushProducer
+from twisted.internet.protocol import Protocol
 from twisted.internet.threads import deferToThread
 from twisted.python import log
 from twisted.python.compat import intToBytes
 from twisted.web import http, proxy, resource, server, static, util
+from twisted.web.client import ProxyAgent
+from twisted.web.http_headers import Headers
+from twisted.web.server import NOT_DONE_YET
 from zope.interface import implementer
 
 from lp.services.config import config
@@ -64,6 +69,68 @@ class LibraryFileResource(resource.Resource):
         return LibraryFileAliasResource(
             self.storage, aliasID, self.upstreamHost, self.upstreamPort
         )
+
+
+class _StreamingReceiver(Protocol):
+    def __init__(self, request):
+        self.request = request
+
+    def dataReceived(self, data):
+        self.request.write(data)
+
+    def connectionLost(self, reason):
+        self.request.finish()
+
+
+class ProxiedReverseProxyResource(proxy.ReverseProxyResource):
+    """
+    Subclass of Twisted's ReverseProxyResource that streams responses
+    using a TunnelingAgent.
+    """
+
+    def __init__(self, host, port, path, reactor, tunnelingAgent):
+        super().__init__(host, port, path, reactor)
+        self.tunnelingAgent = tunnelingAgent
+
+    def render(self, request):
+        """
+        Override to use TunnelingAgent and stream the response.
+        """
+        full_path = self.path
+        if request.uri.find(b"?") != -1:
+            full_path += b"?" + request.uri.split(b"?", 1)[1]
+
+        url = b"http://%s:%d%s" % (self.host.encode(), self.port, full_path)
+
+        raw_headers = request.getAllHeaders()  # dict from request
+        headers = Headers({k: [v] for k, v in raw_headers.items()})
+
+        d = self.tunnelingAgent.request(
+            request.method,
+            url,
+            headers,
+            None,
+        )
+
+        def on_response(resp):
+            request.setResponseCode(resp.code)
+            for header, values in resp.headers.getAllRawHeaders():
+                for value in values:
+                    request.responseHeaders.addRawHeader(
+                        header.decode(), value.decode()
+                    )
+            resp.deliverBody(_StreamingReceiver(request))
+            return NOT_DONE_YET
+
+        def on_error(err):
+            log.err(err)
+            request.setResponseCode(502)
+            request.finish()
+
+        d.addCallback(on_response)
+        d.addErrback(on_error)
+
+        return NOT_DONE_YET
 
 
 class LibraryFileAliasResource(resource.Resource):
@@ -191,6 +258,23 @@ class LibraryFileAliasResource(resource.Resource):
             )
             return file
         elif self.upstreamHost is not None:
+            proxy_url = config.launchpad.http_proxy
+            if proxy_url:
+                parsed_proxy_url = urlparse(proxy_url)
+                endpoint = TCP4ClientEndpoint(
+                    reactor,
+                    parsed_proxy_url.hostname,
+                    parsed_proxy_url.port
+                    or (443 if parsed_proxy_url.scheme == "https" else 80),
+                )
+                agent = ProxyAgent(endpoint)
+                return ProxiedReverseProxyResource(
+                    self.upstreamHost,
+                    self.upstreamPort,
+                    request.path,
+                    reactor,
+                    agent,
+                )
             return proxy.ReverseProxyResource(
                 self.upstreamHost, self.upstreamPort, request.path
             )
