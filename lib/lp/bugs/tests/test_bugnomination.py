@@ -468,3 +468,22 @@ class BugNominationSetTestCase(TestCaseWithFactory):
     def test_get_none(self):
         bug_nomination_set = getUtility(IBugNominationSet)
         self.assertRaises(NotFoundError, bug_nomination_set.get, -1)
+
+    def test_getByBugTarget(self):
+        pkg1 = self.factory.makeExternalPackageSeries()
+        pkg2 = self.factory.makeExternalPackageSeries()
+
+        with person_logged_in(pkg1.distroseries.owner):
+            nomination = self.factory.makeBugNomination(target=pkg1)
+        with person_logged_in(pkg2.distroseries.owner):
+            self.factory.makeBugNomination(target=pkg2)
+
+        bug_nomination_set = getUtility(IBugNominationSet)
+        self.assertEqual(
+            nomination,
+            bug_nomination_set.getByBugTarget(nomination.bug, pkg1),
+        )
+        self.assertNotEqual(
+            nomination,
+            bug_nomination_set.getByBugTarget(nomination.bug, pkg2),
+        )

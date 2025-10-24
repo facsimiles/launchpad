@@ -180,6 +180,7 @@ from lp.registry.interfaces.distroseriesdifferencecomment import (
 )
 from lp.registry.interfaces.distroseriesparent import IDistroSeriesParentSet
 from lp.registry.interfaces.externalpackage import ExternalPackageType
+from lp.registry.interfaces.externalpackageseries import IExternalPackageSeries
 from lp.registry.interfaces.gpg import IGPGKeySet
 from lp.registry.interfaces.mailinglist import (
     IMailingListSet,
@@ -2450,7 +2451,9 @@ class LaunchpadObjectFactory(ObjectFactory):
         :param target: The `IProductSeries`, `IDistroSeries` or
             `ISourcePackage` to nominate for.
         """
-        if ISourcePackage.providedBy(target):
+        if ISourcePackage.providedBy(
+            target
+        ) or IExternalPackageSeries.providedBy(target):
             non_series = target.distribution_sourcepackage
             series = target.distroseries
         else:
@@ -5654,8 +5657,10 @@ class LaunchpadObjectFactory(ObjectFactory):
         if channel is None:
             channel = ("12.1", "stable", None)
 
-        return distribution.getExternalPackage(
-            sourcepackagename, packagetype, channel
+        return ProxyFactory(
+            distribution.getExternalPackage(
+                sourcepackagename, packagetype, channel
+            )
         )
 
     def makeExternalPackageSeries(
@@ -5676,8 +5681,10 @@ class LaunchpadObjectFactory(ObjectFactory):
         if channel is None:
             channel = ("12.1", "stable", None)
 
-        return distroseries.getExternalPackageSeries(
-            sourcepackagename, packagetype, channel
+        return ProxyFactory(
+            distroseries.getExternalPackageSeries(
+                sourcepackagename, packagetype, channel
+            )
         )
 
     def makeEmailMessage(
@@ -5968,7 +5975,7 @@ class LaunchpadObjectFactory(ObjectFactory):
         """Create a new CVE record."""
         if sequence is None:
             sequence = "2000-%04i" % self.getUniqueInteger()
-        
+
         if description is None:
             description = self.getUniqueUnicode()
 

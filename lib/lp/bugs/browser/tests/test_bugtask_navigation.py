@@ -72,8 +72,35 @@ class TestBugTaskTraversal(TestCaseWithFactory):
             % (bug.default_bugtask.target.name, bug.default_bugtask.bug.id),
         )
 
+    def _build_expected_external_bugtask_url(self, bugtask, api=False):
+        """Builds the expected canonical URL for a external like bugtask."""
+        target = bugtask.target
+
+        track, risk, branch = target.channel
+        channel_url = f"/+risk/{risk}"
+        if track is not None:
+            channel_url = f"/+track/{track}" + channel_url
+        if branch is not None:
+            channel_url += f"/+branch/{branch}"
+
+        if api:
+            base_url = (
+                f"http://api.launchpad.test/1.0/{target.distribution.name}"
+            )
+        else:
+            base_url = f"http://bugs.launchpad.test/{target.distribution.name}"
+
+        if bugtask.distroseries:
+            base_url += f"/{bugtask.distroseries.name}"
+
+        expected_url = (
+            f"{base_url}"
+            f"/+{target.packagetype.name.lower()}/{target.name}"
+            f"{channel_url}/+bug/{bugtask.bug.id}"
+        )
+        return expected_url
+
     def test_traversal_to_external_bugtask(self):
-        # Test that traversal using +bugtask/id works
         # Test that we can differ between bugtasks with same packagename and
         # distribution/distroseries, but different packagetype or channel
         bug = self.factory.makeBug()
@@ -91,13 +118,13 @@ class TestBugTaskTraversal(TestCaseWithFactory):
                 distribution=distribution,
                 sourcepackagename=spn,
                 packagetype=ExternalPackageType.SNAP,
-                channel=("11", "stable"),
+                channel=("11", "stable", None),
             ),
             self.factory.makeExternalPackage(
                 distribution=distribution,
                 sourcepackagename=spn,
                 packagetype=ExternalPackageType.SNAP,
-                channel=("11", "edge"),
+                channel=("11", "edge", "branch1"),
             ),
             self.factory.makeExternalPackage(
                 distribution=distribution,
@@ -109,13 +136,13 @@ class TestBugTaskTraversal(TestCaseWithFactory):
                 distroseries=distroseries_1,
                 sourcepackagename=spn,
                 packagetype=ExternalPackageType.CHARM,
-                channel=("11", "stable"),
+                channel="stable",
             ),
             self.factory.makeExternalPackageSeries(
                 distroseries=distroseries_2,
                 sourcepackagename=spn,
                 packagetype=ExternalPackageType.CHARM,
-                channel=("11", "stable"),
+                channel=("stable",),
             ),
         )
 
@@ -132,36 +159,17 @@ class TestBugTaskTraversal(TestCaseWithFactory):
 
         # Check externalpackage urls
         for bugtask in bugtasks[:3]:
-            self.assertEqual(
-                canonical_url(bugtask),
-                "http://bugs.launchpad.test/%s/+%s/%s/+bug/%d/"
-                "+bugtask/%s"
-                % (
-                    bugtask.distribution.name,
-                    bugtask.target.packagetype.name.lower(),
-                    bugtask.target.name,
-                    bugtask.bug.id,
-                    bugtask.id,
-                ),
-            )
+            expected_url = self._build_expected_external_bugtask_url(bugtask)
+            self.assertEqual(expected_url, canonical_url(bugtask))
+
             obj, _, _ = test_traverse(canonical_url(bugtask))
             self.assertEqual(bugtask, obj)
 
         # Check externalpackageseries urls
         for bugtask in bugtasks[3:]:
-            self.assertEqual(
-                canonical_url(bugtask),
-                "http://bugs.launchpad.test/%s/%s/+%s/%s/+bug/%d/"
-                "+bugtask/%s"
-                % (
-                    bugtask.target.distribution.name,
-                    bugtask.distroseries.name,
-                    bugtask.target.packagetype.name.lower(),
-                    bugtask.target.name,
-                    bugtask.bug.id,
-                    bugtask.id,
-                ),
-            )
+            expected_url = self._build_expected_external_bugtask_url(bugtask)
+            self.assertEqual(expected_url, canonical_url(bugtask))
+
             obj, _, _ = test_traverse(canonical_url(bugtask))
             self.assertEqual(bugtask, obj)
 
@@ -178,16 +186,13 @@ class TestBugTaskTraversal(TestCaseWithFactory):
             naked_view.target,
             canonical_url(bug.default_bugtask, rootsite="bugs"),
         )
+
+        bugtask = bug.default_bugtask
+
+        expected_url = self._build_expected_external_bugtask_url(bugtask)
         self.assertEqual(
+            expected_url,
             removeSecurityProxy(view).target,
-            "http://bugs.launchpad.test/%s/+%s/%s/+bug/%d/+bugtask/%s"
-            % (
-                bug.default_bugtask.distribution.name,
-                bug.default_bugtask.target.packagetype.name.lower(),
-                bug.default_bugtask.target.name,
-                bug.default_bugtask.bug.id,
-                bug.default_bugtask.id,
-            ),
         )
 
     def test_traversal_to_default_external_package_series_bugtask(self):
@@ -214,17 +219,13 @@ class TestBugTaskTraversal(TestCaseWithFactory):
             naked_view.target,
             canonical_url(bug.default_bugtask, rootsite="bugs"),
         )
+
+        expected_url = self._build_expected_external_bugtask_url(
+            bug.default_bugtask
+        )
         self.assertEqual(
+            expected_url,
             removeSecurityProxy(view).target,
-            "http://bugs.launchpad.test/%s/%s/+%s/%s/+bug/%d/+bugtask/%s"
-            % (
-                bug.default_bugtask.target.distribution.name,
-                bug.default_bugtask.distroseries.name,
-                bug.default_bugtask.target.packagetype.name.lower(),
-                bug.default_bugtask.target.name,
-                bug.default_bugtask.bug.id,
-                bug.default_bugtask.id,
-            ),
         )
 
     def test_traversal_to_default_external_package_bugtask_on_api(self):
@@ -238,16 +239,13 @@ class TestBugTaskTraversal(TestCaseWithFactory):
                 bug.default_bugtask.bug.id,
             )
         )
+
+        expected_url = self._build_expected_external_bugtask_url(
+            bug.default_bugtask, api=True
+        )
         self.assertEqual(
+            expected_url,
             removeSecurityProxy(view).target,
-            "http://api.launchpad.test/1.0/%s/+%s/%s/+bug/%d/+bugtask/%s"
-            % (
-                bug.default_bugtask.distribution.name,
-                bug.default_bugtask.target.packagetype.name.lower(),
-                bug.default_bugtask.target.name,
-                bug.default_bugtask.bug.id,
-                bug.default_bugtask.id,
-            ),
         )
 
     def test_traversal_to_default_external_package_series_bugtask_on_api(self):
@@ -270,16 +268,11 @@ class TestBugTaskTraversal(TestCaseWithFactory):
                 bug.default_bugtask.bug.id,
             )
         )
+
+        expected_url = self._build_expected_external_bugtask_url(
+            bug.default_bugtask, api=True
+        )
         self.assertEqual(
+            expected_url,
             removeSecurityProxy(view).target,
-            "http://api.launchpad.test/1.0/%s/%s/+%s/%s/+bug/%d/"
-            "+bugtask/%s"
-            % (
-                bug.default_bugtask.target.distribution.name,
-                bug.default_bugtask.distroseries.name,
-                bug.default_bugtask.target.packagetype.name.lower(),
-                bug.default_bugtask.target.name,
-                bug.default_bugtask.bug.id,
-                bug.default_bugtask.id,
-            ),
         )

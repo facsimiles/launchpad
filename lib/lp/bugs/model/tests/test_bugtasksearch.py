@@ -1667,6 +1667,63 @@ class UpstreamFilterTests:
         self.assertSearchFinds(params, self.bugtasks[:1])
 
 
+class ExternalPackageSeriesTarget(BugTargetTestBase):
+    """Use an ExternalPackageSeries as the bug target."""
+
+    def setUp(self):
+        super().setUp()
+        # ExternalPackageSeries does not support aggregate search
+        # It requires BugSummary to be implemented
+        self.group_on = None
+        self.searchtarget = removeSecurityProxy(
+            self.factory.makeExternalPackageSeries()
+        )
+        self.owner = self.searchtarget.distroseries.owner
+        self.makeBugTasks()
+
+    def setUpTarget2(self):
+        self.searchtarget2 = removeSecurityProxy(
+            self.factory.makeExternalPackageSeries(
+                distroseries=self.searchtarget.distroseries
+            )
+        )
+        self.bugtasks2 = []
+        self.makeBugTasks(
+            bugtarget=self.searchtarget2,
+            bugtasks=self.bugtasks2,
+            owner=self.searchtarget2.distroseries.owner,
+        )
+        self.makeBugTasks(
+            bugtarget=self.searchtarget2,
+            bugtasks=self.bugtasks2,
+            owner=self.searchtarget2.distroseries.owner,
+        )
+
+    def setBugParamsTarget(self, params, target):
+        params.setExternalPackageSeries(target)
+
+    def subscribeToTarget(self, subscriber):
+        # Subscribe the given person to the search target.
+        # ExternalPackageSeries do not support structural subscriptions,
+        # so we subscribe to the distro series instead.
+        with person_logged_in(subscriber):
+            self.searchtarget.distroseries.addSubscription(
+                subscriber, subscribed_by=subscriber
+            )
+
+    def setUpMilestoneSorting(self):
+        with person_logged_in(self.owner):
+            milestone_1 = self.factory.makeMilestone(
+                distribution=self.searchtarget.distribution, name="1.0"
+            )
+            milestone_2 = self.factory.makeMilestone(
+                distribution=self.searchtarget.distribution, name="2.0"
+            )
+            self.bugtasks[1].transitionToMilestone(milestone_1, self.owner)
+            self.bugtasks[2].transitionToMilestone(milestone_2, self.owner)
+        return self.bugtasks[1:] + self.bugtasks[:1]
+
+
 class SourcePackageTarget(BugTargetTestBase, UpstreamFilterTests):
     """Use a source package as the bug target."""
 
@@ -1707,6 +1764,71 @@ class SourcePackageTarget(BugTargetTestBase, UpstreamFilterTests):
 
     def targetToGroup(self, target):
         return target.sourcepackagename.id
+
+    def setUpMilestoneSorting(self):
+        with person_logged_in(self.owner):
+            milestone_1 = self.factory.makeMilestone(
+                distribution=self.searchtarget.distribution, name="1.0"
+            )
+            milestone_2 = self.factory.makeMilestone(
+                distribution=self.searchtarget.distribution, name="2.0"
+            )
+            self.bugtasks[1].transitionToMilestone(milestone_1, self.owner)
+            self.bugtasks[2].transitionToMilestone(milestone_2, self.owner)
+        return self.bugtasks[1:] + self.bugtasks[:1]
+
+
+class ExternalPackageTarget(
+    BugTargetTestBase,
+    BugTargetWithBugSuperVisor,
+):
+    """Use an ExternalPackage as the bug target."""
+
+    def setUp(self):
+        super().setUp()
+        # ExternalPackage does not support aggregate search
+        # It requires BugSummary to be implemented
+        self.group_on = None
+        self.searchtarget = removeSecurityProxy(
+            self.factory.makeExternalPackage()
+        )
+        self.owner = self.searchtarget.distribution.owner
+        self.makeBugTasks()
+
+    def setUpTarget2(self):
+        self.searchtarget2 = removeSecurityProxy(
+            self.factory.makeExternalPackage(
+                distribution=self.searchtarget.distribution
+            )
+        )
+        self.bugtasks2 = []
+        self.makeBugTasks(
+            bugtarget=self.searchtarget2,
+            bugtasks=self.bugtasks2,
+            owner=self.searchtarget2.distribution.owner,
+        )
+        self.makeBugTasks(
+            bugtarget=self.searchtarget2,
+            bugtasks=self.bugtasks2,
+            owner=self.searchtarget2.distribution.owner,
+        )
+
+    def setBugParamsTarget(self, params, target):
+        params.setExternalPackage(target)
+
+    def subscribeToTarget(self, subscriber):
+        # Subscribe the given person to the search target.
+        # ExternalPackage do not support structural subscriptions,
+        # so we subscribe to the distro instead.
+        with person_logged_in(subscriber):
+            self.searchtarget.distribution.addSubscription(
+                subscriber, subscribed_by=subscriber
+            )
+
+    def setSupervisor(self, supervisor):
+        """Set the bug supervisor for the bug task target."""
+        with person_logged_in(self.owner):
+            self.searchtarget.distribution.bug_supervisor = supervisor
 
     def setUpMilestoneSorting(self):
         with person_logged_in(self.owner):
@@ -1782,6 +1904,8 @@ bug_targets_mixins = (
     ProductTarget,
     ProjectGroupTarget,
     SourcePackageTarget,
+    ExternalPackageTarget,
+    ExternalPackageSeriesTarget,
 )
 
 

@@ -4,7 +4,6 @@
 """External package interfaces."""
 
 __all__ = [
-    "IExternalURL",
     "IExternalPackage",
     "ExternalPackageType",
 ]
@@ -12,7 +11,7 @@ __all__ = [
 from lazr.enum import DBEnumeratedType, DBItem
 from lazr.restful.declarations import exported, exported_as_webservice_entry
 from lazr.restful.fields import Reference
-from zope.interface import Attribute, Interface
+from zope.interface import Attribute
 from zope.schema import TextLine
 
 from lp import _
@@ -22,23 +21,12 @@ from lp.registry.interfaces.distribution import IDistribution
 from lp.registry.interfaces.role import IHasDrivers
 
 
-class IExternalURL(Interface):
-    """Uses +external url"""
-
-    def isMatching(other):
-        """Returns if it matches the other object.
-        +external url lacks necessary data, so we only match the necessary
-        attributes.
-        """
-
-
 @exported_as_webservice_entry(as_of="beta")
 class IExternalPackageView(
     IHeadingContext,
     IBugTarget,
     IHasOfficialBugTags,
     IHasDrivers,
-    IExternalURL,
 ):
     """`IExternalPackage` attributes that require launchpad.View."""
 
@@ -65,9 +53,6 @@ class IExternalPackageView(
     )
 
     drivers = Attribute("The drivers for the distribution.")
-
-    def isMatching(other):
-        """See `IExternalURL`."""
 
     def __eq__(other):
         """IExternalPackage comparison method.

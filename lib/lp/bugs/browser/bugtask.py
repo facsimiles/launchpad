@@ -127,10 +127,7 @@ from lp.registry.interfaces.distributionsourcepackage import (
     IDistributionSourcePackage,
 )
 from lp.registry.interfaces.distroseries import IDistroSeries, IDistroSeriesSet
-from lp.registry.interfaces.externalpackage import (
-    IExternalPackage,
-    IExternalURL,
-)
+from lp.registry.interfaces.externalpackage import IExternalPackage
 from lp.registry.interfaces.externalpackageseries import IExternalPackageSeries
 from lp.registry.interfaces.ociproject import IOCIProject
 from lp.registry.interfaces.person import IPersonSet
@@ -308,9 +305,6 @@ class BugTaskURL:
 
     @property
     def path(self):
-        if IExternalURL.providedBy(self.context.target):
-            return f"+bug/{self.context.bug.id}/+bugtask/{self.context.id}"
-
         return "+bug/%s" % self.context.bug.id
 
 
@@ -348,17 +342,9 @@ class BugTargetTraversalMixin:
         # rather than making it look as though this task was "not found",
         # because it was filtered out by privacy-aware code.
 
-        # Check if it uses +external url
-        is_external = IExternalURL.providedBy(context)
-
         for bugtask in bug.bugtasks:
             target = bugtask.target
-
-            if is_external:
-                if context.isMatching(target):
-                    # Security proxy the object on the way out
-                    return getUtility(IBugTaskSet).get(bugtask.id)
-            elif target == context:
+            if target == context:
                 return getUtility(IBugTaskSet).get(bugtask.id)
 
         # If we've come this far, there's no task for the requested context.
@@ -383,23 +369,6 @@ class BugTaskNavigation(Navigation):
     """Navigation for the `IBugTask`."""
 
     usedfor = IBugTask
-
-    @stepthrough("+bugtask")
-    def traverse_bugtask(self, id):
-        bugtask = getUtility(IBugTaskSet).get(int(id))
-        # Jumping to a not matching bugtask is not allowed
-        if bugtask.bug.id != self.context.bug.id:
-            return
-        if bugtask.sourcepackagename != self.context.sourcepackagename:
-            return
-        if bugtask.distribution != self.context.distribution:
-            return
-        if bugtask.distroseries != self.context.distroseries:
-            return
-        if bugtask.packagetype != self.context.packagetype:
-            return
-
-        return bugtask
 
     @stepthrough("attachments")
     def traverse_attachments(self, name):

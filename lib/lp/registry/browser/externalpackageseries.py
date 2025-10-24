@@ -10,12 +10,14 @@ __all__ = [
 
 
 from zope.interface import implementer
+from zope.publisher.interfaces import NotFound
 
 from lp.app.interfaces.headings import IHeadingBreadcrumb
 from lp.bugs.browser.bugtask import BugTargetTraversalMixin
 from lp.bugs.browser.structuralsubscription import (
     StructuralSubscriptionTargetTraversalMixin,
 )
+from lp.registry.browser.externalpackage import ExternalPackageNavigationMixin
 from lp.registry.interfaces.externalpackageseries import IExternalPackageSeries
 from lp.services.webapp import (
     Navigation,
@@ -57,6 +59,7 @@ class ExternalPackageSeriesNavigation(
     Navigation,
     BugTargetTraversalMixin,
     StructuralSubscriptionTargetTraversalMixin,
+    ExternalPackageNavigationMixin,
 ):
     usedfor = IExternalPackageSeries
 
@@ -73,6 +76,15 @@ class ExternalPackageSeriesNavigation(
         if self.request.form.get("no-redirect") is not None:
             redirection_url += "?no-redirect"
         return self.redirectSubTree(redirection_url, status=303)
+
+    def _get_package_for_channel(self, channel):
+        try:
+            return self.context.distroseries.getExternalPackageSeries(
+                self.context.name, self.context.packagetype, channel
+            )
+        except ValueError:
+            # invalid channel returns a 404
+            raise NotFound(self.context, channel)
 
 
 @implementer(ICanonicalUrlData)
@@ -91,4 +103,15 @@ class ExternalPackageSeriesURL:
     @property
     def path(self):
         packagetype = self.context.packagetype.name.lower()
-        return f"+{packagetype}/{self.context.name}"
+
+        track, risk, branch = self.context.channel or (None, None, None)
+
+        channel_url = ""
+        if track:
+            channel_url = f"/+track/{track}"
+        if risk:
+            channel_url = channel_url + f"/+risk/{risk}"
+        if branch:
+            channel_url = channel_url + f"/+branch/{branch}"
+
+        return f"+{packagetype}/{self.context.name}{channel_url}"
