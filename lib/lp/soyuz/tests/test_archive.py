@@ -7536,6 +7536,9 @@ class TestBinaryBuildFinishWebhooks(TestCaseWithFactory):
         build = self.factory.makeBinaryPackageBuild(
             archive=archive, status=BuildStatus.UPLOADING
         )
+        removeSecurityProxy(build).log = self.factory.makeLibraryFileAlias(
+            db_only=True
+        )
         build.updateStatus(BuildStatus.FULLYBUILT)
 
         job = hook.deliveries.one()
@@ -7554,6 +7557,8 @@ class TestBinaryBuildFinishWebhooks(TestCaseWithFactory):
         )
 
         self.assertIsNotNone(build.source_package_release.sourcepackagename)
+        self.assertEqual(payload["buildlog"], build.log_url)
+        self.assertTrue("http://launchpad.test/" in payload["buildlog"])
 
     def test_binary_build_no_status_change_does_not_trigger_webhook(self):
         self.useFixture(
