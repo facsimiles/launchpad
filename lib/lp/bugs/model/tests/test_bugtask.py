@@ -63,7 +63,6 @@ from lp.registry.interfaces.person import IPersonSet
 from lp.registry.interfaces.product import IProductSet
 from lp.registry.interfaces.projectgroup import IProjectGroupSet
 from lp.registry.interfaces.sourcepackage import ISourcePackage
-from lp.registry.model.externalpackage import ExternalPackageType
 from lp.registry.model.sourcepackage import SourcePackage
 from lp.registry.tests.test_accesspolicy import get_policies_for_artifact
 from lp.services.database.sqlbase import (
