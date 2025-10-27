@@ -189,6 +189,11 @@
           <a tal:replace="structure overview_menu/editmatrixaccounts/fmt:icon" />
         </dd>
 
+        <dd class="user-social-accounts__item github-account" tal:repeat="social_account view/github_accounts">
+          <span><span tal:replace="structure social_account/fmt:formatted_display" /></span>
+          <a tal:replace="structure overview_menu/editgithubaccounts/fmt:icon" />
+        </dd>
+
         <tal:irc condition="view/should_show_ircnicknames_section">
           <dd class="user-social-accounts__item" tal:condition="not: context/ircnicknames" id="empty-irc">
             <img class="user-social-accounts__icon" alt="IRC" title="IRC" src="/@@/social-irc"/>
@@ -212,6 +217,14 @@
             <a tal:replace="structure overview_menu/editmatrixaccounts/fmt:icon" />
           </dd>
         </tal:matrix>
+
+        <tal:github condition="view/should_show_github_accounts_section">
+          <dd class="user-social-accounts__item" tal:condition="not: view/github_accounts"  id="empty-github">
+            <img class="user-social-accounts__icon" alt="GitHub" title="GitHub" src="/@@/social-github" />
+            <span>No github accounts registered.</span>
+            <a tal:replace="structure overview_menu/editgithubaccounts/fmt:icon" />
+          </dd>
+        </tal:github>
 
       </dl>
     </div>

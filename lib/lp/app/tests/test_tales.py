@@ -6,6 +6,7 @@
 from datetime import datetime, timedelta, timezone
 
 from lxml import html
+from testscenarios import WithScenarios
 from zope.component import getAdapter, getUtility
 from zope.traversing.interfaces import IPathAdapter, TraversalError
 
@@ -389,27 +390,47 @@ class TestIRCNicknameFormatterAPI(TestCaseWithFactory):
         )
 
 
-class TestSocialAccountFormatterAPI(TestCaseWithFactory):
+class TestSocialAccountFormatterAPI(WithScenarios, TestCaseWithFactory):
     """Tests for SocialAccountFormatterAPI"""
 
     layer = DatabaseFunctionalLayer
+
+    scenarios = [
+        (
+            "Matrix",
+            {
+                "platform": SocialPlatformType.MATRIX,
+                "name": "Matrix",
+                "identity": {"username": "fred", "homeserver": "ubuntu.com"},
+                "icon": "social-matrix",
+                "href": "https://matrix.to//#/@fred:ubuntu.com",
+                "display": "@fred:ubuntu.com",
+            },
+        ),
+        (
+            "GitHub",
+            {
+                "platform": SocialPlatformType.GITHUB,
+                "name": "GitHub",
+                "identity": {"username": "fred"},
+                "icon": "social-github",
+                "href": "https://github.com/fred",
+                "display": "/fred",
+            },
+        ),
+    ]
 
     def test_formatted_display(self):
         """Social account is displayed as expected."""
         person = self.factory.makePerson()
         social_account_set = getUtility(ISocialAccountSet)
-        identity = {
-            "username": "fred",
-            "homeserver": "ubuntu.com",
-        }
         social_account = social_account_set.new(
-            person, SocialPlatformType.MATRIX, identity
+            person, self.platform, self.identity
         )
         expected_html = (
-            '<img class="user-social-accounts__icon" alt="Matrix" '
-            'title="Matrix" src="/@@/social-matrix" /> '
-            "<a href=https://matrix.to//#/@fred:ubuntu.com "
-            'target="_blank"><strong>@fred:ubuntu.com</strong></a>'
+            f'<img class="user-social-accounts__icon" alt="{self.name}" '
+            f'title="{self.name}" src="/@@/{self.icon}" /> <a href={self.href}'
+            f' target="_blank"><strong>{self.display}</strong></a>'
         )
 
         self.assertEqual(
