@@ -46,7 +46,7 @@ class TestSOSSExporter(TestCaseWithFactory):
             with open(file) as f:
                 soss_record = SOSSRecord.from_yaml(f)
 
-            bug, _ = self.soss_importer.import_cve_from_file(file)
+            bug, _, _ = self.soss_importer.import_cve_from_file(file)
 
             naked_bug = removeSecurityProxy(bug)
             packages = self.soss_exporter._get_packages(naked_bug.bugtasks)
@@ -62,7 +62,7 @@ class TestSOSSExporter(TestCaseWithFactory):
             with open(file) as f:
                 soss_record = SOSSRecord.from_yaml(f)
 
-            _, vulnerability = self.soss_importer.import_cve_from_file(file)
+            _, vulnerability, _ = self.soss_importer.import_cve_from_file(file)
             naked_vulnerability = removeSecurityProxy(vulnerability)
             cvss = self.soss_exporter._get_cvss(naked_vulnerability.cvss)
 
@@ -78,7 +78,7 @@ class TestSOSSExporter(TestCaseWithFactory):
             with open(file) as f:
                 soss_record = SOSSRecord.from_yaml(f)
 
-            bug, vulnerability = soss_importer.import_cve_from_file(file)
+            bug, vulnerability, _ = soss_importer.import_cve_from_file(file)
             exported = self.soss_exporter.to_record(bug, vulnerability)
 
             self.assertEqual(soss_record, exported)
@@ -92,7 +92,7 @@ class TestSOSSExporter(TestCaseWithFactory):
 
         for file in self.sampledata.iterdir():
 
-            bug, vulnerability = soss_importer.import_cve_from_file(file)
+            bug, vulnerability, _ = soss_importer.import_cve_from_file(file)
             exported = self.soss_exporter.to_record(bug, vulnerability)
 
             with open(file) as f:

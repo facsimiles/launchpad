@@ -112,7 +112,7 @@ class UCTImporter(SVTImporter):
                 cve.sequence,
                 cve_sequence,
             )
-            return None, None
+            return None, None, None
 
         return self.import_cve(cve)
 
@@ -122,6 +122,7 @@ class UCTImporter(SVTImporter):
 
         :param cve: `CVE` with information from UCT
         """
+        created = False
         if cve.date_made_public is None:
             logger.warning(
                 "%s does not have a publication date, "
@@ -157,6 +158,7 @@ class UCTImporter(SVTImporter):
                 logger.info(
                     "%s: created bug with ID: %s", cve.sequence, bug.id
                 )
+                created = True
             else:
                 logging.info(
                     "%s: found existing bug with ID: %s",
@@ -181,7 +183,7 @@ class UCTImporter(SVTImporter):
             transaction.commit()
 
         logger.info("%s was imported successfully", cve.sequence)
-        return bug, vulnerability
+        return bug, vulnerability, created
 
     def create_bug(self, cve: CVE, lp_cve: CveModel) -> BugModel:
         """

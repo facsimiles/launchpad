@@ -1720,7 +1720,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         uct_record = self.cve.to_uct_record()
 
         cve_path = uct_record.save(Path(self.makeTemporaryDirectory()))
-        bug, _ = self.importer.import_cve_from_file(cve_path)
+        bug, _, _ = self.importer.import_cve_from_file(cve_path)
 
         self.checkBug(bug, self.cve)
         self.checkVulnerabilities(bug, self.cve)
@@ -1759,7 +1759,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
 
     def test_exporter_to_record(self):
         """Test to_record returns expected UCTRecord"""
-        bug, vulnerability = self.importer.import_cve(self.cve)
+        bug, vulnerability, _ = self.importer.import_cve(self.cve)
 
         uct_record = self.exporter.to_record(bug, vulnerability)
 

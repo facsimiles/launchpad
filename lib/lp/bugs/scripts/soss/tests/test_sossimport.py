@@ -241,13 +241,15 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(vulnerability.bugs[0], bug)
 
     def test_import_cve_from_file(self):
-        """Test import a SOSS cve from file"""
+        """Test import a SOSS cve from file. It also imports again to check
+        that we don't create duplicates."""
         file = self.sampledata / "CVE-2025-1979"
 
         soss_importer = SOSSImporter(
             self.soss, information_type=InformationType.PROPRIETARY
         )
-        bug, vulnerability = soss_importer.import_cve_from_file(file)
+        bug, vulnerability, created = soss_importer.import_cve_from_file(file)
+        self.assertEqual(created, True)
 
         # Check bug fields
         self._check_bug_fields(bug, self.bugtask_reference)
@@ -256,9 +258,12 @@ class TestSOSSImporter(TestCaseWithFactory):
         self._check_vulnerability_fields(vulnerability, bug)
 
         # Import again to check that it doesn't create new objects
-        bug_copy, vulnerability_copy = soss_importer.import_cve_from_file(file)
+        bug_copy, vulnerability_copy, created = (
+            soss_importer.import_cve_from_file(file)
+        )
         self.assertEqual(bug, bug_copy)
         self.assertEqual(vulnerability, vulnerability_copy)
+        self.assertEqual(created, False)
 
     def test_create_update_bug(self):
         """Test create and update a bug from a SOSS cve file"""

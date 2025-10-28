@@ -110,8 +110,10 @@ class SOSSImporter(SVTImporter):
         with open(cve_path, encoding="utf-8") as file:
             soss_record = SOSSRecord.from_yaml(file)
 
-        bug, vulnerability = self.from_record(soss_record, cve_sequence)
-        return bug, vulnerability
+        bug, vulnerability, created = self.from_record(
+            soss_record, cve_sequence
+        )
+        return bug, vulnerability, created
 
     def from_record(
         self, soss_record: SOSSRecord, cve_sequence: str
@@ -119,12 +121,14 @@ class SOSSImporter(SVTImporter):
         """Import CVE from SOSS record."""
         self._validate_soss_record(soss_record, cve_sequence)
         lp_cve = self._get_launchpad_cve(cve_sequence)
+        created = False
 
         vulnerability = self._find_existing_vulnerability(lp_cve, self.soss)
         if not vulnerability:
             vulnerability = self._create_vulnerability(
                 soss_record, lp_cve, self.soss
             )
+            created = True
         else:
             vulnerability = self._update_vulnerability(
                 vulnerability, soss_record
@@ -148,7 +152,7 @@ class SOSSImporter(SVTImporter):
                 f"{cve_sequence}"
             )
 
-        return bug, vulnerability
+        return bug, vulnerability, created
 
     def _create_bug(
         self, soss_record: SOSSRecord, lp_cve: CveModel
