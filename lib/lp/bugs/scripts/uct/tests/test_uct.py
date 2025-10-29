@@ -1727,20 +1727,26 @@ class TestUCTImporterExporter(TestCaseWithFactory):
 
     def test_from_record(self):
         uct_record = self.cve.to_uct_record()
-        bug, _ = self.importer.from_record(uct_record, "CVE-2022-23222")
+        bug, _, created = self.importer.from_record(
+            uct_record, "CVE-2022-23222"
+        )
         cve = CVE.make_from_uct_record(uct_record)
         self.checkCVE(self.cve, cve)
         self.checkBug(bug, self.cve)
         self.checkVulnerabilities(bug, self.cve)
+        self.assertTrue(created)
 
     def test_import_non_existing_cve(self):
         """Try to import a non existing cve won't create a bug and
         vulnerability."""
         self.cve.sequence = "CVE-2023-0000"
         uct_record = self.cve.to_uct_record()
-        bug, vuln = self.importer.from_record(uct_record, "CVE-2023-0000")
+        bug, vuln, created = self.importer.from_record(
+            uct_record, "CVE-2023-0000"
+        )
         self.assertEqual(bug, None)
         self.assertEqual(vuln, None)
+        self.assertEqual(created, None)
 
     def test_import_duplicate(self):
         """Import more than once a cve and check that it does not duplicate."""

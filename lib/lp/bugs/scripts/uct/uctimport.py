@@ -131,7 +131,7 @@ class UCTImporter(SVTImporter):
                 cve.sequence,
                 cve.sequence,
             )
-            return None, None
+            return None, None, None
         if not cve.series_packages:
             logger.warning(
                 "%s: could not find any affected packages, aborting."
@@ -139,7 +139,7 @@ class UCTImporter(SVTImporter):
                 cve.series_packages,
                 cve.sequence,
             )
-            return None, None
+            return None, None, None
         lp_cve: CveModel = removeSecurityProxy(
             getUtility(ICveSet)[cve.sequence]
         )
@@ -150,7 +150,7 @@ class UCTImporter(SVTImporter):
                 cve.sequence,
                 cve.sequence,
             )
-            return None, None
+            return None, None, None
         bug = self._find_existing_bug(lp_cve, self.ubuntu)
         try:
             if bug is None:
