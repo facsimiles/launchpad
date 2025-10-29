@@ -8,6 +8,7 @@ import unittest
 from datetime import datetime, timezone
 from gzip import GzipFile
 from io import BytesIO
+from unittest.mock import Mock, patch
 from urllib.parse import urlparse
 
 import requests
@@ -15,6 +16,8 @@ import transaction
 from lazr.uri import URI
 from storm.expr import SQL
 from testtools.matchers import EndsWith
+from testtools.twistedsupport import AsynchronousDeferredRunTest
+from twisted.internet import defer
 from zope.component import getUtility
 from zope.security.proxy import removeSecurityProxy
 
@@ -35,6 +38,7 @@ from lp.services.librarian.interfaces import ILibraryFileAliasSet
 from lp.services.librarian.interfaces.client import DownloadFailed
 from lp.services.librarian.model import LibraryFileAlias, TimeLimitedToken
 from lp.services.librarianserver.storage import LibrarianStorage
+from lp.services.librarianserver.web import LibraryFileAliasResource
 from lp.services.macaroons.interfaces import IMacaroonIssuer
 from lp.testing import TestCaseWithFactory
 from lp.testing.dbuser import dbuser, switch_dbuser
@@ -102,6 +106,8 @@ class LibrarianZopelessWebTestMixin(LibrarianWebTestMixin):
 
 class LibrarianWebTestCase(LibrarianWebTestMixin, TestCaseWithFactory):
     """Test the librarian's web interface."""
+
+    run_tests_with = AsynchronousDeferredRunTest.make_factory(timeout=30)
 
     # Add stuff to a librarian via the upload port, then check that it's
     # immediately visible on the web interface. (in an attempt to test ddaa's
@@ -311,6 +317,70 @@ class LibrarianWebTestCase(LibrarianWebTestMixin, TestCaseWithFactory):
 
         # And we should have a correct Last-Modified header too.
         self.assertEqual(last_modified_header, "Tue, 30 Jan 2001 13:45:59 GMT")
+
+    @defer.inlineCallbacks
+    def test_http_proxy_used_when_configured(self):
+        # When an HTTP proxy is configured and the requested file is missing
+        # from local storage, the librarian (running in upstream mode) should
+        # connect to the upstream server through the configured proxy. In this
+        # case, the system must use a ProxyAgent with a TCP4ClientEndpoint to
+        # route traffic via the HTTP proxy.
+
+        storage = Mock()
+        upstream_host = "upstream.example.com"
+        upstream_port = 8080
+        resource = LibraryFileAliasResource(
+            storage, 123, upstream_host, upstream_port
+        )
+
+        test_cases = [
+            ("http://proxy.example:3128", "proxy.example", 3128),
+            ("https://proxy.example", "proxy.example", 443),
+            ("http://proxy.example", "proxy.example", 80),
+        ]
+
+        for proxy_url, expected_host, expected_port in test_cases:
+            with patch(
+                "lp.services.librarianserver.web.config"
+            ) as mock_config, patch(
+                "lp.services.librarianserver.web.TCP4ClientEndpoint"
+            ) as mock_endpoint, patch(
+                "lp.services.librarianserver.web.ProxyAgent"
+            ) as mock_proxy_agent, patch(
+                "lp.services.librarianserver.web.ProxiedReverseProxyResource"
+            ) as mock_proxied_resource:
+
+                mock_config.launchpad.http_proxy = proxy_url
+
+                storage.open = Mock(return_value=defer.succeed(None))
+
+                request = Mock()
+                request.path = b"/123/test.txt"
+
+                file_data = (
+                    123,
+                    "test.txt",
+                    "text/plain",
+                    datetime.now(timezone.utc),
+                    100,
+                    False,
+                )
+                yield resource._cb_getFileAlias(
+                    file_data, b"test.txt", request
+                )
+
+                mock_endpoint.assert_called_once()
+                endpoint_call_args = mock_endpoint.call_args[0]
+                self.assertEqual(endpoint_call_args[1], expected_host)
+                self.assertEqual(endpoint_call_args[2], expected_port)
+
+                mock_proxy_agent.assert_called_once()
+
+                mock_proxied_resource.assert_called_once()
+                proxied_call_args = mock_proxied_resource.call_args[0]
+                self.assertEqual(proxied_call_args[0], upstream_host)
+                self.assertEqual(proxied_call_args[1], upstream_port)
+                self.assertEqual(proxied_call_args[2], request.path)
 
     def test_missing_storage(self):
         # When a file exists in the DB but is missing from disk, a 404
