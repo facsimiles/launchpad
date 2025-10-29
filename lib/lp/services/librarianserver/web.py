@@ -102,8 +102,13 @@ class ProxiedReverseProxyResource(proxy.ReverseProxyResource):
 
         url = b"http://%s:%d%s" % (self.host.encode(), self.port, full_path)
 
-        raw_headers = request.getAllHeaders()  # dict from request
+        raw_headers = request.getAllHeaders()
         headers = Headers({k: [v] for k, v in raw_headers.items()})
+
+        # override the host header to upstream's host
+        headers.setRawHeaders(
+            b"host", [f"{self.host}:{self.port}".encode("ascii")]
+        )
 
         d = self.tunnelingAgent.request(
             request.method,
@@ -115,10 +120,9 @@ class ProxiedReverseProxyResource(proxy.ReverseProxyResource):
         def on_response(resp):
             request.setResponseCode(resp.code)
             for header, values in resp.headers.getAllRawHeaders():
-                for value in values:
-                    request.responseHeaders.addRawHeader(
-                        header.decode(), value.decode()
-                    )
+                request.responseHeaders.setRawHeaders(
+                    header.decode(), [v.decode() for v in values]
+                )
             resp.deliverBody(_StreamingReceiver(request))
             return NOT_DONE_YET
 
