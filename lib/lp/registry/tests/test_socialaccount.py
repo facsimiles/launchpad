@@ -192,10 +192,21 @@ class TestSocialAccount(TestCaseWithFactory):
     def test_malformed_github_account_username(self):
         # Username must be a string
         bad_usernames = [
+            # Special characters are not allowed
             "@username!(*)",
-            "username%",
             "org/project",
-            "username%21%28%29",
+            "escaped-username%21%28%29",
+            # max length of username is 39 characters
+            "username-that-is-more-than-39-characters-long",
+            # starting or ending with dash, and double-dash is invalid
+            "username--two-dashes",
+            "-username-starts-with-dash",
+            "username-ends-with-dash-",
+            # username has to be string
+            1000,
+            True,
+            ["username"],
+            {"username": "username"},
         ]
 
         user = self.factory.makePerson()
