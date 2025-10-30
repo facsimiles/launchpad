@@ -195,7 +195,7 @@ class GithubPlatform(SocialPlatform):
             raise SocialAccountIdentityError("Username must be a string.")
         # GitHub username can contain a-z, 0-9, and -
         # ref: https://docs.github.com/en/enterprise-cloud@latest/admin/managing-iam/iam-configuration-reference/username-considerations-for-external-authentication#about-username-normalization  # noqa: E501
-        username_regex = r"^[A-z0-9-]+"
+        username_regex = r"^[A-z0-9-]+$"
         if not re.match(username_regex, identity["username"]):
             raise SocialAccountIdentityError("Username must be valid.")
 

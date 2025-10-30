@@ -191,18 +191,26 @@ class TestSocialAccount(TestCaseWithFactory):
 
     def test_malformed_github_account_username(self):
         # Username must be a string
+        bad_usernames = [
+            "@username!(*)",
+            "username%",
+            "org/project",
+            "username%21%28%29",
+        ]
+
         user = self.factory.makePerson()
         attributes = {}
-        attributes["username"] = "@username!(*)"
         utility = getUtility(ISocialAccountSet)
 
-        self.assertRaises(
-            SocialAccountIdentityError,
-            utility.new,
-            user,
-            SocialPlatformType.GITHUB,
-            attributes,
-        )
+        for username in bad_usernames:
+            attributes["username"] = username
+            self.assertRaises(
+                SocialAccountIdentityError,
+                utility.new,
+                user,
+                SocialPlatformType.GITHUB,
+                attributes,
+            )
 
     def test_malformed_matrix_account_homeserver(self):
         # Homeserver must be a valid address
