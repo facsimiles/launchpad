@@ -193,10 +193,19 @@ class GithubPlatform(SocialPlatform):
             )
         if not isinstance(identity["username"], str):
             raise SocialAccountIdentityError("Username must be a string.")
+
         # GitHub username can contain a-z, 0-9, and -
+        # Max length: 39 characters
+        # No consecutive dashes and can't start/end with dash
         # ref: https://docs.github.com/en/enterprise-cloud@latest/admin/managing-iam/iam-configuration-reference/username-considerations-for-external-authentication#about-username-normalization  # noqa: E501
-        username_regex = r"^[A-z0-9-]+"
-        if not re.match(username_regex, identity["username"]):
+
+        if len(identity["username"]) > 39:
+            raise SocialAccountIdentityError("Username too long (max 39 char)")
+
+        username_regex = (
+            r"^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9]))*[a-z0-9]$" r"|^[a-z0-9]$"
+        )
+        if not re.match(username_regex, identity["username"], re.IGNORECASE):
             raise SocialAccountIdentityError("Username must be valid.")
 
 
