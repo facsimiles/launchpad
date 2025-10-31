@@ -750,6 +750,26 @@ class BuildRecordCreationTests(TestNativePublishingBase):
         )
         self.assertBuildsMatch({"x32v2": False}, builds)
 
+    def test_createForSource_variant_all(self):
+        # createForSource with a hintlist of a specfic architecture
+        # builds variants of that architecture too.
+        spr = self.factory.makeSourcePackageRelease(
+            architecturehintlist="all",
+        )
+        x32v2 = self.factory.makeProcessor(
+            name="x32v2",
+            supports_virtualized=True,
+            build_by_default=True,
+        )
+        self.factory.makeBuildableDistroArchSeries(
+            distroseries=self.distroseries2,
+            architecturetag="x32v2",
+            processor=x32v2,
+            underlying_architecturetag="x32",
+        )
+        builds = self.createBuilds(spr, self.distroseries2)
+        self.assertBuildsMatch({"x32": True}, builds)
+
     def test_createForSource_honours_filters(self):
         # If there are DistroArchSeriesFilters for some architectures,
         # createForSource honours them.
