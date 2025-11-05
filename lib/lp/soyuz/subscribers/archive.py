@@ -39,6 +39,8 @@ def _create_source_package_upload_payload(upload):
 
         return payload
 
+    return None
+
 
 def _create_binary_package_upload_payload(upload):
     if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
@@ -52,6 +54,8 @@ def _create_binary_package_upload_payload(upload):
             ),
         }
         return payload
+
+    return None
 
 
 def _trigger_build_status_change_webhook(build, event_type):
@@ -84,23 +88,25 @@ def package_status_change_webhook(upload, event):
     if not upload.builds:
         if event.edited_fields and "status" in event.edited_fields:
             payload = _create_source_package_upload_payload(upload)
-            _trigger_package_status_change_webhook(
-                upload.archive,
-                payload,
-                f"archive:source-package-upload:0.1::"
-                f"{upload.status.name.lower()}",
-            )
+            if payload is not None:
+                _trigger_package_status_change_webhook(
+                    upload.archive,
+                    payload,
+                    f"archive:source-package-upload:0.1::"
+                    f"{upload.status.name.lower()}",
+                )
 
     # For binary packages
     else:
         if event.edited_fields and "status" in event.edited_fields:
             payload = _create_binary_package_upload_payload(upload)
-            _trigger_package_status_change_webhook(
-                upload.archive,
-                payload,
-                f"archive:binary-package-upload:0.1::"
-                f"{upload.status.name.lower()}",
-            )
+            if payload is not None:
+                _trigger_package_status_change_webhook(
+                    upload.archive,
+                    payload,
+                    f"archive:binary-package-upload:0.1::"
+                    f"{upload.status.name.lower()}",
+                )
 
 
 def build_status_change_webhook(build, event):

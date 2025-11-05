@@ -487,11 +487,12 @@ class UploadHandler:
                 # Trigger the package upload rejection webhook for archives,
                 # which would have otherwise never executed due to the above
                 # abort which causes the webhookjob to not be created.
-                _trigger_package_status_change_webhook(
-                    rejected_upload_archive,
-                    webhook_payload,
-                    "archive:source-package-upload:0.1::rejected",
-                )
+                if webhook_payload is not None:
+                    _trigger_package_status_change_webhook(
+                        rejected_upload_archive,
+                        webhook_payload,
+                        "archive:source-package-upload:0.1::rejected",
+                    )
 
             else:
                 successful = self._acceptUpload(upload, notify)
