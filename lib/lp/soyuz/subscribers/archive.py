@@ -9,11 +9,17 @@ from lp.buildmaster.enums import BuildStatus
 from lp.services.features import getFeatureFlag
 from lp.services.webapp.publisher import canonical_url
 from lp.services.webhooks.interfaces import IWebhookSet
-from lp.soyuz.enums import PackageUploadStatus
 from lp.soyuz.interfaces.archive import ARCHIVE_WEBHOOKS_FEATURE_FLAG
 
 
-def _create_package_upload_payload(upload):
+def _trigger_package_status_change_webhook(
+    upload_archive, payload, event_type
+):
+    if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
+        getUtility(IWebhookSet).trigger(upload_archive, event_type, payload)
+
+
+def _create_source_package_upload_payload(upload):
     if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
         payload = {
             "package_upload": canonical_url(upload, force_local_path=True),
@@ -34,14 +40,7 @@ def _create_package_upload_payload(upload):
         return payload
 
 
-def _trigger_source_package_status_change_webhook(
-    upload_archive, payload, event_type
-):
-    if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
-        getUtility(IWebhookSet).trigger(upload_archive, event_type, payload)
-
-
-def _trigger_binary_package_status_change_webhook(upload, event_type):
+def _create_binary_package_upload_payload(upload):
     if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
         payload = {
             "package_upload": canonical_url(upload, force_local_path=True),
@@ -52,7 +51,7 @@ def _trigger_binary_package_status_change_webhook(upload, event_type):
                 upload.builds[0].build.source_package_release.sourcepackagename
             ),
         }
-        getUtility(IWebhookSet).trigger(upload.archive, event_type, payload)
+        return payload
 
 
 def _trigger_build_status_change_webhook(build, event_type):
@@ -84,8 +83,8 @@ def package_status_change_webhook(upload, event):
     # any sources
     if not upload.builds:
         if event.edited_fields and "status" in event.edited_fields:
-            payload = _create_package_upload_payload(upload)
-            _trigger_source_package_status_change_webhook(
+            payload = _create_source_package_upload_payload(upload)
+            _trigger_package_status_change_webhook(
                 upload.archive,
                 payload,
                 f"archive:source-package-upload:0.1::"
@@ -94,17 +93,11 @@ def package_status_change_webhook(upload, event):
 
     # For binary packages
     else:
-        if (
-            event.edited_fields
-            and "status" in event.edited_fields
-            and (
-                upload.status == PackageUploadStatus.ACCEPTED
-                or upload.status == PackageUploadStatus.REJECTED
-                or upload.status == PackageUploadStatus.UNAPPROVED
-            )
-        ):
-            _trigger_binary_package_status_change_webhook(
-                upload,
+        if event.edited_fields and "status" in event.edited_fields:
+            payload = _create_binary_package_upload_payload(upload)
+            _trigger_package_status_change_webhook(
+                upload.archive,
+                payload,
                 f"archive:binary-package-upload:0.1::"
                 f"{upload.status.name.lower()}",
             )

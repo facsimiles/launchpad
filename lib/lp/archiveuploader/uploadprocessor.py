@@ -91,8 +91,8 @@ from lp.snappy.interfaces.snapbuild import ISnapBuild
 from lp.soyuz.interfaces.archive import IArchiveSet, NoSuchPPA
 from lp.soyuz.interfaces.livefsbuild import ILiveFSBuild
 from lp.soyuz.subscribers.archive import (
-    _create_package_upload_payload,
-    _trigger_source_package_status_change_webhook,
+    _create_source_package_upload_payload,
+    _trigger_package_status_change_webhook,
 )
 
 __all__ = [
@@ -471,7 +471,7 @@ class UploadHandler:
                     # transaction is aborted.
                     rejected_upload = upload.queue_root
                     rejected_upload_archive = rejected_upload.archive
-                    webhook_payload = _create_package_upload_payload(
+                    webhook_payload = _create_source_package_upload_payload(
                         rejected_upload
                     )
                 else:
@@ -487,7 +487,7 @@ class UploadHandler:
                 # Trigger the package upload rejection webhook for archives,
                 # which would have otherwise never executed due to the above
                 # abort which causes the webhookjob to not be created.
-                _trigger_source_package_status_change_webhook(
+                _trigger_package_status_change_webhook(
                     rejected_upload_archive,
                     webhook_payload,
                     "archive:source-package-upload:0.1::rejected",
