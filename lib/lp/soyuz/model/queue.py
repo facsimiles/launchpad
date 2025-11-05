@@ -51,7 +51,6 @@ from lp.services.librarian.browser import ProxiedLibraryFileAlias
 from lp.services.librarian.model import LibraryFileAlias, LibraryFileContent
 from lp.services.mail.signedmessage import strip_pgp_signature
 from lp.services.propertycache import cachedproperty, get_property_cache
-from lp.services.webapp.snapshot import notify_modified
 from lp.soyuz.enums import PackageUploadCustomFormat, PackageUploadStatus
 from lp.soyuz.interfaces.archive import (
     ComponentNotFound,
@@ -357,22 +356,13 @@ class PackageUpload(StormBase):
 
         raise NotFoundError(filename)
 
-    def setPackageUploadStatus(self, status):
-        edited_fields = set()
-        with notify_modified(
-            self, edited_fields, snapshot_names=("status",)
-        ) as previous_obj:
-            self.status = PassthroughStatusValue(status)
-            if self.status != previous_obj.status:
-                edited_fields.add("status")
-
     def setUnapproved(self):
         """See `IPackageUpload`."""
         if self.status != PackageUploadStatus.NEW:
             raise QueueInconsistentStateError(
                 "Can not set modified queue items to UNAPPROVED."
             )
-        self.setPackageUploadStatus(PackageUploadStatus.UNAPPROVED)
+        self.status = PassthroughStatusValue(PackageUploadStatus.UNAPPROVED)
 
     def setAccepted(self):
         """See `IPackageUpload`."""
@@ -413,7 +403,7 @@ class PackageUpload(StormBase):
                 raise QueueInconsistentStateError(info)
 
         # if the previous checks applied and pass we do set the value
-        self.setPackageUploadStatus(PackageUploadStatus.ACCEPTED)
+        self.status = PassthroughStatusValue(PackageUploadStatus.ACCEPTED)
 
     def _checkForBinariesinDestinationArchive(self, builds):
         """
@@ -485,7 +475,7 @@ class PackageUpload(StormBase):
         """See `IPackageUpload`."""
         if self.status == PackageUploadStatus.DONE:
             raise QueueInconsistentStateError("Queue item already done")
-        self.setPackageUploadStatus(PackageUploadStatus.DONE)
+        self.status = PassthroughStatusValue(PackageUploadStatus.DONE)
 
     def setRejected(self):
         """See `IPackageUpload`."""
@@ -497,7 +487,7 @@ class PackageUpload(StormBase):
             raise QueueInconsistentStateError(
                 "Unable to reject queue item due to status."
             )
-        self.setPackageUploadStatus(PackageUploadStatus.REJECTED)
+        self.status = PassthroughStatusValue(PackageUploadStatus.REJECTED)
 
     def _validateBuildsForSource(self, sourcepackagerelease, builds):
         """Check if the sourcepackagerelease generates at least one build.
