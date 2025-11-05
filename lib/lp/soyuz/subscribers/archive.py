@@ -13,7 +13,7 @@ from lp.soyuz.enums import PackageUploadStatus
 from lp.soyuz.interfaces.archive import ARCHIVE_WEBHOOKS_FEATURE_FLAG
 
 
-def _trigger_source_package_status_change_webhook(upload, event_type):
+def _create_package_upload_payload(upload):
     if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
         payload = {
             "package_upload": canonical_url(upload, force_local_path=True),
@@ -31,7 +31,14 @@ def _trigger_source_package_status_change_webhook(upload, event_type):
                 upload.sources[0].sourcepackagerelease.version
             )
 
-        getUtility(IWebhookSet).trigger(upload.archive, event_type, payload)
+        return payload
+
+
+def _trigger_source_package_status_change_webhook(
+    upload_archive, payload, event_type
+):
+    if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
+        getUtility(IWebhookSet).trigger(upload_archive, event_type, payload)
 
 
 def _trigger_binary_package_status_change_webhook(upload, event_type):
@@ -76,17 +83,11 @@ def package_status_change_webhook(upload, event):
     # there are instances of rejected source package uploads which do not have
     # any sources
     if not upload.builds:
-        if (
-            event.edited_fields
-            and "status" in event.edited_fields
-            and (
-                upload.status == PackageUploadStatus.ACCEPTED
-                or upload.status == PackageUploadStatus.REJECTED
-                or upload.status == PackageUploadStatus.UNAPPROVED
-            )
-        ):
+        if event.edited_fields and "status" in event.edited_fields:
+            payload = _create_package_upload_payload(upload)
             _trigger_source_package_status_change_webhook(
-                upload,
+                upload.archive,
+                payload,
                 f"archive:source-package-upload:0.1::"
                 f"{upload.status.name.lower()}",
             )

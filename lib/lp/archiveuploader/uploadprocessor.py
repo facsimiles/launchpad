@@ -90,6 +90,10 @@ from lp.services.webapp.errorlog import ErrorReportingUtility, ScriptRequest
 from lp.snappy.interfaces.snapbuild import ISnapBuild
 from lp.soyuz.interfaces.archive import IArchiveSet, NoSuchPPA
 from lp.soyuz.interfaces.livefsbuild import ILiveFSBuild
+from lp.soyuz.subscribers.archive import (
+    _create_package_upload_payload,
+    _trigger_source_package_status_change_webhook,
+)
 
 __all__ = [
     "UploadProcessor",
@@ -459,6 +463,17 @@ class UploadHandler:
                     # We got past the point of checking any required
                     # signature, so we can do a proper rejection.
                     upload.do_reject(notify)
+
+                    # For webhook archives, we'd like to trigger a rejection
+                    # webhook when an upload is rejected. We save the webhook
+                    # payload before the package upload object gets destroyed.
+                    # We trigger the webhook later, after the rest of the
+                    # transaction is aborted.
+                    rejected_upload = upload.queue_root
+                    rejected_upload_archive = rejected_upload.archive
+                    webhook_payload = _create_package_upload_payload(
+                        rejected_upload
+                    )
                 else:
                     # The upload required a signature and either didn't have
                     # one or we failed to verify it, so we have nobody to
@@ -466,7 +481,18 @@ class UploadHandler:
                     logger.info(
                         "Not sending rejection notice without a signing key."
                     )
+
                 self.processor.ztm.abort()
+
+                # Trigger the package upload rejection webhook for archives,
+                # which would have otherwise never executed due to the above
+                # abort which causes the webhookjob to not be created.
+                _trigger_source_package_status_change_webhook(
+                    rejected_upload_archive,
+                    webhook_payload,
+                    "archive:source-package-upload:0.1::rejected",
+                )
+
             else:
                 successful = self._acceptUpload(upload, notify)
                 if not successful:
