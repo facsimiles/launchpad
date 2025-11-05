@@ -51,6 +51,7 @@ from lp.services.librarian.browser import ProxiedLibraryFileAlias
 from lp.services.librarian.model import LibraryFileAlias, LibraryFileContent
 from lp.services.mail.signedmessage import strip_pgp_signature
 from lp.services.propertycache import cachedproperty, get_property_cache
+from lp.services.webapp.snapshot import notify_modified
 from lp.soyuz.enums import PackageUploadCustomFormat, PackageUploadStatus
 from lp.soyuz.interfaces.archive import (
     ComponentNotFound,
@@ -403,7 +404,16 @@ class PackageUpload(StormBase):
                 raise QueueInconsistentStateError(info)
 
         # if the previous checks applied and pass we do set the value
-        self.status = PassthroughStatusValue(PackageUploadStatus.ACCEPTED)
+        # We tuse notify_modified to track the change on 'status'
+        # in order to trigger archive webhooks for successful package
+        # uploads
+        edited_fields = set()
+        with notify_modified(
+            self, edited_fields, snapshot_names=("status",)
+        ) as previous_obj:
+            self.status = PassthroughStatusValue(PackageUploadStatus.ACCEPTED)
+            if self.status != previous_obj.status:
+                edited_fields.add("status")
 
     def _checkForBinariesinDestinationArchive(self, builds):
         """
