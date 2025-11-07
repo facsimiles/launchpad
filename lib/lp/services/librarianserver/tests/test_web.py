@@ -333,54 +333,45 @@ class LibrarianWebTestCase(LibrarianWebTestMixin, TestCaseWithFactory):
             storage, 123, upstream_host, upstream_port
         )
 
-        test_cases = [
-            ("http://proxy.example:3128", "proxy.example", 3128),
-            ("https://proxy.example", "proxy.example", 443),
-            ("http://proxy.example", "proxy.example", 80),
-        ]
+        with patch(
+            "lp.services.librarianserver.web.config"
+        ) as mock_config, patch(
+            "lp.services.librarianserver.web.TCP4ClientEndpoint"
+        ) as mock_endpoint, patch(
+            "lp.services.librarianserver.web.ProxyAgent"
+        ) as mock_proxy_agent, patch(
+            "lp.services.librarianserver.web.ProxiedReverseProxyResource"
+        ) as mock_proxied_resource:
 
-        for proxy_url, expected_host, expected_port in test_cases:
-            with patch(
-                "lp.services.librarianserver.web.config"
-            ) as mock_config, patch(
-                "lp.services.librarianserver.web.TCP4ClientEndpoint"
-            ) as mock_endpoint, patch(
-                "lp.services.librarianserver.web.ProxyAgent"
-            ) as mock_proxy_agent, patch(
-                "lp.services.librarianserver.web.ProxiedReverseProxyResource"
-            ) as mock_proxied_resource:
+            mock_config.launchpad.http_proxy = "http://proxy.example:3128"
 
-                mock_config.launchpad.http_proxy = proxy_url
+            storage.open = Mock(return_value=defer.succeed(None))
 
-                storage.open = Mock(return_value=defer.succeed(None))
+            request = Mock()
+            request.path = b"/123/test.txt"
 
-                request = Mock()
-                request.path = b"/123/test.txt"
+            file_data = (
+                123,
+                "test.txt",
+                "text/plain",
+                datetime.now(timezone.utc),
+                100,
+                False,
+            )
+            yield resource._cb_getFileAlias(file_data, b"test.txt", request)
 
-                file_data = (
-                    123,
-                    "test.txt",
-                    "text/plain",
-                    datetime.now(timezone.utc),
-                    100,
-                    False,
-                )
-                yield resource._cb_getFileAlias(
-                    file_data, b"test.txt", request
-                )
+            mock_endpoint.assert_called_once()
+            endpoint_call_args = mock_endpoint.call_args[0]
+            self.assertEqual(endpoint_call_args[1], "proxy.example")
+            self.assertEqual(endpoint_call_args[2], 3128)
 
-                mock_endpoint.assert_called_once()
-                endpoint_call_args = mock_endpoint.call_args[0]
-                self.assertEqual(endpoint_call_args[1], expected_host)
-                self.assertEqual(endpoint_call_args[2], expected_port)
+            mock_proxy_agent.assert_called_once()
 
-                mock_proxy_agent.assert_called_once()
-
-                mock_proxied_resource.assert_called_once()
-                proxied_call_args = mock_proxied_resource.call_args[0]
-                self.assertEqual(proxied_call_args[0], upstream_host)
-                self.assertEqual(proxied_call_args[1], upstream_port)
-                self.assertEqual(proxied_call_args[2], request.path)
+            mock_proxied_resource.assert_called_once()
+            proxied_call_args = mock_proxied_resource.call_args[0]
+            self.assertEqual(proxied_call_args[0], upstream_host)
+            self.assertEqual(proxied_call_args[1], upstream_port)
+            self.assertEqual(proxied_call_args[2], request.path)
 
     def test_missing_storage(self):
         # When a file exists in the DB but is missing from disk, a 404

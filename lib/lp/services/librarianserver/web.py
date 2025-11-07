@@ -127,7 +127,7 @@ class ProxiedReverseProxyResource(proxy.ReverseProxyResource):
             return NOT_DONE_YET
 
         def on_error(err):
-            log.err(err)
+            log.err(err, "Error proxying request to upstream server")
             request.setResponseCode(502)
             request.finish()
 
@@ -265,11 +265,14 @@ class LibraryFileAliasResource(resource.Resource):
             proxy_url = config.launchpad.http_proxy
             if proxy_url:
                 parsed_proxy_url = urlparse(proxy_url)
+                if parsed_proxy_url.port is None:
+                    raise ValueError(
+                        "HTTP proxy URL must include an explicit port number"
+                    )
                 endpoint = TCP4ClientEndpoint(
                     reactor,
                     parsed_proxy_url.hostname,
-                    parsed_proxy_url.port
-                    or (443 if parsed_proxy_url.scheme == "https" else 80),
+                    parsed_proxy_url.port,
                 )
                 agent = ProxyAgent(endpoint)
                 return ProxiedReverseProxyResource(
