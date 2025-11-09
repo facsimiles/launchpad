@@ -9,12 +9,11 @@ from lp.buildmaster.enums import BuildStatus
 from lp.services.features import getFeatureFlag
 from lp.services.webapp.publisher import canonical_url
 from lp.services.webhooks.interfaces import IWebhookSet
+from lp.soyuz.enums import PackageUploadStatus
 from lp.soyuz.interfaces.archive import ARCHIVE_WEBHOOKS_FEATURE_FLAG
 
 
-def _trigger_package_status_change_webhook(
-    upload_archive, payload, event_type
-):
+def _trigger_archive_webhook(upload_archive, payload, event_type):
     if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
         getUtility(IWebhookSet).trigger(upload_archive, event_type, payload)
 
@@ -86,10 +85,14 @@ def package_status_change_webhook(upload, event):
     # there are instances of rejected source package uploads which do not have
     # any sources
     if not upload.builds:
-        if event.edited_fields and "status" in event.edited_fields:
+        if (
+            event.edited_fields
+            and "status" in event.edited_fields
+            and (upload.status == PackageUploadStatus.ACCEPTED)
+        ):
             payload = _create_source_package_upload_payload(upload)
             if payload is not None:
-                _trigger_package_status_change_webhook(
+                _trigger_archive_webhook(
                     upload.archive,
                     payload,
                     f"archive:source-package-upload:0.1::"
@@ -98,10 +101,14 @@ def package_status_change_webhook(upload, event):
 
     # For binary packages
     else:
-        if event.edited_fields and "status" in event.edited_fields:
+        if (
+            event.edited_fields
+            and "status" in event.edited_fields
+            and (upload.status == PackageUploadStatus.ACCEPTED)
+        ):
             payload = _create_binary_package_upload_payload(upload)
             if payload is not None:
-                _trigger_package_status_change_webhook(
+                _trigger_archive_webhook(
                     upload.archive,
                     payload,
                     f"archive:binary-package-upload:0.1::"
