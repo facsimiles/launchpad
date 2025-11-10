@@ -513,8 +513,8 @@ class UploadHandler:
                 if webhook_payload is not None:
                     _trigger_archive_webhook(
                         rejected_upload_archive,
-                        webhook_payload,
                         "archive:source-package-upload:0.1::rejected",
+                        webhook_payload,
                     )
 
             if self.processor.dry_run:

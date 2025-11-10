@@ -13,7 +13,7 @@ from lp.soyuz.enums import PackageUploadStatus
 from lp.soyuz.interfaces.archive import ARCHIVE_WEBHOOKS_FEATURE_FLAG
 
 
-def _trigger_archive_webhook(upload_archive, payload, event_type):
+def _trigger_archive_webhook(upload_archive, event_type, payload):
     if getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG):
         getUtility(IWebhookSet).trigger(upload_archive, event_type, payload)
 
@@ -94,9 +94,9 @@ def package_status_change_webhook(upload, event):
             if payload is not None:
                 _trigger_archive_webhook(
                     upload.archive,
-                    payload,
                     f"archive:source-package-upload:0.1::"
                     f"{upload.status.name.lower()}",
+                    payload,
                 )
 
     # For binary packages
@@ -110,9 +110,9 @@ def package_status_change_webhook(upload, event):
             if payload is not None:
                 _trigger_archive_webhook(
                     upload.archive,
-                    payload,
                     f"archive:binary-package-upload:0.1::"
                     f"{upload.status.name.lower()}",
+                    payload,
                 )
 
 

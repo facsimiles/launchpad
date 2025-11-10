@@ -7604,7 +7604,6 @@ class TestRejectedSourcePackageUploadWebhooks(TestPPAUploadProcessorBase):
         self.assertTrue(last_upload.is_rejected)
 
         job = hook.deliveries.one()
-        print(job)
         self.assertEqual(job.event_type, "archive:source-package-upload:0.1")
 
         payload = job.payload
