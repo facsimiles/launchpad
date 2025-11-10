@@ -21,8 +21,9 @@
       </div>
       <p>
         If you need to change the type of bug tracker, please ask for
-        admin support on #launchpad (see the bottom of the page for
-        details).
+        admin support on
+        <a href="https://matrix.to/#/#launchpad:ubuntu.com">the
+        #launchpad Matrix channel</a>.
       </p>
       <div metal:use-macro="context/@@launchpad_form/form" />
     </div>
