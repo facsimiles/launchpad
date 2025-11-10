@@ -90,8 +90,6 @@ from lp.services.webapp.errorlog import ErrorReportingUtility, ScriptRequest
 from lp.snappy.interfaces.snapbuild import ISnapBuild
 from lp.soyuz.interfaces.archive import IArchiveSet, NoSuchPPA
 from lp.soyuz.interfaces.livefsbuild import ILiveFSBuild
-
-# IMPORT THESE
 from lp.soyuz.subscribers.archive import (
     _create_source_package_upload_payload,
     _trigger_archive_webhook,
@@ -484,13 +482,7 @@ class UploadHandler:
                     logger.info(
                         "Not sending rejection notice without a signing key."
                     )
-
                 self.processor.ztm.abort()
-
-                # Trigger the package upload rejection webhook for archives,
-                # which would have otherwise never executed due to the above
-                # abort which causes the webhookjob to not be created.
-
             else:
                 successful = self._acceptUpload(upload, notify)
                 if not successful:
@@ -515,6 +507,9 @@ class UploadHandler:
                 for msg in upload.rejections:
                     logger.info("\t%s" % msg)
 
+                # Trigger the package upload rejection webhook for archives,
+                # which would have otherwise never executed due to the above
+                # abort which causes the webhookjob to not be created.
                 if webhook_payload is not None:
                     _trigger_archive_webhook(
                         rejected_upload_archive,
