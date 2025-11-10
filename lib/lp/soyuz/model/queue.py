@@ -404,7 +404,7 @@ class PackageUpload(StormBase):
                 raise QueueInconsistentStateError(info)
 
         # if the previous checks applied and pass we do set the value
-        # We tuse notify_modified to track the change on 'status'
+        # We use notify_modified to track the change on 'status'
         # in order to trigger archive webhooks for successful package
         # uploads
         edited_fields = set()

@@ -5,8 +5,10 @@
 
 import doctest
 import http.client
+import os
 import os.path
 import random
+import shutil
 from datetime import date, datetime, timedelta, timezone
 from pathlib import PurePath
 from urllib.parse import urlsplit
@@ -41,6 +43,11 @@ from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.archivepublisher.interfaces.archivegpgsigningkey import (
     IArchiveGPGSigningKey,
 )
+from lp.archiveuploader.tests import datadir
+from lp.archiveuploader.tests.test_ppauploadprocessor import (
+    TestPPAUploadProcessorBase,
+)
+from lp.archiveuploader.uploadprocessor import UploadStatusEnum
 from lp.buildmaster.enums import BuildQueueStatus, BuildStatus
 from lp.buildmaster.interfaces.buildfarmjobbehaviour import (
     IBuildFarmJobBehaviour,
@@ -7509,6 +7516,169 @@ class TestSourcePackageUploadWebhooks(TestCaseWithFactory):
         upload_unwrapped.setAccepted()
 
         self.assertEqual(hook.deliveries.count(), 0)
+
+
+class TestRejectedSourcePackageUploadWebhooks(TestPPAUploadProcessorBase):
+    """Tests for webhooks triggered during processChangesFile."""
+
+    def test_gpg_verification_failed_does_not_trigger_webhook(self):
+        """Test GPG verification failure does not trigger webhook."""
+
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+
+        self.switchToAdmin()
+        hook = self.factory.makeWebhook(
+            target=self.name16_ppa,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:source-package-upload:0.1::rejected"],
+        )
+
+        self.switchToUploader()
+        upload_dir = self.queueUpload("bar_1.0-1", queue_entry="bar_gpg_fail")
+        changes_file = os.path.join(upload_dir, "bar_1.0-1_source.changes")
+        if os.path.exists(changes_file):
+            with open(changes_file) as f:
+                content = f.read()
+            # Corrupt the GPG signature content while keeping the format valid
+            # This will cause GPG verification to fail but file parsing
+            # to succeed
+            if "iD8DBQFFt7D9jn63CGxkqMURAk1BAJwIQfOMS" in content:
+                original_sig = (
+                    "iD8DBQFFt7D9jn63CGxkqMURAk1BAJwIQfOMS+l9lDDwPORtuZb3h"
+                    "FI2OgCaArNc\noH5uIHeKtedJa5Ekpcfi2bY="
+                )
+                invalid_sig = (
+                    "INVALIDINVALIDINVALIDINVALIDINVALIDINVALIDINVALID\n"
+                    "INVALIDINVALIDINVALIDINVALIDINVALIDINVALIDINVALID="
+                )
+                content = content.replace(original_sig, invalid_sig)
+            with open(changes_file, "w") as f:
+                f.write(content)
+
+        results = self.processUpload(self.uploadprocessor, upload_dir)
+        self.assertEqual(results, [UploadStatusEnum.REJECTED])
+
+        self.assertEqual(hook.deliveries.count(), 0)
+
+    def test_duplicate_upload_triggers_rejected_webhook(self):
+        """Test duplicate upload triggers rejection webhook."""
+
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+
+        self.switchToAdmin()
+        hook = self.factory.makeWebhook(
+            target=self.name16_ppa,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:source-package-upload:0.1::rejected"],
+        )
+
+        self.switchToUploader()
+        upload_dir = self.queueUpload("bar_1.0-1", "~name16/ubuntu")
+        results = self.processUpload(self.uploadprocessor, upload_dir)
+        self.assertEqual(results, [UploadStatusEnum.ACCEPTED])
+
+        last_upload = self.uploadprocessor.last_processed_upload
+        self.assertEqual(last_upload.queue_root.status.name, "DONE")
+
+        duplicate_upload_dir = self.queueUpload(
+            "bar_1.0-1", "~name16/ubuntu", queue_entry="bar_1.0-1_duplicate"
+        )
+        results = self.processUpload(
+            self.uploadprocessor, duplicate_upload_dir
+        )
+        self.assertEqual(results, [UploadStatusEnum.REJECTED])
+
+        last_upload = self.uploadprocessor.last_processed_upload
+        self.assertTrue(last_upload.is_rejected)
+
+        job = hook.deliveries.one()
+        print(job)
+        self.assertEqual(job.event_type, "archive:source-package-upload:0.1")
+
+        payload = job.payload
+
+        self.assertEqual(payload["action"], "status-changed")
+        self.assertEqual(payload["status"], "REJECTED")
+        self.assertEqual(payload["package_name"], "bar")
+        self.assertEqual(payload["package_version"], "1.0-1")
+
+    def test_older_version_upload_triggers_rejected_webhook(self):
+        """Test uploading an older version triggers rejection webhook."""
+
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+
+        self.switchToAdmin()
+        hook = self.factory.makeWebhook(
+            target=self.name16_ppa,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:source-package-upload:0.1::rejected"],
+        )
+
+        self.switchToUploader()
+
+        test_data_dir = datadir("suite")
+        orig_bar_1_0_2_dir = os.path.join(test_data_dir, "bar_1.0-2")
+
+        temp_suite_dir = self.makeTemporaryDirectory()
+        temp_bar_1_0_2_dir = os.path.join(temp_suite_dir, "bar_1.0-2")
+
+        shutil.copytree(orig_bar_1_0_2_dir, temp_bar_1_0_2_dir)
+
+        orig_source = os.path.join(
+            test_data_dir, "bar_1.0-1", "bar_1.0.orig.tar.gz"
+        )
+        orig_dest = os.path.join(temp_bar_1_0_2_dir, "bar_1.0.orig.tar.gz")
+        shutil.copy2(orig_source, orig_dest)
+
+        upload_dir = self.queueUpload(
+            "bar_1.0-2", "~name16/ubuntu", test_files_dir=temp_suite_dir
+        )
+        results = self.processUpload(self.uploadprocessor, upload_dir)
+        self.assertEqual(results, [UploadStatusEnum.ACCEPTED])
+
+        last_upload = self.uploadprocessor.last_processed_upload
+        self.assertEqual(last_upload.queue_root.status.name, "DONE")
+
+        older_upload_dir = self.queueUpload(
+            "bar_1.0-1", "~name16/ubuntu", queue_entry="bar_1.0-1_older"
+        )
+
+        results = self.processUpload(self.uploadprocessor, older_upload_dir)
+
+        last_upload = self.uploadprocessor.last_processed_upload
+        self.assertTrue(last_upload.is_rejected)
+
+        job = hook.deliveries.one()
+        self.assertEqual(job.event_type, "archive:source-package-upload:0.1")
+        payload = job.payload
+
+        expected_upload_url_pattern = f"/{self.breezy.name}/+upload/"
+
+        self.assertIn(expected_upload_url_pattern, payload["package_upload"])
+        self.assertEqual(payload["action"], "status-changed")
+        self.assertEqual(payload["status"], "REJECTED")
+        self.assertEqual(
+            payload["archive"],
+            canonical_url(self.name16_ppa, force_local_path=True),
+        )
 
 
 class TestBinaryPackageUploadWebhooks(TestCaseWithFactory):
