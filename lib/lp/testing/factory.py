@@ -5979,6 +5979,21 @@ class LaunchpadObjectFactory(ObjectFactory):
         if description is None:
             description = self.getUniqueUnicode()
 
+        if cvss is None:
+            cvss = [
+                {
+                    "format": "CVSS",
+                    "cvssV3_1": {
+                        "version": "3.1",
+                        "baseScore": 8.2,
+                        "baseSeverity": "HIGH",
+                        "vectorString": (
+                            "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:C/C:H/I:H/A:H"
+                        ),
+                    },
+                }
+            ]
+
         return getUtility(ICveSet).new(
             sequence,
             description,
