@@ -7776,7 +7776,7 @@ class TestBinaryPackageUploadWebhooks(TestCaseWithFactory):
         hook = self.factory.makeWebhook(
             target=archive,
             delivery_url="http://localhost/test-webhook",
-            event_types=["archive:binary-package-upload:0.1::accepted"],
+            event_types=["archive:binary-package-upload:0.1"],
         )
 
         upload = self.factory.makePackageUpload(

@@ -110,8 +110,7 @@ def package_status_change_webhook(upload, event):
             if payload is not None:
                 _trigger_archive_webhook(
                     upload.archive,
-                    f"archive:binary-package-upload:0.1::"
-                    f"{upload.status.name.lower()}",
+                    "archive:binary-package-upload:0.1",
                     payload,
                 )
 
