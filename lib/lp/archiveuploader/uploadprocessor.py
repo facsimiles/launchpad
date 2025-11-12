@@ -90,6 +90,10 @@ from lp.services.webapp.errorlog import ErrorReportingUtility, ScriptRequest
 from lp.snappy.interfaces.snapbuild import ISnapBuild
 from lp.soyuz.interfaces.archive import IArchiveSet, NoSuchPPA
 from lp.soyuz.interfaces.livefsbuild import ILiveFSBuild
+from lp.soyuz.subscribers.archive import (
+    _create_source_package_upload_payload,
+    _trigger_archive_webhook,
+)
 
 __all__ = [
     "UploadProcessor",
@@ -448,6 +452,7 @@ class UploadHandler:
             # when transaction is committed) this will cause any emails sent
             # sent by do_reject to be lost.
             notify = True
+            webhook_payload = None
             if self.processor.dry_run or self.processor.no_mails:
                 notify = False
             if upload.is_rejected:
@@ -459,6 +464,14 @@ class UploadHandler:
                     # We got past the point of checking any required
                     # signature, so we can do a proper rejection.
                     upload.do_reject(notify)
+
+                    # Save the rejected package uploads webhook payloads
+                    # before the package upload object gets destroyed.
+                    rejected_upload = upload.queue_root
+                    rejected_upload_archive = rejected_upload.archive
+                    webhook_payload = _create_source_package_upload_payload(
+                        rejected_upload
+                    )
                 else:
                     # The upload required a signature and either didn't have
                     # one or we failed to verify it, so we have nobody to
@@ -474,12 +487,29 @@ class UploadHandler:
                     logger.info(
                         "Rejection during accept. Aborting partial accept."
                     )
+                    # Save the rejected package uploads webhook payloads
+                    # before the package upload object gets destroyed.
+                    rejected_upload = upload.queue_root
+                    rejected_upload_archive = rejected_upload.archive
+                    webhook_payload = _create_source_package_upload_payload(
+                        rejected_upload
+                    )
                     self.processor.ztm.abort()
 
             if upload.is_rejected:
                 logger.info("Upload was rejected:")
                 for msg in upload.rejections:
                     logger.info("\t%s" % msg)
+
+                # Trigger the package upload rejection webhook for archives,
+                # which would have otherwise never executed due to the above
+                # abort which causes the webhookjob to not be created.
+                if webhook_payload is not None:
+                    _trigger_archive_webhook(
+                        rejected_upload_archive,
+                        "archive:source-package-upload:0.1::rejected",
+                        webhook_payload,
+                    )
 
             if self.processor.dry_run:
                 logger.info("Dry run, aborting transaction.")
