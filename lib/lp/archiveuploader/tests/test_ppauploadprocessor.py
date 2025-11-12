@@ -12,7 +12,6 @@ from zope.component import getUtility
 from zope.security.proxy import removeSecurityProxy
 
 from lp.app.errors import NotFoundError
-from lp.archiveuploader.tests import datadir
 from lp.archiveuploader.tests.test_uploadprocessor import (
     TestUploadProcessorBase,
 )
@@ -1577,34 +1576,16 @@ class TestRejectedSourcePackageUploadWebhooks(TestPPAUploadProcessorBase):
 
         self.switchToUploader()
 
-        test_data_dir = datadir("suite")
-        orig_bar_1_0_2_dir = os.path.join(test_data_dir, "bar_1.0-2")
-
-        temp_suite_dir = self.makeTemporaryDirectory()
-        temp_bar_1_0_2_dir = os.path.join(temp_suite_dir, "bar_1.0-2")
-
-        shutil.copytree(orig_bar_1_0_2_dir, temp_bar_1_0_2_dir)
-
-        orig_source = os.path.join(
-            test_data_dir, "bar_1.0-1", "bar_1.0.orig.tar.gz"
-        )
-        orig_dest = os.path.join(temp_bar_1_0_2_dir, "bar_1.0.orig.tar.gz")
-        shutil.copy2(orig_source, orig_dest)
-
-        upload_dir = self.queueUpload(
-            "bar_1.0-2", "~name16/ubuntu", test_files_dir=temp_suite_dir
-        )
+        upload_dir = self.queueUpload("bar_1.0-3", "~name16/ubuntu")
         results = self.processUpload(self.uploadprocessor, upload_dir)
         self.assertEqual(results, [UploadStatusEnum.ACCEPTED])
 
         last_upload = self.uploadprocessor.last_processed_upload
         self.assertEqual(last_upload.queue_root.status.name, "DONE")
 
-        older_upload_dir = self.queueUpload(
-            "bar_1.0-1", "~name16/ubuntu", queue_entry="bar_1.0-1_older"
-        )
-
+        older_upload_dir = self.queueUpload("bar_1.0-1", "~name16/ubuntu")
         results = self.processUpload(self.uploadprocessor, older_upload_dir)
+        self.assertEqual(results, [UploadStatusEnum.REJECTED])
 
         last_upload = self.uploadprocessor.last_processed_upload
         self.assertTrue(last_upload.is_rejected)
