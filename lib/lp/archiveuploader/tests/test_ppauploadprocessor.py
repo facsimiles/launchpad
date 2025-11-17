@@ -1556,6 +1556,51 @@ class TestRejectedSourcePackageUploadWebhooks(TestPPAUploadProcessorBase):
         self.assertEqual(payload["package_name"], "bar")
         self.assertEqual(payload["package_version"], "1.0-1")
 
+    def test_notify_false_doesnt_trigger_webhook(self):
+        """Test that if notify=False, the upload webhook is not triggered"""
+
+        self.useFixture(
+            FeatureFixture(
+                {
+                    ARCHIVE_WEBHOOKS_FEATURE_FLAG: "on",
+                }
+            )
+        )
+
+        self.switchToAdmin()
+        hook = self.factory.makeWebhook(
+            target=self.name16_ppa,
+            delivery_url="http://localhost/test-webhook",
+            event_types=["archive:source-package-upload:0.1::rejected"],
+        )
+
+        self.switchToUploader()
+        upload_dir = self.queueUpload("bar_1.0-1", "~name16/ubuntu")
+        results = self.processUpload(self.uploadprocessor, upload_dir)
+        self.assertEqual(results, [UploadStatusEnum.ACCEPTED])
+
+        last_upload = self.uploadprocessor.last_processed_upload
+        self.assertEqual(last_upload.queue_root.status.name, "DONE")
+
+        # Set nomails to ensure notify=False, then reinitialize the
+        # uploadprocessor with the new options
+        self.options.nomails = True
+        self.uploadprocessor = self.getUploadProcessor(self.layer.txn)
+
+        duplicate_upload_dir = self.queueUpload(
+            "bar_1.0-1", "~name16/ubuntu", queue_entry="bar_1.0-1_duplicate"
+        )
+        results = self.processUpload(
+            self.uploadprocessor, duplicate_upload_dir
+        )
+        self.assertEqual(results, [UploadStatusEnum.REJECTED])
+
+        last_upload = self.uploadprocessor.last_processed_upload
+        self.assertTrue(last_upload.is_rejected)
+
+        # Verify that no webhook was triggered
+        self.assertEqual(hook.deliveries.count(), 0)
+
     def test_older_version_upload_triggers_rejected_webhook(self):
         """Test uploading an older version triggers rejection webhook."""
 
