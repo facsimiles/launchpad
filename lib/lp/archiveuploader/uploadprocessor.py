@@ -465,13 +465,16 @@ class UploadHandler:
                     # signature, so we can do a proper rejection.
                     upload.do_reject(notify)
 
-                    # Save the rejected package uploads webhook payloads
-                    # before the package upload object gets destroyed.
-                    rejected_upload = upload.queue_root
-                    rejected_upload_archive = rejected_upload.archive
-                    webhook_payload = _create_source_package_upload_payload(
-                        rejected_upload
-                    )
+                    if notify:
+                        # Save the rejected package upload webhook payload
+                        # before the package upload object gets destroyed.
+                        rejected_upload = upload.queue_root
+                        rejected_upload_archive = rejected_upload.archive
+                        webhook_payload = (
+                            _create_source_package_upload_payload(
+                                rejected_upload
+                            )
+                        )
                 else:
                     # The upload required a signature and either didn't have
                     # one or we failed to verify it, so we have nobody to
@@ -487,13 +490,17 @@ class UploadHandler:
                     logger.info(
                         "Rejection during accept. Aborting partial accept."
                     )
-                    # Save the rejected package uploads webhook payloads
-                    # before the package upload object gets destroyed.
-                    rejected_upload = upload.queue_root
-                    rejected_upload_archive = rejected_upload.archive
-                    webhook_payload = _create_source_package_upload_payload(
-                        rejected_upload
-                    )
+
+                    if notify:
+                        # Save the rejected package upload webhook payload
+                        # before the package upload object gets destroyed.
+                        rejected_upload = upload.queue_root
+                        rejected_upload_archive = rejected_upload.archive
+                        webhook_payload = (
+                            _create_source_package_upload_payload(
+                                rejected_upload
+                            )
+                        )
                     self.processor.ztm.abort()
 
             if upload.is_rejected:
