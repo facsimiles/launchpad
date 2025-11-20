@@ -80,6 +80,7 @@ from lp.oci.interfaces.ocirecipebuild import IOCIRecipeBuild
 from lp.registry.interfaces.distribution import IDistributionSet
 from lp.registry.interfaces.person import IPersonSet
 from lp.rocks.interfaces.rockrecipebuild import IRockRecipeBuild
+from lp.services.features import getFeatureFlag
 from lp.services.log.logger import BufferLogger
 from lp.services.statsd.interfaces.statsd_client import IStatsdClient
 from lp.services.webapp.adapter import (
@@ -88,7 +89,11 @@ from lp.services.webapp.adapter import (
 )
 from lp.services.webapp.errorlog import ErrorReportingUtility, ScriptRequest
 from lp.snappy.interfaces.snapbuild import ISnapBuild
-from lp.soyuz.interfaces.archive import IArchiveSet, NoSuchPPA
+from lp.soyuz.interfaces.archive import (
+    ARCHIVE_WEBHOOKS_FEATURE_FLAG,
+    IArchiveSet,
+    NoSuchPPA,
+)
 from lp.soyuz.interfaces.livefsbuild import ILiveFSBuild
 from lp.soyuz.subscribers.archive import (
     _create_source_package_upload_payload,
@@ -465,7 +470,9 @@ class UploadHandler:
                     # signature, so we can do a proper rejection.
                     upload.do_reject(notify)
 
-                    if notify:
+                    if notify and getFeatureFlag(
+                        ARCHIVE_WEBHOOKS_FEATURE_FLAG
+                    ):
                         # Save the rejected package upload webhook payload
                         # before the package upload object gets destroyed.
                         rejected_upload = upload.queue_root
@@ -491,7 +498,9 @@ class UploadHandler:
                         "Rejection during accept. Aborting partial accept."
                     )
 
-                    if notify:
+                    if notify and getFeatureFlag(
+                        ARCHIVE_WEBHOOKS_FEATURE_FLAG
+                    ):
                         # Save the rejected package upload webhook payload
                         # before the package upload object gets destroyed.
                         rejected_upload = upload.queue_root
