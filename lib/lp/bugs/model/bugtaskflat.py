@@ -1,6 +1,7 @@
 # Copyright 2012-2020 Canonical Ltd.  This software is licensed under the
 # GNU Affero General Public License version 3 (see the file LICENSE).
 
+from storm.databases.postgres import JSON
 from storm.locals import Bool, DateTime, Int, List, Reference
 
 from lp.app.enums import InformationType
@@ -41,6 +42,7 @@ class BugTaskFlat(StormBase):
     sourcepackagename_id = Int(name="sourcepackagename")
     sourcepackagename = Reference(sourcepackagename_id, "SourcePackageName.id")
     packagetype = Int(name="packagetype")
+    channel = JSON(name="channel")
     ociproject_id = Int(name="ociproject")
     ociproject = Reference(ociproject_id, "OCIProject.id")
     status = DBEnum(enum=(BugTaskStatus, BugTaskStatusSearch))

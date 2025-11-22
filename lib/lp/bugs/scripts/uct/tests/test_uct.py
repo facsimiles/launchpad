@@ -738,7 +738,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
                 2021, 1, 14, 8, 15, tzinfo=timezone.utc
             ),
             date_coordinated_release=datetime(
-                2020, 1, 14, 8, 15, tzinfo=timezone.utc
+                2022, 1, 14, 8, 15, tzinfo=timezone.utc
             ),
             distro_packages=[
                 CVE.DistroPackage(
@@ -763,7 +763,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
                     package_name=self.ubuntu_package.sourcepackagename,
                     importance=BugTaskImportance.HIGH,
                     status=BugTaskStatus.FIXRELEASED,
-                    status_explanation="released",
+                    status_explanation="2.56+dfsg-1",
                 ),
                 CVE.SeriesPackage(
                     target=SourcePackage(
@@ -877,7 +877,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
             assigned_to=assignee.name,
             bugs=["https://github.com/mm2/Little-CMS/issues/29"],
             candidate="CVE-2022-23222",
-            crd=datetime(2020, 1, 14, 8, 15, tzinfo=timezone.utc),
+            crd=datetime(2022, 1, 14, 8, 15, tzinfo=timezone.utc),
             cvss={
                 "nvd": [
                     "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H "
@@ -896,7 +896,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
                         UCTRecord.SeriesPackageStatus(
                             series="focal",
                             status=UCTRecord.PackageStatus.RELEASED,
-                            reason="released",
+                            reason="2.56+dfsg-1",
                             priority=UCTRecord.Priority.HIGH,
                         ),
                         UCTRecord.SeriesPackageStatus(
@@ -1720,27 +1720,33 @@ class TestUCTImporterExporter(TestCaseWithFactory):
         uct_record = self.cve.to_uct_record()
 
         cve_path = uct_record.save(Path(self.makeTemporaryDirectory()))
-        bug, _ = self.importer.import_cve_from_file(cve_path)
+        bug, _, _ = self.importer.import_cve_from_file(cve_path)
 
         self.checkBug(bug, self.cve)
         self.checkVulnerabilities(bug, self.cve)
 
     def test_from_record(self):
         uct_record = self.cve.to_uct_record()
-        bug, _ = self.importer.from_record(uct_record, "CVE-2022-23222")
+        bug, _, created = self.importer.from_record(
+            uct_record, "CVE-2022-23222"
+        )
         cve = CVE.make_from_uct_record(uct_record)
         self.checkCVE(self.cve, cve)
         self.checkBug(bug, self.cve)
         self.checkVulnerabilities(bug, self.cve)
+        self.assertTrue(created)
 
     def test_import_non_existing_cve(self):
         """Try to import a non existing cve won't create a bug and
         vulnerability."""
         self.cve.sequence = "CVE-2023-0000"
         uct_record = self.cve.to_uct_record()
-        bug, vuln = self.importer.from_record(uct_record, "CVE-2023-0000")
+        bug, vuln, created = self.importer.from_record(
+            uct_record, "CVE-2023-0000"
+        )
         self.assertEqual(bug, None)
         self.assertEqual(vuln, None)
+        self.assertEqual(created, None)
 
     def test_import_duplicate(self):
         """Import more than once a cve and check that it does not duplicate."""
@@ -1759,7 +1765,7 @@ class TestUCTImporterExporter(TestCaseWithFactory):
 
     def test_exporter_to_record(self):
         """Test to_record returns expected UCTRecord"""
-        bug, vulnerability = self.importer.import_cve(self.cve)
+        bug, vulnerability, _ = self.importer.import_cve(self.cve)
 
         uct_record = self.exporter.to_record(bug, vulnerability)
 

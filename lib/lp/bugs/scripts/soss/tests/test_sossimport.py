@@ -84,6 +84,16 @@ class TestSOSSImporter(TestCaseWithFactory):
             (
                 self.soss.getExternalPackage(
                     name=ray,
+                    packagetype=ExternalPackageType.CARGO,
+                    channel=("focal:0.27.0", "stable"),
+                ),
+                BugTaskStatus.DEFERRED,
+                "2.22.0+soss.1",
+                {"repositories": ["nvidia-pb3-python-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=ray,
                     packagetype=ExternalPackageType.CONDA,
                     channel=("jammy:1.17.0", "stable"),
                 ),
@@ -103,13 +113,13 @@ class TestSOSSImporter(TestCaseWithFactory):
             ),
             (
                 self.soss.getExternalPackage(
-                    name=ray,
-                    packagetype=ExternalPackageType.CARGO,
-                    channel=("focal:0.27.0", "stable"),
+                    name=vllm,
+                    packagetype=ExternalPackageType.GENERIC,
+                    channel=("noble:0.7.3", "stable"),
                 ),
-                BugTaskStatus.DEFERRED,
-                "2.22.0+soss.1",
-                {"repositories": ["nvidia-pb3-python-stable-local"]},
+                BugTaskStatus.NEW,
+                "",
+                {"repositories": ["soss-src-stable-local"]},
             ),
             (
                 self.soss.getExternalPackage(
@@ -118,16 +128,6 @@ class TestSOSSImporter(TestCaseWithFactory):
                     channel=("noble:0.7.3", "stable"),
                 ),
                 BugTaskStatus.UNKNOWN,
-                "",
-                {"repositories": ["soss-src-stable-local"]},
-            ),
-            (
-                self.soss.getExternalPackage(
-                    name=vllm,
-                    packagetype=ExternalPackageType.GENERIC,
-                    channel=("noble:0.7.3", "stable"),
-                ),
-                BugTaskStatus.NEW,
                 "",
                 {"repositories": ["soss-src-stable-local"]},
             ),
@@ -241,13 +241,15 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(vulnerability.bugs[0], bug)
 
     def test_import_cve_from_file(self):
-        """Test import a SOSS cve from file"""
+        """Test import a SOSS cve from file. It also imports again to check
+        that we don't create duplicates."""
         file = self.sampledata / "CVE-2025-1979"
 
         soss_importer = SOSSImporter(
             self.soss, information_type=InformationType.PROPRIETARY
         )
-        bug, vulnerability = soss_importer.import_cve_from_file(file)
+        bug, vulnerability, created = soss_importer.import_cve_from_file(file)
+        self.assertEqual(created, True)
 
         # Check bug fields
         self._check_bug_fields(bug, self.bugtask_reference)
@@ -256,9 +258,12 @@ class TestSOSSImporter(TestCaseWithFactory):
         self._check_vulnerability_fields(vulnerability, bug)
 
         # Import again to check that it doesn't create new objects
-        bug_copy, vulnerability_copy = soss_importer.import_cve_from_file(file)
+        bug_copy, vulnerability_copy, created = (
+            soss_importer.import_cve_from_file(file)
+        )
         self.assertEqual(bug, bug_copy)
         self.assertEqual(vulnerability, vulnerability_copy)
+        self.assertEqual(created, False)
 
     def test_create_update_bug(self):
         """Test create and update a bug from a SOSS cve file"""
@@ -286,7 +291,7 @@ class TestSOSSImporter(TestCaseWithFactory):
 
         self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.UNPACKAGED)
         self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.MAVEN)
-        self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.RUST)
+        self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.PYTHON)
 
         soss_importer = SOSSImporter(
             self.soss, information_type=InformationType.PROPRIETARY
@@ -302,7 +307,7 @@ class TestSOSSImporter(TestCaseWithFactory):
 
         # Check bugtasks
         bugtasks = bug.bugtasks
-        bugtask_reference = self.bugtask_reference[:3]
+        bugtask_reference = self.bugtask_reference[1:3]
         self._check_bugtasks(
             bugtasks, bugtask_reference, BugTaskImportance.LOW, self.janitor
         )
@@ -348,7 +353,7 @@ class TestSOSSImporter(TestCaseWithFactory):
         self.assertEqual(vulnerability.bugs[0], bug)
 
     def test_create_or_update_bugtasks(self):
-        """Test update bugtasks"""
+        """Test that bugtasks are updated, removed, and modified correctly."""
         soss_importer = SOSSImporter(self.soss)
         bug = soss_importer._create_bug(self.soss_record, self.cve)
         soss_importer._create_or_update_bugtasks(bug, self.soss_record)
@@ -360,41 +365,79 @@ class TestSOSSImporter(TestCaseWithFactory):
             self.janitor,
         )
 
-        # Update soss_record and check that the bugtasks change
+        ray = self.source_package_name_set.getOrCreateByName("ray")
+        vllm = self.source_package_name_set.getOrCreateByName("vllm")
+
+        # Remove the PYTHON packages
+        self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.PYTHON)
+
+        # The two PYTHON packages are gone, and the CONDA package is modified.
+        expected_updated_bugtasks = [
+            (
+                self.soss.getExternalPackage(
+                    name=ray,
+                    packagetype=ExternalPackageType.CARGO,
+                    channel=("focal:0.27.0", "stable"),
+                ),
+                BugTaskStatus.DEFERRED,
+                "2.22.0+soss.1",
+                {"repositories": ["nvidia-pb3-python-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=ray,
+                    packagetype=ExternalPackageType.CONDA,
+                    channel=("noble:5.23.1", "stable"),  # Changed channel
+                ),
+                BugTaskStatus.DEFERRED,  # Changed status
+                "test note",  # Changed note
+                {"repositories": ["test-repo"]},  # Changed repo
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=vllm,
+                    packagetype=ExternalPackageType.GENERIC,
+                    channel=("noble:0.7.3", "stable"),
+                ),
+                BugTaskStatus.NEW,
+                "",
+                {"repositories": ["soss-src-stable-local"]},
+            ),
+            (
+                self.soss.getExternalPackage(
+                    name=vllm,
+                    packagetype=ExternalPackageType.MAVEN,
+                    channel=("noble:0.7.3", "stable"),
+                ),
+                BugTaskStatus.UNKNOWN,
+                "",
+                {"repositories": ["soss-src-stable-local"]},
+            ),
+        ]
+
+        # Modify the soss_record to trigger the update
         self.soss_record.assigned_to = "bug-importer"
         self.soss_record.priority = SOSSRecord.PriorityEnum.HIGH
 
-        # Remove 2 packages from the soss_record
-        self.soss_record.packages.pop(SOSSRecord.PackageTypeEnum.PYTHON)
-
-        # Modify a package
+        # Modify the CONDA package
         self.soss_record.packages[SOSSRecord.PackageTypeEnum.CONDA] = (
             SOSSRecord.Package(
-                name="aaa",
-                channel=SOSSRecord.Channel(value="noble:4.23.1/stable"),
+                name="ray",
+                channel=SOSSRecord.Channel(value="noble:5.23.1/stable"),
                 repositories=["test-repo"],
                 status=SOSSRecord.PackageStatusEnum.DEFERRED,
                 note="test note",
             ),
         )
-        # Modify its bugtask_reference
-        self.bugtask_reference[2] = (
-            self.soss.getExternalPackage(
-                name=self.source_package_name_set.getOrCreateByName("aaa"),
-                packagetype=ExternalPackageType.CONDA,
-                channel=("noble:4.23.1", "stable"),
-            ),
-            BugTaskStatus.DEFERRED,
-            "test note",
-            {"repositories": ["test-repo"]},
-        )
 
+        # Run the update
         soss_importer._create_or_update_bugtasks(bug, self.soss_record)
         transaction.commit()
 
+        # Check against the new expected list
         self._check_bugtasks(
             bug.bugtasks,
-            self.bugtask_reference[2:],
+            expected_updated_bugtasks,
             BugTaskImportance.HIGH,
             self.bug_importer,
         )
@@ -436,7 +479,7 @@ class TestSOSSImporter(TestCaseWithFactory):
             self.soss_record.packages[SOSSRecord.PackageTypeEnum.RUST][0],
             SOSSRecord.PackageTypeEnum.RUST,
         )
-        self.assertEqual(cargo_pkg, self.bugtask_reference[3][0])
+        self.assertEqual(cargo_pkg, self.bugtask_reference[1][0])
 
         generic_pkg = soss_importer._get_or_create_external_package(
             self.soss_record.packages[SOSSRecord.PackageTypeEnum.UNPACKAGED][
@@ -444,13 +487,13 @@ class TestSOSSImporter(TestCaseWithFactory):
             ],
             SOSSRecord.PackageTypeEnum.UNPACKAGED,
         )
-        self.assertEqual(generic_pkg, self.bugtask_reference[5][0])
+        self.assertEqual(generic_pkg, self.bugtask_reference[4][0])
 
         maven_pkg = soss_importer._get_or_create_external_package(
             self.soss_record.packages[SOSSRecord.PackageTypeEnum.MAVEN][0],
             SOSSRecord.PackageTypeEnum.MAVEN,
         )
-        self.assertEqual(maven_pkg, self.bugtask_reference[4][0])
+        self.assertEqual(maven_pkg, self.bugtask_reference[5][0])
 
     def test_prepare_cvss_data(self):
         """Test prepare the cvss json"""

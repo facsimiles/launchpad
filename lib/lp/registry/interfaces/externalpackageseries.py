@@ -17,7 +17,6 @@ from lp.app.interfaces.launchpad import IHeadingContext
 from lp.bugs.interfaces.bugtarget import IBugTarget, IHasOfficialBugTags
 from lp.registry.interfaces.distribution import IDistribution
 from lp.registry.interfaces.distroseries import IDistroSeries
-from lp.registry.interfaces.externalpackage import IExternalURL
 from lp.registry.interfaces.role import IHasDrivers
 
 
@@ -27,7 +26,6 @@ class IExternalPackageSeriesView(
     IBugTarget,
     IHasOfficialBugTags,
     IHasDrivers,
-    IExternalURL,
 ):
     """`IExternalPackageSeries` attributes that require launchpad.View."""
 
@@ -61,9 +59,6 @@ class IExternalPackageSeriesView(
     )
 
     drivers = Attribute("The drivers for the distroseries.")
-
-    def isMatching(other):
-        """See `IExternalURL`."""
 
     def __eq__(other):
         """IExternalPackageSeries comparison method.

@@ -10,6 +10,7 @@ __all__ = [
     "ArchiveDependencyError",
     "ArchiveDisabled",
     "ArchiveNotPrivate",
+    "ARCHIVE_WEBHOOKS_FEATURE_FLAG",
     "CannotCopy",
     "CannotSwitchPrivacy",
     "ComponentNotFound",
@@ -110,6 +111,7 @@ from lp.services.fields import (
     PublicPersonChoice,
     StrippedTextLine,
 )
+from lp.services.webhooks.interfaces import IWebhookTarget
 from lp.soyuz.enums import (
     ArchivePublishingMethod,
     ArchivePurpose,
@@ -120,6 +122,7 @@ from lp.soyuz.interfaces.buildrecords import IHasBuildRecords
 from lp.soyuz.interfaces.component import IComponent
 
 NAMED_AUTH_TOKEN_FEATURE_FLAG = "soyuz.named_auth_token.allow_new"
+ARCHIVE_WEBHOOKS_FEATURE_FLAG = "archive.webhooks.enabled"
 
 
 @error_status(http.client.BAD_REQUEST)
@@ -2285,7 +2288,7 @@ class IArchiveAppend(Interface):
         """
 
 
-class IArchiveEdit(Interface):
+class IArchiveEdit(IWebhookTarget):
     """Archive interface for operations restricted by edit privilege."""
 
     @operation_parameters(

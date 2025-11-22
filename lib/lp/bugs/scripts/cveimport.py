@@ -35,6 +35,11 @@ from lp.services.timeout import override_timeout, urlfetch
 
 CVEDB_NS = "{http://cve.mitre.org/cve/downloads/1.0}"
 
+CVE_STATE_TO_STATUS = {
+    "PUBLISHED": CveStatus.ENTRY,
+    "REJECTED": CveStatus.REJECTED,
+}
+
 
 def getText(elem):
     """Get the text content of the given element"""
@@ -684,6 +689,9 @@ class CVEUpdater(LaunchpadCronScript):
 
         # process each CVE record
         cve_metadata = data.get("cveMetadata", {})
+        status = CVE_STATE_TO_STATUS.get(
+            cve_metadata.get("state", ""), CveStatus.ENTRY
+        )
         containers = data.get("containers", {})
         cna_data = containers.get("cna", {})
 
@@ -692,7 +700,12 @@ class CVEUpdater(LaunchpadCronScript):
 
         # get description (required to be in English)
         description = None
-        for desc in cna_data.get("descriptions", []):
+        if status == CveStatus.REJECTED:
+            description_key = "rejectedReasons"
+        else:
+            description_key = "descriptions"
+
+        for desc in cna_data.get(description_key, []):
             if desc.get("lang", "").startswith("en"):
                 description = desc.get("value")
                 break
@@ -708,7 +721,7 @@ class CVEUpdater(LaunchpadCronScript):
         cveset = getUtility(ICveSet)
         cve = cveset[sequence]
         if cve is None:
-            cve = cveset.new(sequence, description, CveStatus.ENTRY)
+            cve = cveset.new(sequence, description, status)
             self.logger.info(f"CVE-{sequence} created")
 
         # update CVE if needed
@@ -723,11 +736,20 @@ class CVEUpdater(LaunchpadCronScript):
             modified = True
 
         # Build metadata dict
-        metadata = {"affected": affected}
+        metadata = None
+        if affected:
+            metadata = {"affected": affected}
 
         # If anything changed, update cve.metadata
         if metadata != cve.metadata:
             cve.metadata = metadata
+            modified = True
+
+        # Get CVSS metrics
+        cvss_list = cna_data.get("metrics", None)
+        # If anything changed, update cve.cvss
+        if cvss_list != cve.cvss:
+            cve.cvss = cvss_list
             modified = True
 
         if modified:

@@ -40,7 +40,7 @@ def channel_string_to_list(channel):
 
     # Only 1, 2, or 3 components are allowed
     if len(components) > 3:
-        raise ValueError("Invalid channel name: %r" % channel)
+        raise ValueError(f"Invalid channel name: '{channel}'")
 
     track = None
     risk = None
@@ -54,16 +54,16 @@ def channel_string_to_list(channel):
         elif _is_risk(components[1]):
             track, risk = components
         else:
-            raise ValueError("No valid risk provided: %r" % channel)
+            raise ValueError(f"No valid risk provided: '{channel}'")
     elif len(components) == 1:
         risk = components[0]
 
     # Validate risk and branch names
     if not _is_risk(risk):
-        raise ValueError("No valid risk provided: %r" % channel)
+        raise ValueError(f"No valid risk provided: '{channel}'")
 
     if branch and _is_risk(branch):
-        raise ValueError("Branch name cannot match a risk name: %r" % channel)
+        raise ValueError(f"Branch name cannot match a risk name: '{channel}'")
 
     return track, risk, branch
 

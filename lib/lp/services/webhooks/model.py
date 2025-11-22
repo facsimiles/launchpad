@@ -31,7 +31,6 @@ from zope.security.proxy import removeSecurityProxy
 
 from lp.app import versioninfo
 from lp.registry.interfaces.role import IPersonRoles
-from lp.registry.model.person import Person
 from lp.services.config import config
 from lp.services.database.bulk import load_related
 from lp.services.database.constants import UTC_NOW
@@ -117,6 +116,9 @@ class Webhook(StormBase):
         source_package_name_id, "SourcePackageName.id"
     )
 
+    archive_id = Int(name="archive")
+    archive = Reference(archive_id, "Archive.id")
+
     registrant_id = Int(name="registrant", allow_none=False)
     registrant = Reference(registrant_id, "Person.id")
     date_created = DateTime(tzinfo=timezone.utc, allow_none=False)
@@ -155,6 +157,8 @@ class Webhook(StormBase):
                 )
             else:
                 return self.distribution
+        elif self.archive is not None:
+            return self.archive
         else:
             raise AssertionError("No target.")
 
@@ -240,6 +244,7 @@ class WebhookSet:
         )
         from lp.registry.interfaces.product import IProduct
         from lp.snappy.interfaces.snap import ISnap
+        from lp.soyuz.interfaces.archive import IArchive
         from lp.soyuz.interfaces.livefs import ILiveFS
 
         hook = Webhook()
@@ -264,6 +269,8 @@ class WebhookSet:
         elif IDistributionSourcePackage.providedBy(target):
             hook.distribution = target.distribution
             hook.source_package_name = target.sourcepackagename
+        elif IArchive.providedBy(target):
+            hook.archive = target
         else:
             raise AssertionError("Unsupported target: %r" % (target,))
         hook.registrant = registrant
@@ -298,6 +305,7 @@ class WebhookSet:
         )
         from lp.registry.interfaces.product import IProduct
         from lp.snappy.interfaces.snap import ISnap
+        from lp.soyuz.interfaces.archive import IArchive
         from lp.soyuz.interfaces.livefs import ILiveFS
 
         if IGitRepository.providedBy(target):
@@ -326,6 +334,8 @@ class WebhookSet:
                 Webhook.distribution == target.distribution,
                 Webhook.source_package_name == target.sourcepackagename,
             )
+        elif IArchive.providedBy(target):
+            target_filter = Webhook.archive == target
         else:
             raise AssertionError("Unsupported target: %r" % (target,))
         return (
@@ -401,6 +411,8 @@ class WebhookSet:
 class WebhookTargetMixin:
     @property
     def webhooks(self):
+        from lp.registry.model.person import Person
+
         def preload_registrants(rows):
             load_related(Person, rows, ["registrant_id"])
 

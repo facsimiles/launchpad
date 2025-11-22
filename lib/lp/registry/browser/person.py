@@ -20,6 +20,7 @@ __all__ = [
     "PersonEditIRCNicknamesView",
     "PersonEditJabberIDsView",
     "PersonEditMatrixAccountsView",
+    "PersonEditGitHubAccountsView",
     "PersonEditTimeZoneView",
     "PersonEditSSHKeysView",
     "PersonEditView",
@@ -154,6 +155,7 @@ from lp.registry.interfaces.pillar import IPillarNameSet
 from lp.registry.interfaces.poll import IPollSubset
 from lp.registry.interfaces.product import InvalidProductName, IProduct
 from lp.registry.interfaces.socialaccount import (
+    GithubPlatform,
     ISocialAccountSet,
     MatrixPlatform,
     SocialAccountIdentityError,
@@ -833,6 +835,7 @@ class PersonOverviewMenu(
         "editircnicknames",
         "editjabberids",
         "editmatrixaccounts",
+        "editgithubaccounts",
         "editsshkeys",
         "editpgpkeys",
         "editlocation",
@@ -902,6 +905,12 @@ class PersonOverviewMenu(
     def editmatrixaccounts(self):
         target = "+editmatrixaccounts"
         text = "Edit Matrix accounts"
+        return Link(target, text, icon="edit", summary=text)
+
+    @enabled_with_permission("launchpad.Edit")
+    def editgithubaccounts(self):
+        target = "+editgithubaccounts"
+        text = "Edit GitHub accounts"
         return Link(target, text, icon="edit", summary=text)
 
     @enabled_with_permission("launchpad.Edit")
@@ -1696,11 +1705,23 @@ class PersonView(LaunchpadView, FeedsMixin, ContactViaWebLinksMixin):
         )
 
     @property
+    def should_show_github_accounts_section(self):
+        """Should the github accounts section be shown?
+
+        It's shown when the person has social accounts for the GitHub platform
+        registered or has rights to register new ones.
+        """
+        return bool(self.github_accounts) or (
+            check_permission("launchpad.Edit", self.context)
+        )
+
+    @property
     def should_show_socialaccounts_section(self):
         return (
             self.should_show_ircnicknames_section
             or self.should_show_jabberids_section
             or self.should_show_matrix_accounts_section
+            or self.should_show_github_accounts_section
         )
 
     @property
@@ -1734,6 +1755,12 @@ class PersonView(LaunchpadView, FeedsMixin, ContactViaWebLinksMixin):
     def matrix_accounts(self):
         return self.context.getSocialAccountsByPlatform(
             SocialPlatformType.MATRIX
+        )
+
+    @cachedproperty
+    def github_accounts(self):
+        return self.context.getSocialAccountsByPlatform(
+            SocialPlatformType.GITHUB
         )
 
     @cachedproperty
@@ -2548,6 +2575,10 @@ class PersonEditSocialAccountsView(LaunchpadFormView):
 
 class PersonEditMatrixAccountsView(PersonEditSocialAccountsView):
     platform = MatrixPlatform
+
+
+class PersonEditGitHubAccountsView(PersonEditSocialAccountsView):
+    platform = GithubPlatform
 
 
 class PersonEditJabberIDsView(LaunchpadFormView):

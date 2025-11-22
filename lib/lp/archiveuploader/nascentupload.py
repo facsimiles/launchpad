@@ -826,6 +826,7 @@ class NascentUpload:
                 changes_file_object=changes_file_object,
                 logger=self.logger,
             )
+        self.queue_root.setRejected()
 
     def _createQueueEntry(self):
         """Return a PackageUpload object."""

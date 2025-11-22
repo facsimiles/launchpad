@@ -108,6 +108,8 @@ from lp.services.tokens import create_token
 from lp.services.webapp.authorization import check_permission
 from lp.services.webapp.interfaces import ILaunchBag
 from lp.services.webapp.url import urlappend
+from lp.services.webhooks.interfaces import IWebhookSet
+from lp.services.webhooks.model import WebhookTargetMixin
 from lp.soyuz.adapters.archivedependencies import expand_dependencies
 from lp.soyuz.adapters.packagelocation import PackageLocation
 from lp.soyuz.enums import (
@@ -219,7 +221,7 @@ def storm_validate_external_dependencies(archive, attr, value):
 
 
 @implementer(IArchive, IHasOwner, IHasBuildRecords)
-class Archive(StormBase):
+class Archive(StormBase, WebhookTargetMixin):
     __storm_table__ = "Archive"
     __storm_order__ = "id"
 
@@ -227,6 +229,22 @@ class Archive(StormBase):
 
     owner_id = Int(name="owner", validator=validate_person, allow_none=False)
     owner = Reference(owner_id, "Person.id")
+
+    @property
+    def valid_webhook_event_types(self):
+        return [
+            "archive:source-package-upload:0.1",
+            "archive:source-package-upload:0.1::accepted",
+            "archive:source-package-upload:0.1::rejected",
+            "archive:binary-package-upload:0.1",
+            "archive:binary-build:0.1",
+            "archive:binary-build:0.1::fullybuilt",
+            "archive:binary-build:0.1::failedtobuild",
+            "archive:binary-build:0.1::chrootwait",
+            "archive:binary-build:0.1::cancelled",
+            "archive:binary-build:0.1::failedtoupload",
+            "archive:binary-build:0.1::superseded",
+        ]
 
     def _validate_archive_name(self, attr, value):
         """Only allow renaming of COPY archives.
@@ -2998,6 +3016,7 @@ class Archive(StormBase):
         self.status = ArchiveStatus.DELETING
         if self.enabled:
             self.disable()
+        getUtility(IWebhookSet).delete(self.webhooks)
 
     def getFilesAndSha1s(self, source_files):
         """See `IArchive`."""

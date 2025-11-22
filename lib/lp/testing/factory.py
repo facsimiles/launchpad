@@ -180,6 +180,7 @@ from lp.registry.interfaces.distroseriesdifferencecomment import (
 )
 from lp.registry.interfaces.distroseriesparent import IDistroSeriesParentSet
 from lp.registry.interfaces.externalpackage import ExternalPackageType
+from lp.registry.interfaces.externalpackageseries import IExternalPackageSeries
 from lp.registry.interfaces.gpg import IGPGKeySet
 from lp.registry.interfaces.mailinglist import (
     IMailingListSet,
@@ -2450,7 +2451,9 @@ class LaunchpadObjectFactory(ObjectFactory):
         :param target: The `IProductSeries`, `IDistroSeries` or
             `ISourcePackage` to nominate for.
         """
-        if ISourcePackage.providedBy(target):
+        if ISourcePackage.providedBy(
+            target
+        ) or IExternalPackageSeries.providedBy(target):
             non_series = target.distribution_sourcepackage
             series = target.distroseries
         else:
@@ -5654,8 +5657,10 @@ class LaunchpadObjectFactory(ObjectFactory):
         if channel is None:
             channel = ("12.1", "stable", None)
 
-        return distribution.getExternalPackage(
-            sourcepackagename, packagetype, channel
+        return ProxyFactory(
+            distribution.getExternalPackage(
+                sourcepackagename, packagetype, channel
+            )
         )
 
     def makeExternalPackageSeries(
@@ -5676,8 +5681,10 @@ class LaunchpadObjectFactory(ObjectFactory):
         if channel is None:
             channel = ("12.1", "stable", None)
 
-        return distroseries.getExternalPackageSeries(
-            sourcepackagename, packagetype, channel
+        return ProxyFactory(
+            distroseries.getExternalPackageSeries(
+                sourcepackagename, packagetype, channel
+            )
         )
 
     def makeEmailMessage(
@@ -5958,7 +5965,7 @@ class LaunchpadObjectFactory(ObjectFactory):
 
     def makeCVE(
         self,
-        sequence,
+        sequence=None,
         description=None,
         cvestate=CveStatus.CANDIDATE,
         date_made_public=None,
@@ -5966,8 +5973,26 @@ class LaunchpadObjectFactory(ObjectFactory):
         cvss=None,
     ):
         """Create a new CVE record."""
+        if sequence is None:
+            sequence = "2000-%04i" % self.getUniqueInteger()
+
         if description is None:
             description = self.getUniqueUnicode()
+
+        if cvss is None:
+            cvss = [
+                {
+                    "format": "CVSS",
+                    "cvssV3_1": {
+                        "version": "3.1",
+                        "baseScore": 8.2,
+                        "baseSeverity": "HIGH",
+                        "vectorString": (
+                            "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:C/C:H/I:H/A:H"
+                        ),
+                    },
+                }
+            ]
 
         return getUtility(ICveSet).new(
             sequence,

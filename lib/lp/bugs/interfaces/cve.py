@@ -74,6 +74,15 @@ class CveStatus(DBEnumeratedType):
         """,
     )
 
+    REJECTED = DBItem(
+        4,
+        """
+        Rejected
+
+        This CVE has been rejected or withdrawn by its CVE Numbering Authority.
+        """,
+    )
+
 
 @exported_as_webservice_entry(as_of="beta")
 class ICve(Interface):
@@ -181,14 +190,12 @@ class ICve(Interface):
     )
 
     cvss = exported(
-        Dict(
+        List(
             title=_("CVSS"),
             description=_(
                 "The CVSS vector strings from various authorities "
                 "that publish it."
             ),
-            key_type=Text(title=_("The authority that published the score.")),
-            value_type=Text(title=_("The CVSS vector string.")),
             required=False,
             readonly=True,
         ),

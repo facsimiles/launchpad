@@ -67,6 +67,22 @@ WEBHOOK_EVENT_TYPES = {
     "oci-recipe:build:0.1": "OCI recipe build",
     "snap:build:0.1": "Snap build",
     "craft-recipe:build:0.1": "Craft recipe build",
+    "archive:source-package-upload:0.1": "Source package upload",
+    "archive:source-package-upload:0.1::accepted": "Source package"
+    "upload accepted",
+    "archive:source-package-upload:0.1::rejected": "Source package"
+    "upload rejected",
+    "archive:binary-package-upload:0.1": "Binary package upload",
+    "archive:binary-build:0.1": "Binary build",
+    "archive:binary-build:0.1::fullybuilt": "Binary build fully built",
+    "archive:binary-build:0.1::failedtobuild": "Binary build failed to build",
+    "archive:binary-build:0.1::chrootwait": "Binary build failed due"
+    " to chroot problem",
+    "archive:binary-build:0.1::cancelled": "Binary build cancelled",
+    "archive:binary-build:0.1::failedtoupload": "Binary build failed"
+    " to upload",
+    "archive:binary-build:0.1::superseded": "Binary build for"
+    " superseded source",
 }
 
 

@@ -38,6 +38,7 @@ from lp.bugs.model.bugtask import (
     IllegalTarget,
     bug_target_from_key,
     bug_target_to_key,
+    bugtask_sort_key,
     validate_new_target,
     validate_target,
 )
@@ -57,6 +58,7 @@ from lp.registry.interfaces.distributionsourcepackage import (
     IDistributionSourcePackage,
 )
 from lp.registry.interfaces.distroseries import IDistroSeriesSet
+from lp.registry.interfaces.externalpackage import ExternalPackageType
 from lp.registry.interfaces.person import IPersonSet
 from lp.registry.interfaces.product import IProductSet
 from lp.registry.interfaces.projectgroup import IProjectGroupSet
@@ -2169,6 +2171,99 @@ class TestConjoinedBugTasks(TestCaseWithFactory):
         self.assertIsNone(gentoo_netapplet_task.conjoined_primary)
         self.assertIsNone(gentoo_netapplet_task.conjoined_replica)
 
+    def test_conjoined_external_package(self):
+        """Test conjoined primary/replica logic for external packages.
+
+        Conjoined tasks must match on sourcepackagename, packagetype,
+        and channel, all within the same distribution.
+        """
+        login("foo.bar@canonical.com")
+        launchbag = getUtility(ILaunchBag)
+        user = launchbag.user
+        task_set = getUtility(IBugTaskSet)
+
+        series_older = self.factory.makeDistroSeries(name="older")
+        distribution = removeSecurityProxy(series_older.distribution)
+        series_newer = self.factory.makeDistroSeries(
+            name="newer", distribution=distribution
+        )
+
+        pkg_name = self.factory.makeSourcePackageName()
+        pkg_type_rock = ExternalPackageType.ROCK
+        pkg_type_snap = ExternalPackageType.SNAP
+        channel_stable = (None, "stable", None)
+        channel_edge = (None, "edge", None)
+
+        # 1. Create the bug with a distribution-level task
+        dist_target = distribution.getExternalPackage(
+            pkg_name, pkg_type_rock, channel_stable
+        )
+        params = CreateBugParams(
+            owner=user, title="conjoined bug", comment="test"
+        )
+        bug = dist_target.createBug(params)
+        dist_task = bug.bugtasks[0]
+
+        # Initially, no conjoined tasks
+        self.assertIsNone(dist_task.conjoined_primary)
+        self.assertIsNone(dist_task.conjoined_replica)
+
+        # 2. Add "primary" series task
+        # Adding a task for the newest series. This will become the primary.
+        primary_target = series_newer.getExternalPackageSeries(
+            pkg_name, pkg_type_rock, channel_stable
+        )
+        primary_task = task_set.createTask(bug, user, primary_target)
+
+        # The new series task becomes primary
+        self.assertIsNone(primary_task.conjoined_primary)
+        self.assertEqual(dist_task, primary_task.conjoined_replica)
+        # The original dist task now points to the new primary
+        self.assertEqual(primary_task, dist_task.conjoined_primary)
+        self.assertIsNone(dist_task.conjoined_replica)
+
+        # 3. Test: Negative case (older series)
+        older_target = series_older.getExternalPackageSeries(
+            pkg_name, pkg_type_rock, channel_stable
+        )
+        older_task = task_set.createTask(bug, user, older_target)
+
+        # A series task conjoined_primary is always None
+        self.assertIsNone(older_task.conjoined_primary)
+        # A series task only gets a conjoined_replica if it's the currentseries
+        self.assertIsNone(older_task.conjoined_replica)
+
+        # 4. Test: Negative case (different channel)
+        # This task has a different channel and should NOT be conjoined.
+        edge_target = series_newer.getExternalPackageSeries(
+            pkg_name, pkg_type_rock, channel_edge
+        )
+        edge_task = task_set.createTask(bug, user, edge_target)
+
+        self.assertIsNone(edge_task.conjoined_primary)
+        self.assertIsNone(edge_task.conjoined_replica)
+
+        # 5. Test: Negative case (different packagetype)
+        # This task has a different package type and should NOT be conjoined.
+        snap_target = series_newer.getExternalPackageSeries(
+            pkg_name, pkg_type_snap, channel_stable
+        )
+        snap_task = task_set.createTask(bug, user, snap_target)
+
+        self.assertIsNone(snap_task.conjoined_primary)
+        self.assertIsNone(snap_task.conjoined_replica)
+
+        # 6. Test: Negative case (different distribution)
+        # This task is on a different distribution and should NOT be conjoined.
+        other_distro = self.factory.makeDistribution(name="other")
+        other_target = other_distro.getExternalPackage(
+            pkg_name, pkg_type_rock, channel_stable
+        )
+        other_task = task_set.createTask(bug, user, other_target)
+
+        self.assertIsNone(other_task.conjoined_primary)
+        self.assertIsNone(other_task.conjoined_replica)
+
     def test_conjoined_broken_relationship(self):
         """A conjoined relationship can be broken, though.
 
@@ -4109,3 +4204,125 @@ class TestTargetNameCache(TestCase):
         self.assertEqual(
             upstream_task.bugtargetdisplayname, "Mozilla Thunderbird"
         )
+
+
+class TestBugTaskSortKey(TestCaseWithFactory):
+    layer = DatabaseFunctionalLayer
+
+    def setUp(self):
+        super().setUp()
+        # Set up group a
+        product_a = self.factory.makeProduct(name="product-a")
+        productseries_a = self.factory.makeProductSeries(
+            product=product_a, name="a"
+        )
+        distro_a = self.factory.makeDistribution(name="distro-a")
+        distroseries_a = self.factory.makeDistroSeries(
+            distribution=distro_a, name="a"
+        )
+        sourcepackage_a = self.factory.makeSourcePackage(
+            sourcepackagename="source-a",
+            distroseries=distroseries_a,
+        )
+        distrosourcepackage_a = self.factory.makeDistributionSourcePackage(
+            distribution=distro_a, sourcepackagename="source-a"
+        )
+        externalpackage_a = self.factory.makeExternalPackage(
+            distribution=distro_a,
+            sourcepackagename="source-a",
+            packagetype=ExternalPackageType.SNAP,
+            channel=("12.1", "stable", None),
+        )
+        externalpackage_a2 = self.factory.makeExternalPackage(
+            distribution=distro_a,
+            sourcepackagename="source-a",
+            packagetype=ExternalPackageType.SNAP,
+            channel=("12.1", "stable", "branch"),
+        )
+        externalpackageseries_a = self.factory.makeExternalPackageSeries(
+            distroseries=distroseries_a,
+            sourcepackagename="source-a",
+            packagetype=ExternalPackageType.SNAP,
+            channel=("12.1", "stable"),
+        )
+
+        # Set up group b
+        product_b = self.factory.makeProduct(name="product-b")
+        productseries_b = self.factory.makeProductSeries(
+            product=product_b, name="b"
+        )
+        distro_b = self.factory.makeDistribution(name="distro-b")
+        distroseries_b = self.factory.makeDistroSeries(
+            distribution=distro_b, name="b"
+        )
+        sourcepackage_b = self.factory.makeSourcePackage(
+            sourcepackagename="source-b",
+            distroseries=distroseries_b,
+        )
+        distrosourcepackage_b = self.factory.makeDistributionSourcePackage(
+            distribution=distro_b, sourcepackagename="source-b"
+        )
+        externalpackage_b = self.factory.makeExternalPackage(
+            distribution=distro_b,
+            sourcepackagename="source-b",
+            packagetype=ExternalPackageType.CHARM,
+            channel=("12.1", "stable", None),
+        )
+        externalpackageseries_b = self.factory.makeExternalPackageSeries(
+            distroseries=distroseries_b,
+            sourcepackagename="source-b",
+            packagetype=ExternalPackageType.CHARM,
+            channel="stable",
+        )
+        self.bugtasks_targets = [
+            product_a,
+            productseries_a,
+            distrosourcepackage_a,
+            sourcepackage_a,
+            externalpackage_a,
+            externalpackage_a2,
+            externalpackageseries_a,
+            product_b,
+            productseries_b,
+            sourcepackage_b,
+            distrosourcepackage_b,
+            externalpackage_b,
+            externalpackageseries_b,
+        ]
+        # Expected order after sorting
+        self.ordered_bugtasks_targets = [
+            product_a,
+            productseries_a,
+            product_b,
+            productseries_b,
+            distrosourcepackage_a,
+            externalpackage_a,
+            externalpackage_a2,
+            sourcepackage_a,
+            externalpackageseries_a,
+            distrosourcepackage_b,
+            externalpackage_b,
+            sourcepackage_b,
+            externalpackageseries_b,
+        ]
+
+    def test_sorting_key_comparisons(self):
+        """
+        Tests the 'bugtask_sort_key' logic.
+
+        The key function returns a tuple, and Python's tuple sorting rules
+        determine the order.
+        """
+        bug = self.factory.makeBug()
+
+        bugtasks = []
+        for target in self.bugtasks_targets:
+            bugtask = self.factory.makeBugTask(bug=bug, target=target)
+            bugtasks.append(bugtask)
+
+        bugtasks.sort(key=bugtask_sort_key)
+
+        for bugtask, expected_target in zip(
+            bugtasks, self.ordered_bugtasks_targets
+        ):
+            self.assertEqual(expected_target, bugtask.target)

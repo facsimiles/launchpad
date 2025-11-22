@@ -1252,6 +1252,13 @@
         template="../templates/person-editsocialaccounts.pt"
         />
     <browser:page
+        name="+editgithubaccounts"
+        for="lp.registry.interfaces.person.IPerson"
+        class="lp.registry.browser.person.PersonEditGitHubAccountsView"
+        permission="launchpad.Edit"
+        template="../templates/person-editsocialaccounts.pt"
+        />
+    <browser:page
         name="+editjabberids"
         for="lp.registry.interfaces.person.IPerson"
         class="lp.registry.browser.person.PersonEditJabberIDsView"

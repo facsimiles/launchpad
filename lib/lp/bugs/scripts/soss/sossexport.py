@@ -58,7 +58,10 @@ class SOSSExporter(SVTExporter):
                 ),
                 repositories=bugtask.metadata.get("repositories"),
                 status=SOSSRecord.PackageStatusEnum(
-                    PACKAGE_STATUS_MAP_REVERSE[bugtask.status]
+                    PACKAGE_STATUS_MAP_REVERSE.get(
+                        bugtask.status,
+                        SOSSRecord.PackageStatusEnum.NEEDS_TRIAGE,
+                    )
                 ),
                 note=bugtask.status_explanation or "",
             )
@@ -133,7 +136,9 @@ class SOSSExporter(SVTExporter):
         )
         notes = self._format_notes(vulnerability.notes)
         priority = SOSSRecord.PriorityEnum(
-            PRIORITY_ENUM_MAP_REVERSE[vulnerability.importance]
+            PRIORITY_ENUM_MAP_REVERSE.get(
+                vulnerability.importance, SOSSRecord.PriorityEnum.NEEDS_TRIAGE
+            )
         )
 
         return SOSSRecord(

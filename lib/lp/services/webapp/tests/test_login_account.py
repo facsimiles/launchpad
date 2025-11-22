@@ -2,7 +2,6 @@
 # GNU Affero General Public License version 3 (see the file LICENSE).
 
 from datetime import datetime
-from urllib.parse import parse_qs
 
 import lazr.uri
 from zope.component import getUtility
@@ -123,19 +122,12 @@ class TestLoginAndLogout(TestCaseWithFactory):
         self.assertEqual(self.request.response.getStatus(), 302)
         self.assertEqual(result, "")
 
-        # We are redirecting to Loggerhead, to ask it to logout.
+        # We are redirecting to our OpenId provider to logout,
 
         location = lazr.uri.URI(self.request.response.getHeader("location"))
-        self.assertEqual(location.host, "bazaar.launchpad.test")
-        self.assertEqual(location.scheme, "https")
+        self.assertEqual(location.host, "testopenid.test")
+        self.assertEqual(location.scheme, "http")
         self.assertEqual(location.path, "/+logout")
-
-        # That page should then redirect to our OpenId provider to logout,
-        # which we provide in our query string.  See
-        # launchpad_loggerhead.tests.TestLogout for the pertinent tests.
-
-        query = parse_qs(location.query)
-        self.assertEqual(query["next_to"][0], "http://testopenid.test/+logout")
 
     def test_logging_in_and_logging_out_the_old_way(self):
         # A test showing that we can authenticate a request that had the

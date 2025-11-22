@@ -57,6 +57,7 @@ class ExternalPackageSeries(
         if not isinstance(channel, (str, tuple, list)):
             raise ValueError("Channel must be a str, tuple or list")
 
+        # always return a 3 element tuple or None
         return channel_string_to_list(channel)
 
     @property
@@ -83,14 +84,14 @@ class ExternalPackageSeries(
         if self.channel:
             return "%s - %s @%s in %s" % (
                 self.sourcepackagename.name,
-                self.packagetype,
+                self.packagetype.title,
                 self.display_channel,
                 self.distroseries.display_name,
             )
 
         return "%s - %s in %s" % (
             self.sourcepackagename.name,
-            self.packagetype,
+            self.packagetype.title,
             self.distroseries.display_name,
         )
 
@@ -132,15 +133,6 @@ class ExternalPackageSeries(
     def title(self) -> str:
         """See `IExternalPackageSeries`."""
         return self.display_name
-
-    def isMatching(self, other) -> bool:
-        """See `IExternalURL`."""
-        return (
-            IExternalPackageSeries.providedBy(other)
-            and self.sourcepackagename.id == other.sourcepackagename.id
-            and self.distroseries.id == other.distroseries.id
-            and self.packagetype == other.packagetype
-        )
 
     def __eq__(self, other: "ExternalPackageSeries") -> str:
         """See `IExternalPackageSeries`."""

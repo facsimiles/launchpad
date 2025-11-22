@@ -178,36 +178,6 @@ class TestExternalPackageSeries(TestCaseWithFactory):
         )
         self.assertEqual(expected, self.externalpackageseries.bugtarget_parent)
 
-    def test_matches(self):
-        """Test if two externalpackageseries matches in sourcepackagename,
-        distroseries and packagetype.
-        """
-        self.assertTrue(
-            self.externalpackageseries.isMatching(
-                self.externalpackageseries_matching
-            )
-        )
-
-        self.assertFalse(
-            self.externalpackageseries.isMatching(
-                self.externalpackageseries_maven
-            )
-        )
-
-        other_spn = self.factory.makeSourcePackageName()
-        other_eps_1 = self.factory.makeExternalPackageSeries(
-            sourcepackagename=other_spn,
-            distroseries=self.distroseries,
-        )
-        self.assertFalse(self.externalpackageseries.isMatching(other_eps_1))
-
-        other_distroseries = self.factory.makeDistroSeries()
-        other_eps_2 = self.factory.makeExternalPackageSeries(
-            sourcepackagename=self.sourcepackagename,
-            distroseries=other_distroseries,
-        )
-        self.assertFalse(self.externalpackageseries.isMatching(other_eps_2))
-
     def test_compare(self):
         """Test __eq__ and __neq__"""
         self.assertEqual(
