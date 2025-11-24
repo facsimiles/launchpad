@@ -15,8 +15,8 @@ containing the build queue status summary for each build domain.
 
     >>> print(extract_text(find_main_content(anon_browser.contents)))
     The Launchpad build farm
-    1 available build machine, 1 disabled and 1 building of a total of
-    2 registered.
+    2 registered build machines: 1 available (1 building, 0 cleaning,
+    0 idle) and 1 disabled
     386
     frog  Disabled
     386
