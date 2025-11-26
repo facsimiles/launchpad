@@ -354,3 +354,63 @@ The same is true for the anonymous user:
     zope.security.interfaces.Unauthorized: ...
 
 
+Disable a cleaning builder and verify statistics
+--------------------------------------------------
+
+First, re-enable bob and set it to cleaning mode. We need to access it via
+URL since it was deactivated in the previous section.
+
+    >>> cprov_browser.open("http://launchpad.test/+builds/bob")
+    >>> cprov_browser.getLink("Change details").click()
+    >>> cprov_browser.getControl(name="field.active").value = True
+    >>> cprov_browser.getControl("Change").click()
+
+    >>> from lp.buildmaster.enums import BuilderCleanStatus
+    >>> from lp.testing import admin_logged_in
+    >>> with admin_logged_in():
+    ...     bob_builder = getUtility(IBuilderSet)["bob"]
+    ...     bob_builder.builderok = True
+    ...     if bob_builder.currentjob is not None:
+    ...         bob_builder.currentjob.reset()
+    ...     bob_builder.setCleanStatus(BuilderCleanStatus.CLEANING)
+    ...
+
+Now verify that the builder appears in the build farm list as cleaning.
+
+    >>> cprov_browser.open("http://launchpad.test/builders")
+    >>> print(extract_text(find_main_content(cprov_browser.contents)))
+    The Launchpad build farm
+    ...
+    3 registered build machines: 2 available (0 building, 1 cleaning,
+    1 idle) and 1 disabled
+    ...
+    bob
+    Cleaning
+    ...
+
+Now disable the builder while it's in cleaning mode.
+
+    >>> cprov_browser.getLink("bob").click()
+    >>> cprov_browser.getLink("Change details").click()
+    >>> cprov_browser.getControl(name="field.builderok").value = False
+    >>> cprov_browser.getControl("Change").click()
+
+Once disabled, the cleaning builder should not appear in the available list.
+The statistics should reflect that there are no cleaning builders available.
+
+    >>> cprov_browser.getLink("Build Farm").click()
+    >>> print(extract_text(find_main_content(cprov_browser.contents)))
+    The Launchpad build farm
+    ...
+    3 registered build machines: 1 available (0 building, 0 cleaning,
+    1 idle) and 2 disabled
+    ...
+    bob
+    Disabled
+    ...
+
+    >>> cprov_browser.getLink("bob").click()
+    >>> print(backslashreplace(cprov_browser.title))
+    Bob The Builder : Build Farm
+
+

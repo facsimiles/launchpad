@@ -236,12 +236,19 @@ class BuilderSetView(CleanInfoMixin, LaunchpadView):
                 b
                 for b in self.builders
                 if b.clean_status == BuilderCleanStatus.CLEANING
+                and b.builderok
             ]
         )
 
     @property
     def number_of_building_builders(self):
-        return len([b for b in self.builders if b.currentjob is not None])
+        return len(
+            [
+                b
+                for b in self.builders
+                if b.currentjob is not None and b.builderok
+            ]
+        )
 
     @property
     def number_of_idle_builders(self):
