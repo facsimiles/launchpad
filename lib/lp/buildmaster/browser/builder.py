@@ -35,6 +35,7 @@ from lp.app.browser.tales import DurationFormatterAPI
 from lp.app.widgets.itemswidgets import LabeledMultiCheckBoxWidget
 from lp.app.widgets.owner import HiddenUserWidget
 from lp.app.widgets.textwidgets import DelimitedListWidget
+from lp.buildmaster.enums import BuilderCleanStatus
 from lp.buildmaster.interfaces.builder import IBuilder, IBuilderSet
 from lp.code.interfaces.cibuild import ICIBuildSet
 from lp.code.interfaces.sourcepackagerecipebuild import (
@@ -229,8 +230,30 @@ class BuilderSetView(CleanInfoMixin, LaunchpadView):
         return len([b for b in self.builders if not b.builderok])
 
     @property
+    def number_of_cleaning_builders(self):
+        return len(
+            [
+                b
+                for b in self.builders
+                if b.clean_status == BuilderCleanStatus.CLEANING
+            ]
+        )
+
+    @property
     def number_of_building_builders(self):
         return len([b for b in self.builders if b.currentjob is not None])
+
+    @property
+    def number_of_idle_builders(self):
+        return len(
+            [
+                b
+                for b in self.builders
+                if b.builderok
+                and b.currentjob is None
+                and b.clean_status == BuilderCleanStatus.CLEAN
+            ]
+        )
 
     @cachedproperty
     def build_queue_sizes(self):
