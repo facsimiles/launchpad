@@ -616,10 +616,15 @@ class IDistributionMirror(Interface):
 
     official_candidate = exported(
         Bool(
-            title=_("Apply to be an official mirror of this distribution"),
+            title=_("Apply to be an official mirror"),
             required=False,
             readonly=False,
             default=True,
+            description=_(
+                "Tick this to have your mirror reviewed for display on "
+                "the official mirrors page (/ubuntu/+cdmirrors or "
+                "/ubuntu/+archivemirrors)."
+            ),
         )
     )
     whiteboard = exported(
