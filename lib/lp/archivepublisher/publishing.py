@@ -700,14 +700,13 @@ class Publisher:
         )
         # Also exclude SPPHs where the corresponding
         # binary packages are still published
-        OtherBPPH = ClassAlias(BinaryPackagePublishingHistory)
         published_bprs_via_build = Select(
             1,
             tables=[
-                OtherBPPH,
+                BinaryPackagePublishingHistory,
                 Join(
                     BinaryPackageRelease,
-                    OtherBPPH.binarypackagerelease_id
+                    BinaryPackagePublishingHistory.binarypackagerelease_id
                     == BinaryPackageRelease.id,
                 ),
                 Join(
@@ -716,8 +715,10 @@ class Publisher:
                 ),
             ],
             where=And(
-                OtherBPPH.archive == self.archive,
-                OtherBPPH.status.is_in(active_publishing_status),
+                BinaryPackagePublishingHistory.archive == self.archive,
+                BinaryPackagePublishingHistory.status.is_in(
+                    active_publishing_status
+                ),
                 BinaryPackageBuild.source_package_release_id
                 == SourcePackagePublishingHistory.sourcepackagerelease_id,
             ),
