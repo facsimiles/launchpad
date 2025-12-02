@@ -24,6 +24,16 @@ from zope.component import getUtility
 
 from lp.app.errors import NotFoundError
 from lp.archivepublisher.config import getPubConfig
+from lp.archivepublisher.interfaces.archivepublisherrun import (
+    IArchivePublisherRunSet,
+)
+from lp.archivepublisher.interfaces.archivepublishinghistory import (
+    IArchivePublishingHistorySet,
+)
+from lp.archivepublisher.model.archivepublisherrun import ArchivePublisherRun
+from lp.archivepublisher.model.archivepublishinghistory import (
+    ArchivePublishingHistory,
+)
 from lp.archivepublisher.publishing import (
     GLOBAL_PUBLISHER_LOCK,
     cannot_modify_suite,
@@ -31,6 +41,7 @@ from lp.archivepublisher.publishing import (
 )
 from lp.archivepublisher.scripts.base import PublisherScript
 from lp.services.config import config
+from lp.services.database.interfaces import IStore
 from lp.services.limitedlist import LimitedList
 from lp.services.scripts.base import LaunchpadScriptFailure
 from lp.services.webapp.adapter import (
@@ -743,34 +754,75 @@ class PublishDistro(PublisherScript):
                             )
                             break
 
+    def _create_publisher_run(self):
+        """Create PublisherRun record for this run."""
+        publisher_run_set = getUtility(IArchivePublisherRunSet)
+        publisher_run = publisher_run_set.new()
+
+        IStore(ArchivePublisherRun).flush()
+        self.logger.debug("Created PublisherRun")
+        return publisher_run
+
+    def _create_publishing_history(self, archive_id, publisher_run_id):
+        """Create PublishingHistory records for all processed archives."""
+        archive = getUtility(IArchiveSet).get(archive_id)
+        publisher_run = getUtility(IArchivePublisherRunSet).getById(
+            publisher_run_id
+        )
+        getUtility(IArchivePublishingHistorySet).new(archive, publisher_run)
+
+        IStore(ArchivePublishingHistory).flush()
+        self.logger.debug(f"Created PublishingHistory archive_id={archive_id}")
+
     def main(self, reset_store_between_archives=True):
         """See `LaunchpadScript`."""
-        self.validateOptions()
-        self.logOptions()
+        publisher_run = self._create_publisher_run()
+        publisher_run_id = publisher_run.id
 
-        if config.archivepublisher.oval_data_rsync_endpoint:
-            self.rsyncOVALData()
-        else:
-            self.logger.info(
-                "Skipping the OVAL data sync as no rsync endpoint"
-                " has been configured."
-            )
-
+        succeeded = False
         archive_ids = []
-        for distribution in self.findDistros():
-            if config.archivepublisher.oval_data_rsync_endpoint:
-                self.checkForUpdatedOVALData(distribution)
-            for archive in self.getTargetArchives(distribution):
-                if archive.distribution != distribution:
-                    raise AssertionError(
-                        "Archive %s does not match distribution %r"
-                        % (archive.reference, distribution)
-                    )
-                archive_ids.append(archive.id)
+        try:
+            self.validateOptions()
+            self.logOptions()
 
-        for archive_id in archive_ids:
-            self.processArchive(
-                archive_id, reset_store=reset_store_between_archives
+            if config.archivepublisher.oval_data_rsync_endpoint:
+                self.rsyncOVALData()
+            else:
+                self.logger.info(
+                    "Skipping the OVAL data sync as no rsync endpoint"
+                    " has been configured."
+                )
+
+            for distribution in self.findDistros():
+                if config.archivepublisher.oval_data_rsync_endpoint:
+                    self.checkForUpdatedOVALData(distribution)
+                for archive in self.getTargetArchives(distribution):
+                    if archive.distribution != distribution:
+                        raise AssertionError(
+                            "Archive %s does not match distribution %r"
+                            % (archive.reference, distribution)
+                        )
+                    archive_ids.append(archive.id)
+
+            for archive_id in archive_ids:
+                self._create_publishing_history(archive_id, publisher_run_id)
+                self.processArchive(
+                    archive_id, reset_store=reset_store_between_archives
+                )
+
+            succeeded = True
+
+        finally:
+            # Re-fetch the PublisherRun as processArchive resets the store.
+            publisher_run = getUtility(IArchivePublisherRunSet).getById(
+                publisher_run_id
             )
+
+            if succeeded:
+                publisher_run.mark_succeeded()
+            else:
+                publisher_run.mark_failed()
+
+            IStore(ArchivePublisherRun).flush()
 
         self.logger.debug("Ciao")
