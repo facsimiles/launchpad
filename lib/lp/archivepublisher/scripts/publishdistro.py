@@ -828,6 +828,10 @@ class PublishDistro(PublisherScript):
             )
 
         IStore(ArchivePublisherRun).flush()
+
+        # getUtility(ICTDeliveryJobSource).create(publishing_history)
+        # IStore(CTDeliveryJob).flush()
+        # self.logger.debug("Created CTDeliveryDebJob")
         self.txn.commit()
 
     def main(self, reset_store_between_archives=True):
