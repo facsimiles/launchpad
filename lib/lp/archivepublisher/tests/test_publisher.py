@@ -4939,4 +4939,136 @@ class TestArtifactoryPublishing(TestPublisherBase):
         )
 
 
+class TestPublisherDirtyPockets(TestPublisherBase):
+    """Test the A2_markPocketsWithDeletionsDirty method."""
+
+    def setUp(self):
+        super().setUp()
+        self.allowed_suites = []
+        self.publisher = getPublisher(
+            self.ubuntutest.main_archive, self.allowed_suites, self.logger
+        )
+
+    def test_exclude_spph_if_spr_published_elsewhere(self):
+        # Exclude SPPHs where the SourcePackageRelease is also used by
+        # other SPPHs that are published.
+
+        spph_deleted = self.getPubSource(
+            pocket=PackagePublishingPocket.RELEASE,
+            status=PackagePublishingStatus.DELETED,
+        )
+
+        spr = spph_deleted.sourcepackagerelease
+
+        self.factory.makeSourcePackagePublishingHistory(
+            sourcepackagerelease=spr,
+            distroseries=self.breezy_autotest,
+            pocket=PackagePublishingPocket.UPDATES,
+            status=PackagePublishingStatus.PUBLISHED,
+            archive=self.ubuntutest.main_archive,
+        )
+
+        self.publisher.A2_markPocketsWithDeletionsDirty()
+
+        # breezy-autotest (RELEASE) should NOT be dirty because the SPR is still published in UPDATES.
+        self.assertNotIn("breezy-autotest", self.publisher.dirty_suites)
+
+    def test_exclude_spph_if_binary_published(self):
+        # Exclude SPPHs where the corresponding binary packages are still published.
+
+        spph_deleted = self.getPubSource(
+            pocket=PackagePublishingPocket.RELEASE,
+            status=PackagePublishingStatus.DELETED,
+        )
+
+        spr = spph_deleted.sourcepackagerelease
+
+        build = self.factory.makeBinaryPackageBuild(
+            source_package_release=spr,
+            distroarchseries=self.breezy_autotest_i386,
+        )
+
+        bpr = self.factory.makeBinaryPackageRelease(build=build)
+
+        self.factory.makeBinaryPackagePublishingHistory(
+            binarypackagerelease=bpr,
+            distroarchseries=self.breezy_autotest_i386,
+            pocket=PackagePublishingPocket.RELEASE,
+            status=PackagePublishingStatus.PUBLISHED,
+            archive=self.ubuntutest.main_archive,
+        )
+
+        self.publisher.A2_markPocketsWithDeletionsDirty()
+
+        # breezy-autotest should NOT be dirty because a binary from the source is still published.
+        self.assertNotIn("breezy-autotest", self.publisher.dirty_suites)
+
+    def test_exclude_bpph_if_bpr_published_elsewhere(self):
+        # Exclude BPPHs where the BinaryPackageRelease is also used by
+        # other BPPHs that are published.
+
+        bpph_deleted = self.getPubBinaries(
+            pocket=PackagePublishingPocket.RELEASE,
+            status=PackagePublishingStatus.DELETED,
+        )[0]
+
+        bpr = bpph_deleted.binarypackagerelease
+
+        self.factory.makeBinaryPackagePublishingHistory(
+            binarypackagerelease=bpr,
+            distroarchseries=self.breezy_autotest_i386,
+            pocket=PackagePublishingPocket.UPDATES,
+            status=PackagePublishingStatus.PUBLISHED,
+            archive=self.ubuntutest.main_archive,
+        )
+
+        self.publisher.A2_markPocketsWithDeletionsDirty()
+
+        # breezy-autotest should NOT be dirty because the BPR is still published in UPDATES.
+        self.assertNotIn("breezy-autotest", self.publisher.dirty_suites)
+
+    def test_dirty_if_no_dependencies(self):
+        # Control test: If no dependencies, it SHOULD be dirty.
+
+        self.getPubSource(
+            pocket=PackagePublishingPocket.RELEASE,
+            status=PackagePublishingStatus.DELETED,
+        )
+
+        self.getPubBinaries(
+            pocket=PackagePublishingPocket.UPDATES,
+            status=PackagePublishingStatus.DELETED,
+        )
+
+        self.publisher.A2_markPocketsWithDeletionsDirty()
+
+        self.assertIn("breezy-autotest", self.publisher.dirty_suites)
+        self.assertIn("breezy-autotest-updates", self.publisher.dirty_suites)
+
+    def test_dirty_if_both_spphs_deleted(self):
+        # If two SPPHs in two different series point to the same
+        # SourcePackageRelease, but BOTH are deleted, BOTH suites are marked as dirty.
+
+        spph1 = self.getPubSource(
+            pocket=PackagePublishingPocket.RELEASE,
+            status=PackagePublishingStatus.DELETED,
+        )
+        spr = spph1.sourcepackagerelease
+
+        hoary = self.ubuntutest["hoary-test"]
+        self.factory.makeSourcePackagePublishingHistory(
+            sourcepackagerelease=spr,
+            distroseries=hoary,
+            pocket=PackagePublishingPocket.RELEASE,
+            status=PackagePublishingStatus.DELETED,
+            archive=self.ubuntutest.main_archive,
+        )
+
+        self.publisher.A2_markPocketsWithDeletionsDirty()
+
+        # Both suites should be dirty.
+        self.assertIn("breezy-autotest", self.publisher.dirty_suites)
+        self.assertIn("hoary-test", self.publisher.dirty_suites)
+
+
 load_tests = load_tests_apply_scenarios
