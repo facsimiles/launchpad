@@ -75,6 +75,7 @@ from lp.services.browser_helpers import (
     get_user_agent_distroseries,
 )
 from lp.services.database.bulk import load_related
+from lp.services.features import getFeatureFlag
 from lp.services.helpers import english_list
 from lp.services.job.model.job import Job
 from lp.services.librarian.browser import (
@@ -119,6 +120,7 @@ from lp.soyuz.enums import (
     PackagePublishingStatus,
 )
 from lp.soyuz.interfaces.archive import (
+    ARCHIVE_WEBHOOKS_FEATURE_FLAG,
     ArchiveDependencyError,
     CannotCopy,
     IArchive,
@@ -585,6 +587,15 @@ class ArchiveMenuMixin:
             enabled=view.context.is_active,
         )
 
+    @enabled_with_permission("launchpad.Edit")
+    def webhooks(self):
+        return Link(
+            "+webhooks",
+            "Manage webhooks",
+            icon="edit",
+            enabled=bool(getFeatureFlag(ARCHIVE_WEBHOOKS_FEATURE_FLAG)),
+        )
+
 
 class ArchiveNavigationMenu(NavigationMenu, ArchiveMenuMixin):
     """Overview Menu for IArchive."""
@@ -618,6 +629,7 @@ class ArchiveIndexActionsMenu(NavigationMenu, ArchiveMenuMixin):
         "manage_subscribers",
         "packages",
         "delete_ppa",
+        "webhooks",
     ]
 
 

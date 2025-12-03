@@ -8,7 +8,9 @@ from zope.component import getUtility
 
 from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.buildmaster.interfaces.processor import IProcessorSet
+from lp.services.features.testing import FeatureFixture
 from lp.services.webapp import canonical_url
+from lp.soyuz.browser.archive import ArchiveIndexActionsMenu
 from lp.soyuz.enums import PackagePublishingStatus
 from lp.soyuz.interfaces.archive import CannotModifyArchiveProcessor
 from lp.testing import (
@@ -219,3 +221,31 @@ class TestArchiveCopyPackagesView(TestCaseWithFactory):
             nb_objects,
         )
         self.assertThat(recorder2, HasQueryCount.byEquality(recorder1))
+
+
+class TestArchiveWebhooksView(TestCaseWithFactory):
+    layer = LaunchpadFunctionalLayer
+
+    def test_webhooks_link_enabled_for_owner(self):
+        """The webhooks menu link is enabled for archive owners."""
+        archive = self.factory.makeArchive()
+        with FeatureFixture({"archive.webhooks.enabled": "on"}):
+            with person_logged_in(archive.owner):
+                menu = ArchiveIndexActionsMenu(archive)
+                self.assertTrue(menu.webhooks().enabled)
+
+    def test_webhooks_link_disabled_without_feature_flag(self):
+        """The webhooks menu link is disabled without feature flag."""
+        archive = self.factory.makeArchive()
+        with person_logged_in(archive.owner):
+            menu = ArchiveIndexActionsMenu(archive)
+            self.assertFalse(menu.webhooks().enabled)
+
+    def test_webhooks_link_disabled_for_non_owner(self):
+        """The webhooks menu link is disabled for non-owners."""
+        archive = self.factory.makeArchive()
+        other_person = self.factory.makePerson()
+        with FeatureFixture({"archive.webhooks.enabled": "on"}):
+            with person_logged_in(other_person):
+                menu = ArchiveIndexActionsMenu(archive)
+                self.assertFalse(menu.webhooks().enabled)

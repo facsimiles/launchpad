@@ -340,6 +340,17 @@ class BuilderWorker:
             )
         present, info = yield self.ensurepresent(sha1, url, username, password)
         if not present:
+            if logger is not None:
+                logger.error(
+                    "Failed to fetch %s (%s%s) on %s: %s"
+                    % (
+                        sha1,
+                        url,
+                        " with auth" if username or password else "",
+                        self.url,
+                        info,
+                    )
+                )
             raise CannotFetchFile(url, info)
 
     def build(self, buildid, builder_type, chroot_sha1, filemap, args):
