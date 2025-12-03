@@ -4970,11 +4970,13 @@ class TestPublisherDirtyPockets(TestPublisherBase):
 
         self.publisher.A2_markPocketsWithDeletionsDirty()
 
-        # breezy-autotest (RELEASE) should NOT be dirty because the SPR is still published in UPDATES.
+        # breezy-autotest (RELEASE) should NOT be dirty
+        # because the SPR is still published in UPDATES.
         self.assertNotIn("breezy-autotest", self.publisher.dirty_suites)
 
     def test_exclude_spph_if_binary_published(self):
-        # Exclude SPPHs where the corresponding binary packages are still published.
+        # Exclude SPPHs where the corresponding
+        # binary packages are still published.
 
         spph_deleted = self.getPubSource(
             pocket=PackagePublishingPocket.RELEASE,
@@ -5000,7 +5002,8 @@ class TestPublisherDirtyPockets(TestPublisherBase):
 
         self.publisher.A2_markPocketsWithDeletionsDirty()
 
-        # breezy-autotest should NOT be dirty because a binary from the source is still published.
+        # breezy-autotest should NOT be dirty
+        # because a binary from the source is still published.
         self.assertNotIn("breezy-autotest", self.publisher.dirty_suites)
 
     def test_exclude_bpph_if_bpr_published_elsewhere(self):
@@ -5024,7 +5027,8 @@ class TestPublisherDirtyPockets(TestPublisherBase):
 
         self.publisher.A2_markPocketsWithDeletionsDirty()
 
-        # breezy-autotest should NOT be dirty because the BPR is still published in UPDATES.
+        # breezy-autotest should NOT be dirty
+        # because the BPR is still published in UPDATES.
         self.assertNotIn("breezy-autotest", self.publisher.dirty_suites)
 
     def test_dirty_if_no_dependencies(self):
@@ -5046,8 +5050,9 @@ class TestPublisherDirtyPockets(TestPublisherBase):
         self.assertIn("breezy-autotest-updates", self.publisher.dirty_suites)
 
     def test_dirty_if_both_spphs_deleted(self):
-        # If two SPPHs in two different series point to the same
-        # SourcePackageRelease, but BOTH are deleted, BOTH suites are marked as dirty.
+        # If two SPPHs in two different series
+        # point to the same SourcePackageRelease,
+        # but BOTH are deleted, BOTH suites are marked as dirty.
 
         spph1 = self.getPubSource(
             pocket=PackagePublishingPocket.RELEASE,
