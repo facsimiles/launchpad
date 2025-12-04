@@ -685,19 +685,15 @@ class Publisher:
         # are also used by other SPPHs
         OtherSPPH = ClassAlias(SourcePackagePublishingHistory)
         published_sprs = Select(
-            OtherSPPH.sourcepackagerelease_id,
+            1,
             And(
                 OtherSPPH.archive == self.archive,
+                OtherSPPH.sourcepackagerelease_id
+                == SourcePackagePublishingHistory.sourcepackagerelease_id,
                 OtherSPPH.status.is_in(active_publishing_status),
             ),
         )
-        conditions.append(
-            Not(
-                SourcePackagePublishingHistory.sourcepackagerelease_id.is_in(
-                    published_sprs
-                )
-            )
-        )
+        conditions.append(Not(Exists(published_sprs)))
         # Also exclude SPPHs where the corresponding
         # binary packages are still published
         published_bprs_via_build = Select(
@@ -750,19 +746,15 @@ class Publisher:
         # to a new series opening
         OtherBPPH = ClassAlias(BinaryPackagePublishingHistory)
         published_bprs = Select(
-            OtherBPPH.binarypackagerelease_id,
+            1,
             And(
                 OtherBPPH.archive == self.archive,
+                OtherBPPH.binarypackagerelease_id
+                == BinaryPackagePublishingHistory.binarypackagerelease_id,
                 OtherBPPH.status.is_in(active_publishing_status),
             ),
         )
-        conditions.append(
-            Not(
-                BinaryPackagePublishingHistory.binarypackagerelease_id.is_in(
-                    published_bprs
-                )
-            )
-        )
+        conditions.append(Not(Exists(published_bprs)))
         binary_suites = (
             IStore(BinaryPackagePublishingHistory)
             .find(
