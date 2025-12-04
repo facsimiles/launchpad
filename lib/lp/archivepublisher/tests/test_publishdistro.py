@@ -23,6 +23,12 @@ from lp.archivepublisher.config import getPubConfig
 from lp.archivepublisher.interfaces.archivegpgsigningkey import (
     IArchiveGPGSigningKey,
 )
+from lp.archivepublisher.interfaces.archivepublisherrun import (
+    ArchivePublisherRunStatus,
+)
+from lp.archivepublisher.interfaces.archivepublishinghistory import (
+    IArchivePublishingHistorySet,
+)
 from lp.archivepublisher.interfaces.publisherconfig import IPublisherConfigSet
 from lp.archivepublisher.publishing import GLOBAL_PUBLISHER_LOCK, Publisher
 from lp.archivepublisher.scripts.publishdistro import PublishDistro
@@ -2189,4 +2195,98 @@ class TestPublishDistroMethods(TestCaseWithFactory):
         script = self.makeScript()
         self.assertEqual(
             script.lockfilepath, os.path.join(LOCK_PATH, GLOBAL_PUBLISHER_LOCK)
+        )
+
+    def test_main_creates_publishing_history_records(self):
+        """Test that PublishingHistory and PublisherRun records are created."""
+        archive1 = self.factory.makeArchive()
+        archive2 = self.factory.makeArchive()
+        script = self.makeScript()
+        script.txn = FakeTransaction()
+        script.findDistros = FakeMethod([archive1.distribution])
+        script.getTargetArchives = FakeMethod([archive1, archive2])
+        publisher = FakePublisher()
+        script.getPublisher = FakeMethod(publisher)
+
+        script.main()
+
+        # Check PublishingHistory records were created for both archives
+        publishing_history_set = getUtility(IArchivePublishingHistorySet)
+        histories1 = list(publishing_history_set.getByArchive(archive1))
+        histories2 = list(publishing_history_set.getByArchive(archive2))
+
+        self.assertEqual(1, len(histories1))
+        self.assertEqual(1, len(histories2))
+
+        # Check they reference the same publisher run
+        self.assertIsNotNone(histories1[0].publisher_run)
+        self.assertIsNotNone(histories2[0].publisher_run)
+        self.assertEqual(
+            histories1[0].publisher_run.id, histories2[0].publisher_run.id
+        )
+
+        # Check that the status is SUCCEEDED
+        self.assertEqual(
+            ArchivePublisherRunStatus.SUCCEEDED,
+            histories1[0].publisher_run.status,
+        )
+
+        # Check that dates are set
+        self.assertIsNotNone(histories1[0].publisher_run.date_started)
+        self.assertIsNotNone(histories1[0].publisher_run.date_finished)
+        self.assertGreater(
+            histories1[0].publisher_run.date_finished,
+            histories1[0].publisher_run.date_started,
+        )
+
+    def test_main_publisher_run_failed(self):
+        """Test that main sets the PublisherRun status and timestamps to
+        FAILED on exception."""
+
+        # Mock processArchive to raise an exception
+        def mock_processArchive(self, archive_id, reset_store=True):
+            raise RuntimeError("Test exception")
+
+        self.useFixture(
+            MockPatch(
+                "lp.archivepublisher.scripts.publishdistro."
+                "PublishDistro.processArchive",
+                mock_processArchive,
+            )
+        )
+        archive1 = self.factory.makeArchive()
+        archive2 = self.factory.makeArchive()
+        script = self.makeScript()
+        script.txn = FakeTransaction()
+        script.findDistros = FakeMethod([archive1.distribution])
+        script.getTargetArchives = FakeMethod([archive1, archive2])
+        publisher = FakePublisher()
+        script.getPublisher = FakeMethod(publisher)
+
+        try:
+            script.main()
+        except RuntimeError:
+            pass  # Expected exception
+
+        # Check PublishingHistory records were created for both archives
+        publishing_history_set = getUtility(IArchivePublishingHistorySet)
+        histories1 = list(publishing_history_set.getByArchive(archive1))
+        histories2 = list(publishing_history_set.getByArchive(archive2))
+
+        # Check that no history record was created for archive2
+        # as processing failed in the first archive
+        self.assertEqual(1, len(histories1))
+        self.assertEqual(0, len(histories2))
+
+        latest_run = histories1[0].publisher_run
+
+        # Check that the status is FAILED
+        self.assertEqual(ArchivePublisherRunStatus.FAILED, latest_run.status)
+
+        # Check that dates are set
+        self.assertIsNotNone(histories1[0].publisher_run.date_started)
+        self.assertIsNotNone(histories1[0].publisher_run.date_finished)
+        self.assertGreater(
+            histories1[0].publisher_run.date_finished,
+            histories1[0].publisher_run.date_started,
         )

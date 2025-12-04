@@ -53,7 +53,17 @@ from lp.app.enums import (
     ServiceUsage,
 )
 from lp.app.interfaces.launchpad import ILaunchpadCelebrities
+from lp.archivepublisher.interfaces.archivepublisherrun import (
+    IArchivePublisherRunSet,
+)
+from lp.archivepublisher.interfaces.archivepublishinghistory import (
+    IArchivePublishingHistorySet,
+)
 from lp.archivepublisher.interfaces.publisherconfig import IPublisherConfigSet
+from lp.archivepublisher.model.archivepublisherrun import ArchivePublisherRun
+from lp.archivepublisher.model.archivepublishinghistory import (
+    ArchivePublishingHistory,
+)
 from lp.archiveuploader.dscfile import DSCFile
 from lp.blueprints.enums import (
     NewSpecificationDefinitionStatus,
@@ -6022,6 +6032,25 @@ class LaunchpadObjectFactory(ObjectFactory):
         return getUtility(IPublisherConfigSet).new(
             distribution, root_dir, base_url, copy_base_url
         )
+
+    def makeArchivePublisherRun(self):
+        """Create a new `ArchivePublisherRun` record."""
+        publisher_run = getUtility(IArchivePublisherRunSet).new()
+        IStore(ArchivePublisherRun).flush()
+        return publisher_run
+
+    def makeArchivePublishingHistory(self, archive=None, publisher_run=None):
+        """Create a new `ArchivePublishingHistory` record."""
+        if archive is None:
+            archive = self.makeArchive()
+        if publisher_run is None:
+            publisher_run = self.makeArchivePublisherRun()
+
+        publishing_history = getUtility(IArchivePublishingHistorySet).new(
+            archive, publisher_run
+        )
+        IStore(ArchivePublishingHistory).flush()
+        return publishing_history
 
     def makePlainPackageCopyJob(
         self,

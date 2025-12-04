@@ -39,6 +39,41 @@
             set_schema="lp.archivepublisher.interfaces.publisherconfig.IPublisherConfig"/>
     </class>
 
+    <!-- ArchivePublisherRun -->
+    <lp:securedutility
+        class="lp.archivepublisher.model.archivepublisherrun.ArchivePublisherRunSet"
+        provides="lp.archivepublisher.interfaces.archivepublisherrun.IArchivePublisherRunSet">
+        <allow
+            interface="lp.archivepublisher.interfaces.archivepublisherrun.IArchivePublisherRunSet"
+            attributes="title"/>
+    </lp:securedutility>
+
+    <class
+        class="lp.archivepublisher.model.archivepublisherrun.ArchivePublisherRun">
+        <require
+            permission="launchpad.View"
+            interface="lp.archivepublisher.interfaces.archivepublisherrun.IArchivePublisherRun"/>
+        <require
+            permission="launchpad.Edit"
+            set_attributes="date_finished status"/>
+    </class>
+
+    <!-- ArchivePublishingHistory -->
+    <lp:securedutility
+        class="lp.archivepublisher.model.archivepublishinghistory.ArchivePublishingHistorySet"
+        provides="lp.archivepublisher.interfaces.archivepublishinghistory.IArchivePublishingHistorySet">
+        <allow
+            interface="lp.archivepublisher.interfaces.archivepublishinghistory.IArchivePublishingHistorySet"
+            attributes="title"/>
+    </lp:securedutility>
+
+    <class
+        class="lp.archivepublisher.model.archivepublishinghistory.ArchivePublishingHistory">
+        <require
+            permission="launchpad.View"
+            interface="lp.archivepublisher.interfaces.archivepublishinghistory.IArchivePublishingHistory"/>
+    </class>
+
     <!-- Custom upload handlers
 
          This is a marker as per the comment in lib/lp/soyuz/enums.py:
