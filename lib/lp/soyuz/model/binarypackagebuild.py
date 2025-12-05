@@ -1539,6 +1539,23 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
     ):
         """See `ISourcePackagePublishingHistory`."""
 
+        if logger is not None:
+            uploader = sourcepackagerelease.uploader
+            if uploader is not None:
+                uploader_name = uploader.name
+            else:
+                uploader_name = "<None>"
+            logger.debug(
+                "createForSource "
+                f"{sourcepackagerelease.source_package_name.name} "
+                f"version {sourcepackagerelease.source_package_version} "
+                f"uploaded by {uploader_name}"
+            )
+            logger.debug(
+                "architecturehintlist "
+                f"{sourcepackagerelease.architecturehintlist}"
+            )
+
         # Exclude any architectures which already have built or copied
         # binaries. A new build with the same archtag could never
         # succeed; its files would conflict during upload.
@@ -1562,6 +1579,8 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
         skip_archtags = {
             bpb.distro_arch_series.architecturetag for bpb in relevant_builds
         }
+        if logger is not None:
+            logger.debug(f"skip_archtags {skip_archtags}")
         # We need to assign the arch-indep role to a build unless an
         # arch-indep build has already succeeded, or another build in
         # this series already has it set.
@@ -1590,6 +1609,8 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
             ),
             key=attrgetter("processor.id"),
         )
+        if logger is not None:
+            logger.debug(f"need_archs {need_archs}")
         nominated_arch_indep_tag = (
             distroseries.nominatedarchindep.architecturetag
             if distroseries.nominatedarchindep
@@ -1613,6 +1634,8 @@ class BinaryPackageBuildSet(SpecificBuildFarmJobSourceMixin):
             nominated_arch_indep_tag,
             need_arch_indep,
         )
+        if logger is not None:
+            logger.debug(f"create_tag_map {create_tag_map}")
 
         # Create builds for the remaining architectures.
         new_builds = []
