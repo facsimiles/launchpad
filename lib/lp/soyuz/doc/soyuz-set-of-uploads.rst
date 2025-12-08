@@ -710,6 +710,7 @@ files that are published in the sample data.
     >>> run_publish_distro(careful=True)
     INFO    Creating lockfile: ...
     DEBUG   Enabled by DEFAULT section
+    DEBUG   Created PublisherRun
     DEBUG   Distribution: ubuntutest
     ...
     DEBUG   Added
@@ -747,6 +748,7 @@ uploaded in the test above don't break the assumptions of this test.
     >>> run_publish_distro(careful_publishing=True)
     INFO    Creating lockfile: ...
     DEBUG   Enabled by DEFAULT section
+    DEBUG   Created PublisherRun
     DEBUG   Distribution: ubuntutest
     ...
     DEBUG   /var/tmp/archive/ubuntutest/pool/universe/b/bar/bar_1.0-2_i386.deb
