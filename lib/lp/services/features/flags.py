@@ -357,6 +357,15 @@ flag_info = sorted(
             "",
             "",
         ),
+        (
+            "scripts.productreleasefinder.careful_dir_check",
+            "boolean",
+            "If true, enables the HEAD request heuristic for "
+            "the productreleasefinder walker",
+            "disabled",
+            "",
+            "",
+        ),
     ]
 )
 

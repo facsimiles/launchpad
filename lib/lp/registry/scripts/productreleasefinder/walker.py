@@ -22,6 +22,7 @@ from lp.registry.scripts.productreleasefinder import log
 from lp.registry.scripts.productreleasefinder.path import as_dir, subdir
 from lp.services.beautifulsoup import BeautifulSoup
 from lp.services.config import config
+from lp.services.features import getFeatureFlag
 from lp.services.timeout import TimeoutError, urlfetch
 from lp.services.webapp.url import urlappend
 
@@ -286,6 +287,10 @@ class HTTPWalker(WalkerBase):
         Assumes any path ending in a slash is a directory, and any that
         redirects to a location ending in a slash is also a directory.
         """
+        if not getFeatureFlag(
+            "scripts.productreleasefinder.careful_dir_check"
+        ):
+            return path.endswith("/")
         if path.endswith("/"):
             return True
 
