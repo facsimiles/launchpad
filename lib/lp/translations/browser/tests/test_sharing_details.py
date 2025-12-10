@@ -503,88 +503,6 @@ class TestSourcePackageTranslationSharingDetailsView(
             "seen": "" if visible else " hidden",
         }
 
-    def test_upstream_sync_link__no_packaging_link(self):
-        # If no packaging link exists, translation_sync_link_unconfigured
-        # and translation_sync_link_configured return hidden dummy links.
-        expected = self._getExpectedTranslationSyncLink(
-            id="incomplete", series=None, visible=False
-        )
-        self.assertEqual(
-            expected, self.view.translation_sync_link_unconfigured.escapedtext
-        )
-        expected = self._getExpectedTranslationSyncLink(
-            id="complete", series=None, visible=False
-        )
-        self.assertEqual(
-            expected, self.view.translation_sync_link_configured.escapedtext
-        )
-
-    def test_upstream_sync_link__packaging_link__anon_user(self):
-        # If a packaging link exists, translation_sync_link_unconfigured
-        # and translation_sync_link_configured return hidden links
-        # for anonymous users.
-        self.configureSharing()
-        expected = self._getExpectedTranslationSyncLink(
-            id="incomplete", series=self.productseries, visible=False
-        )
-        self.assertEqual(
-            expected, self.view.translation_sync_link_unconfigured.escapedtext
-        )
-        expected = self._getExpectedTranslationSyncLink(
-            id="complete", series=self.productseries, visible=False
-        )
-        self.assertEqual(
-            expected, self.view.translation_sync_link_configured.escapedtext
-        )
-
-    def test_upstream_sync_link__packaging_link__unprivileged_user(self):
-        # If a packaging link exists, translation_sync_link_unconfigured
-        # and translation_sync_link_configured return hidden links
-        # for users which don't have the permission to change the
-        # translation sync setting.
-        self.configureSharing()
-        with person_logged_in(self.factory.makePerson()):
-            view = SourcePackageTranslationSharingDetailsView(
-                self.sourcepackage, LaunchpadTestRequest()
-            )
-            view.initialize()
-            expected = self._getExpectedTranslationSyncLink(
-                id="incomplete", series=self.productseries, visible=False
-            )
-            self.assertEqual(
-                expected, view.translation_sync_link_unconfigured.escapedtext
-            )
-            expected = self._getExpectedTranslationSyncLink(
-                id="complete", series=self.productseries, visible=False
-            )
-            self.assertEqual(
-                expected, view.translation_sync_link_configured.escapedtext
-            )
-
-    def test_upstream_sync_link__packaging_link__privileged_user(self):
-        # If a packaging link exists, translation_sync_link_unconfigured
-        # and translation_sync_link_configured return visible links
-        # for users which have the permission to change the
-        # translation sync setting.
-        self.configureSharing()
-        with person_logged_in(self.productseries.owner):
-            view = SourcePackageTranslationSharingDetailsView(
-                self.sourcepackage, LaunchpadTestRequest()
-            )
-            view.initialize()
-            expected = self._getExpectedTranslationSyncLink(
-                id="incomplete", series=self.productseries, visible=True
-            )
-            self.assertEqual(
-                expected, view.translation_sync_link_unconfigured.escapedtext
-            )
-            expected = self._getExpectedTranslationSyncLink(
-                id="complete", series=self.productseries, visible=True
-            )
-            self.assertEqual(
-                expected, view.translation_sync_link_configured.escapedtext
-            )
-
 
 class TestSourcePackageTranslationSharingDetailsViewPackagingLinks(
     WithScenarios, TestCaseWithFactory
@@ -838,11 +756,7 @@ class TestSourcePackageSharingDetailsPage(
             Translations are not enabled on the upstream project.
             Configure Upstream Translations
             Translations are enabled on the upstream project.
-            Configure Upstream Translations
-            Automatic synchronization of translations is not enabled.
-            Configure Translation Synchronisation
-            Automatic synchronization of translations is enabled.
-            Configure Translation Synchronisation""",
+            Configure Upstream Translations""",
             extract_text(checklist),
         )
         self.assertElementText(
@@ -886,8 +800,6 @@ class TestSourcePackageSharingDetailsPage(
         self.asserthidden(browser, "branch-complete")
         self.assertSeen(browser, "translation-incomplete", dimmed=True)
         self.asserthidden(browser, "translation-complete")
-        self.assertSeen(browser, "upstream-sync-incomplete", dimmed=True)
-        self.asserthidden(browser, "upstream-sync-complete")
 
     def test_checklist_packaging_configured(self):
         # Linking a source package takes care of one item.
@@ -902,8 +814,6 @@ class TestSourcePackageSharingDetailsPage(
         self.asserthidden(browser, "branch-complete")
         self.assertSeen(browser, "translation-incomplete")
         self.asserthidden(browser, "translation-complete")
-        self.assertSeen(browser, "upstream-sync-incomplete")
-        self.asserthidden(browser, "upstream-sync-complete")
 
     def test_checklist_packaging_and_branch_configured(self):
         # Linking a source package and and setting an upstream branch
@@ -921,8 +831,6 @@ class TestSourcePackageSharingDetailsPage(
         self.assertSeen(browser, "branch-complete")
         self.assertSeen(browser, "translation-incomplete")
         self.asserthidden(browser, "translation-complete")
-        self.assertSeen(browser, "upstream-sync-incomplete")
-        self.asserthidden(browser, "upstream-sync-complete")
 
     def test_checklist_packaging_and_translations_enabled(self):
         # Linking a source package and and setting an upstream branch
@@ -941,8 +849,6 @@ class TestSourcePackageSharingDetailsPage(
         self.asserthidden(browser, "branch-complete")
         self.asserthidden(browser, "translation-incomplete")
         self.assertSeen(browser, "translation-complete")
-        self.assertSeen(browser, "upstream-sync-incomplete")
-        self.asserthidden(browser, "upstream-sync-complete")
 
     def test_checklist_packaging_and_upstream_sync_enabled(self):
         # Linking a source package and enabling upstream translation
@@ -964,8 +870,6 @@ class TestSourcePackageSharingDetailsPage(
         self.asserthidden(browser, "branch-complete")
         self.assertSeen(browser, "translation-incomplete")
         self.asserthidden(browser, "translation-complete")
-        self.asserthidden(browser, "upstream-sync-incomplete")
-        self.assertSeen(browser, "upstream-sync-complete")
 
     def test_checklist_fully_configured(self):
         # A fully configured sharing setup.
@@ -979,8 +883,6 @@ class TestSourcePackageSharingDetailsPage(
         self.assertSeen(browser, "branch-complete")
         self.asserthidden(browser, "translation-incomplete")
         self.assertSeen(browser, "translation-complete")
-        self.asserthidden(browser, "upstream-sync-incomplete")
-        self.assertSeen(browser, "upstream-sync-complete")
 
     def test_cache_javascript(self):
         # Cache object entries propagate into the javascript.
@@ -1174,32 +1076,6 @@ class TestSourcePackageSharingDetailsPage(
             "a",
             attrs={
                 "id": "upstream-translations-complete",
-                "href": "#",
-                "class": "sprite edit action-icon hidden",
-            },
-        )
-        self.assertThat(browser.contents, HTMLContains(matcher))
-
-    def test_upstream_sync_link(self):
-        # The link to the translation synchronisation page of the
-        # upstream product series is included twice in the page.
-        sourcepackage = self._makeSourcePackage()
-        browser = self._getSharingDetailsViewBrowser(sourcepackage)
-        matcher = Tag(
-            "translation-synchronisation-incomplete",
-            "a",
-            attrs={
-                "id": "translation-synchronisation-incomplete",
-                "href": "#",
-                "class": "sprite edit action-icon hidden",
-            },
-        )
-        self.assertThat(browser.contents, HTMLContains(matcher))
-        matcher = Tag(
-            "translation-synchronisation-complete",
-            "a",
-            attrs={
-                "id": "translation-synchronisation-complete",
                 "href": "#",
                 "class": "sprite edit action-icon hidden",
             },

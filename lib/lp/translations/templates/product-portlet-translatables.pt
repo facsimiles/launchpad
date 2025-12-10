@@ -31,10 +31,7 @@
             series title</a> —
           <a tal:attributes="
               href series/fmt:url:translations/+translations-upload">
-            manual</a> or
-          <a tal:attributes="
-              href series/fmt:url:translations/+translations-settings">
-            automatic import</a>.
+            manual import</a>
         </li>
       </ul>
   </div>

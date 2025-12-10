@@ -113,7 +113,6 @@ class ProductSeriesTranslationsMenu(
     links = (
         "overview",
         "templates",
-        "settings",
         "requestbzrimport",
         "translationupload",
         "translationdownload",
@@ -179,15 +178,6 @@ class ProductSeriesTranslationsMixin(TranslationsMixin):
         """URL to link the series to a branch."""
         return canonical_url(
             self.context, rootsite="mainsite", view_name="+setbranch"
-        )
-
-    @property
-    def translations_settings_url(self):
-        """URL to change the translations for the series."""
-        return canonical_url(
-            self.context,
-            rootsite="translations",
-            view_name="+translations-settings",
         )
 
 

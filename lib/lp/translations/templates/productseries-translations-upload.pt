@@ -26,14 +26,6 @@
     individually or as part of a tarball (<code>.tar</code>, <code>.tar.gz</code>, <code>.tgz</code> or
     <code>.tar.bz2</code>).
   </p>
-
-  <p>
-    <strong>Note:</strong> it's quicker and easier to <a tal:attributes="
-    href context/fmt:url:translations/+translations-settings">import from a
-    Bazaar branch</a> instead (<a href="/+help-translations/importing-from-bzr.html"
-    target="help">More about importing from Bazaar</a>)
-  </p>
-
   <p>
     When uploading a tarball or importing from a Bazaar branch, you must
     follow our <a href="https://help.launchpad.net/Translations/YourProject/ImportPolicy"
