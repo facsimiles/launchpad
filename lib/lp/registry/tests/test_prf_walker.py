@@ -495,3 +495,18 @@ class HTTPWalker_IsDirectory(TestCase):
         self.assertEqual(
             "http://example.com/foo", responses.calls[0].request.url
         )
+
+    def testFtpIsDirectory(self):
+        # Test that no requests are made by isDirectory() when walking
+        # FTP sites.
+        test = self
+
+        class TestHTTPWalker(HTTPWalker):
+            def request(self, method, path):
+                test.fail("%s was requested with method %s" % (path, method))
+
+        logging.basicConfig(level=logging.CRITICAL)
+        walker = TestHTTPWalker("ftp://ftp.gnome.org/", logging.getLogger())
+
+        self.assertEqual(walker.isDirectory("/foo/"), True)
+        self.assertEqual(walker.isDirectory("/foo"), False)
