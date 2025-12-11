@@ -11,12 +11,17 @@ __all__ = [
 from datetime import datetime, timezone
 
 from storm.locals import DateTime, Int
+from storm.store import Store
+from zope.component import getUtility
 from zope.interface import implementer
 
 from lp.archivepublisher.interfaces.archivepublisherrun import (
     ArchivePublisherRunStatus,
     IArchivePublisherRun,
     IArchivePublisherRunSet,
+)
+from lp.archivepublisher.interfaces.archivepublishinghistory import (
+    IArchivePublishingHistorySet,
 )
 from lp.services.database.enumcol import DBEnum
 from lp.services.database.interfaces import IPrimaryStore, IStore
@@ -61,6 +66,15 @@ class ArchivePublisherRun(StormBase):
         """See `IArchivePublisherRun`."""
         self.date_finished = datetime.now(timezone.utc)
         self.status = ArchivePublisherRunStatus.FAILED
+
+    def publishing_history(self):
+        """See `IArchivePublisherRun`."""
+        publishing_history_set = getUtility(IArchivePublishingHistorySet)
+        return list(publishing_history_set.getByArchivePublisherRun(self))
+
+    def destroySelf(self):
+        """See `IArchivePublisherRun`."""
+        Store.of(self).remove(self)
 
 
 @implementer(IArchivePublisherRunSet)
