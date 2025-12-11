@@ -303,6 +303,49 @@ class TestGitHub(TestCase):
         self.assertEqual(0, len(responses.calls))
 
     @responses.activate
+    def test_initializeRemoteBugDB_below_threshold(self):
+        _add_rate_limit_response("api.github.com")
+        responses.add(
+            "GET",
+            "https://api.github.com/repos/user/repository/issues/1",
+            json=self.sample_bugs[0],
+        )
+        responses.add(
+            "GET",
+            "https://api.github.com/repos/user/repository/issues/2",
+            json=self.sample_bugs[1],
+        )
+        tracker = GitHub("https://github.com/user/repository/issues")
+        tracker.batch_query_threshold = 2
+        tracker.initializeRemoteBugDB(["1", "2"])
+
+        self.assertEqual(
+            "https://api.github.com/repos/user/repository/issues/1",
+            responses.calls[-2].request.url,
+        )
+        self.assertEqual(
+            "https://api.github.com/repos/user/repository/issues/2",
+            responses.calls[-1].request.url,
+        )
+        self.assertEqual(2, len(tracker.bugs))
+
+    @responses.activate
+    def test_initializeRemoteBugDB_above_threshold(self):
+        # If the number of bugs is above the threshold, they are fetched
+        # in a batch. We have to modify batch_query_threshold for this test.
+        _add_rate_limit_response("api.github.com")
+        self._addIssuesResponse()
+        tracker = GitHub("https://github.com/user/repository/issues")
+        tracker.batch_query_threshold = 1
+        tracker.initializeRemoteBugDB(["1", "2"])
+
+        self.assertEqual(
+            "https://api.github.com/repos/user/repository/issues?state=all",
+            responses.calls[-1].request.url,
+        )
+        self.assertEqual(2, len(tracker.bugs))
+
+    @responses.activate
     def test_getRemoteBugBatch_pagination(self):
         def issues_callback(request):
             url = urlsplit(request.url)
