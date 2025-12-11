@@ -98,7 +98,7 @@ class GitHub(ExternalBugTracker):
     """An `ExternalBugTracker` for dealing with GitHub issues."""
 
     # Avoid eating through our rate limit unnecessarily.
-    batch_query_threshold = 1
+    batch_query_threshold = 500
 
     def __init__(self, baseurl):
         _, host, path, query, fragment = urlsplit(baseurl)
