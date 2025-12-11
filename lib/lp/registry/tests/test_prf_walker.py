@@ -15,11 +15,13 @@ from lp.registry.scripts.productreleasefinder.walker import (
     WalkerError,
     combine_url,
 )
+from lp.services.features.testing import FeatureFixture
 from lp.services.timeout import (
     get_default_timeout_function,
     set_default_timeout_function,
 )
 from lp.testing import TestCase, reset_logging
+from lp.testing.layers import DatabaseFunctionalLayer
 
 
 class WalkerBase_Logging(TestCase):
@@ -438,10 +440,61 @@ Generated Wed, 06 Sep 2006 11:04:02 GMT by squid (squid/2.5.STABLE12)
         self.assertEqual(filenames, [])
 
 
+class Walker_CombineUrl(TestCase):
+    def testConstructsUrl(self):
+        """combine_url constructs the URL correctly."""
+        self.assertEqual(
+            combine_url("file:///base", "/subdir/", "file"),
+            "file:///subdir/file",
+        )
+        self.assertEqual(
+            combine_url("file:///base", "/subdir", "file"),
+            "file:///subdir/file",
+        )
+
+
 class HTTPWalker_IsDirectory(TestCase):
-    def tearDown(self):
-        reset_logging()
-        super().tearDown()
+    """Tests for HTTPWalker.isDirectory with feature flags."""
+
+    layer = DatabaseFunctionalLayer
+
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(reset_logging)
+
+    @responses.activate
+    def test_isDirectory_without_flag(self):
+        # Without the feature flag, isDirectory relies on the path suffix.
+        # It does not issue any HTTP requests.
+        walker = HTTPWalker("http://example.com/", logging.getLogger())
+        self.assertFalse(walker.isDirectory("/foo"))
+        self.assertEqual(0, len(responses.calls))
+
+    @responses.activate
+    def test_isDirectory_with_flag(self):
+        # With the feature flag, isDirectory should issue
+        # HEAD requests to check for redirects if the path
+        # does not end in a slash.
+        self.useFixture(
+            FeatureFixture(
+                {"scripts.productreleasefinder.careful_dir_check": "on"}
+            )
+        )
+        walker = HTTPWalker("http://example.com/", logging.getLogger())
+
+        responses.add(
+            "HEAD",
+            "http://example.com/foo",
+            status=301,
+            headers={"Location": "http://example.com/foo/"},
+        )
+
+        self.assertTrue(walker.isDirectory("/foo"))
+        self.assertEqual(1, len(responses.calls))
+        self.assertEqual("HEAD", responses.calls[0].request.method)
+        self.assertEqual(
+            "http://example.com/foo", responses.calls[0].request.url
+        )
 
     def testFtpIsDirectory(self):
         # Test that no requests are made by isDirectory() when walking
@@ -457,16 +510,3 @@ class HTTPWalker_IsDirectory(TestCase):
 
         self.assertEqual(walker.isDirectory("/foo/"), True)
         self.assertEqual(walker.isDirectory("/foo"), False)
-
-
-class Walker_CombineUrl(TestCase):
-    def testConstructsUrl(self):
-        """combine_url constructs the URL correctly."""
-        self.assertEqual(
-            combine_url("file:///base", "/subdir/", "file"),
-            "file:///subdir/file",
-        )
-        self.assertEqual(
-            combine_url("file:///base", "/subdir", "file"),
-            "file:///subdir/file",
-        )
