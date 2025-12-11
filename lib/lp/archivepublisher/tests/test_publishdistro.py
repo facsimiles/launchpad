@@ -25,11 +25,13 @@ from lp.archivepublisher.interfaces.archivegpgsigningkey import (
 )
 from lp.archivepublisher.interfaces.archivepublisherrun import (
     ArchivePublisherRunStatus,
+    IArchivePublisherRunSet,
 )
 from lp.archivepublisher.interfaces.archivepublishinghistory import (
     IArchivePublishingHistorySet,
 )
 from lp.archivepublisher.interfaces.publisherconfig import IPublisherConfigSet
+from lp.archivepublisher.model.archivepublisherrun import ArchivePublisherRun
 from lp.archivepublisher.publishing import GLOBAL_PUBLISHER_LOCK, Publisher
 from lp.archivepublisher.scripts.publishdistro import PublishDistro
 from lp.archivepublisher.tests.artifactory_fixture import (
@@ -1829,7 +1831,12 @@ class TestPublishDistroMethods(TestCaseWithFactory):
         script.publishArchive = FakeMethod()
         store = Store.of(archive)
         self.assertNotEqual({}, store._alive)
-        script.processArchive(archive_id)
+
+        publisher_run_set = getUtility(IArchivePublisherRunSet)
+        publisher_run = publisher_run_set.new()
+        IStore(ArchivePublisherRun).flush()
+
+        script.processArchive(archive_id, publisher_run.id)
         self.assertEqual({}, store._alive)
         [((published_archive, _), _)] = script.publishArchive.calls
         self.assertEqual(archive, published_archive)
@@ -2244,7 +2251,9 @@ class TestPublishDistroMethods(TestCaseWithFactory):
         FAILED on exception."""
 
         # Mock processArchive to raise an exception
-        def mock_processArchive(self, archive_id, reset_store=True):
+        def mock_processArchive(
+            self, archive_id, publisher_run_id, reset_store=True
+        ):
             raise RuntimeError("Test exception")
 
         self.useFixture(
@@ -2273,20 +2282,123 @@ class TestPublishDistroMethods(TestCaseWithFactory):
         histories1 = list(publishing_history_set.getByArchive(archive1))
         histories2 = list(publishing_history_set.getByArchive(archive2))
 
-        # Check that no history record was created for archive2
-        # as processing failed in the first archive
-        self.assertEqual(1, len(histories1))
+        # Check that no history record was created for any archive
+        self.assertEqual(0, len(histories1))
         self.assertEqual(0, len(histories2))
 
-        latest_run = histories1[0].publisher_run
+        store = IStore(ArchivePublisherRun)
+        publisher_run = store.find(ArchivePublisherRun).one()
 
         # Check that the status is FAILED
-        self.assertEqual(ArchivePublisherRunStatus.FAILED, latest_run.status)
+        self.assertEqual(
+            ArchivePublisherRunStatus.FAILED, publisher_run.status
+        )
 
         # Check that dates are set
-        self.assertIsNotNone(histories1[0].publisher_run.date_started)
-        self.assertIsNotNone(histories1[0].publisher_run.date_finished)
+        self.assertIsNotNone(publisher_run.date_started)
+        self.assertIsNotNone(publisher_run.date_finished)
         self.assertGreater(
-            histories1[0].publisher_run.date_finished,
-            histories1[0].publisher_run.date_started,
+            publisher_run.date_finished,
+            publisher_run.date_started,
+        )
+
+    def test_main_no_archives(self):
+        """Test that history is None if there are no archives to publish."""
+        archive = self.factory.makeArchive()
+
+        script = self.makeScript()
+        script.txn = FakeTransaction()
+        script.findDistros = FakeMethod([archive.distribution])
+        script.getTargetArchives = FakeMethod([])
+        publisher = FakePublisher()
+        script.getPublisher = FakeMethod(publisher)
+
+        script.main()
+
+        # Check that no PublishingHistory records were created
+        publishing_history_set = getUtility(IArchivePublishingHistorySet)
+        histories = list(publishing_history_set.getByArchive(archive))
+        self.assertEqual(0, len(histories))
+
+        store = IStore(ArchivePublisherRun)
+        publisher_run = store.find(ArchivePublisherRun).one()
+
+        # Check ArchivePublisherRun is None
+        self.assertIsNone(publisher_run)
+
+    def test_main_no_work_done_no_history(self):
+        """Test that history is not created if work_done=False."""
+        # processArchive() checks if the archive was published or deleted,
+        # and if neither happened, it does not commmit the transaction. We use
+        # this to avoid creating history records when no work is done.
+
+        archive = self.factory.makeArchive()
+        # Disable publication for this archive: work_done=False
+        removeSecurityProxy(archive).publish = False
+
+        script = self.makeScript()
+        script.txn = FakeTransaction()
+        script.findDistros = FakeMethod([archive.distribution])
+        script.getTargetArchives = FakeMethod([archive])
+        publisher = FakePublisher()
+        script.getPublisher = FakeMethod(publisher)
+
+        script.main()
+
+        # Check that no PublishingHistory records were created
+        publishing_history_set = getUtility(IArchivePublishingHistorySet)
+        histories = list(publishing_history_set.getByArchive(archive))
+        self.assertEqual(0, len(histories))
+
+        store = IStore(ArchivePublisherRun)
+        publisher_run = store.find(ArchivePublisherRun).one()
+
+        # Check that PublisherRun is None
+        self.assertIsNone(publisher_run)
+
+    def test_main_partial_failure_history(self):
+        """Test that if one archive fails, previous ones are committed but run
+        is FAILED."""
+        archive1 = self.factory.makeArchive()
+        archive2 = self.factory.makeArchive()
+        script = self.makeScript()
+        script.txn = FakeTransaction()
+        script.findDistros = FakeMethod([archive1.distribution])
+        # Ensure archive1 is processed before archive2
+        script.getTargetArchives = FakeMethod([archive1, archive2])
+        publisher = FakePublisher()
+        script.getPublisher = FakeMethod(publisher)
+
+        # Mock processArchive to succeed for archive1 and fail for archive2.
+        def mock_processArchive(
+            archive_id, publisher_run_id, reset_store=True
+        ):
+            if archive_id == archive1.id:
+                # Simulate success: create history and commit
+                script._create_publishing_history(archive_id, publisher_run_id)
+                script.txn.commit()
+            else:
+                raise RuntimeError("Simulated failure")
+
+        script.processArchive = mock_processArchive
+
+        try:
+            script.main()
+        except RuntimeError:
+            pass
+
+        # Check archive1 history exists
+        publishing_history_set = getUtility(IArchivePublishingHistorySet)
+        histories1 = list(publishing_history_set.getByArchive(archive1))
+        self.assertEqual(1, len(histories1))
+
+        # Check archive2 history does not exist
+        histories2 = list(publishing_history_set.getByArchive(archive2))
+        self.assertEqual(0, len(histories2))
+
+        # Check run status is FAILED
+        store = IStore(ArchivePublisherRun)
+        publisher_run = store.find(ArchivePublisherRun).one()
+        self.assertEqual(
+            ArchivePublisherRunStatus.FAILED, publisher_run.status
         )

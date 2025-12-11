@@ -581,7 +581,7 @@ class PublishDistro(PublisherScript):
         ):
             publisher.createSeriesAliases()
 
-    def processArchive(self, archive_id, reset_store=True):
+    def processArchive(self, archive_id, publisher_run_id, reset_store=True):
         set_request_started(
             request_statements=LimitedList(10000),
             txn=self.txn,
@@ -609,6 +609,7 @@ class PublishDistro(PublisherScript):
             clear_request_started()
 
         if work_done:
+            self._create_publishing_history(archive_id, publisher_run_id)
             self.txn.commit()
             if reset_store:
                 # Reset the store after processing each dirty archive, as
@@ -760,7 +761,8 @@ class PublishDistro(PublisherScript):
         publisher_run = publisher_run_set.new()
 
         IStore(ArchivePublisherRun).flush()
-        self.logger.debug("Created PublisherRun")
+        self.txn.commit()
+        self.logger.debug(f"Created PublisherRun id={publisher_run.id}")
         return publisher_run
 
     def _create_publishing_history(self, archive_id, publisher_run_id):
@@ -769,10 +771,36 @@ class PublishDistro(PublisherScript):
         publisher_run = getUtility(IArchivePublisherRunSet).getById(
             publisher_run_id
         )
-        getUtility(IArchivePublishingHistorySet).new(archive, publisher_run)
 
+        getUtility(IArchivePublishingHistorySet).new(archive, publisher_run)
         IStore(ArchivePublishingHistory).flush()
         self.logger.debug(f"Created PublishingHistory archive_id={archive_id}")
+
+    def _update_publisher_run_status(self, publisher_run_id, succeeded):
+        """Update the status of the given PublisherRun.id."""
+        publisher_run = getUtility(IArchivePublisherRunSet).getById(
+            publisher_run_id
+        )
+
+        if succeeded and publisher_run.publishing_history():
+            publisher_run.mark_succeeded()
+            self.logger.debug(
+                f"Marked PublisherRun id={publisher_run_id} as succeeded"
+            )
+        elif succeeded and not publisher_run.publishing_history():
+            publisher_run.destroySelf()
+            self.logger.debug(
+                f"Destroyed PublisherRun id={publisher_run_id} "
+                "as no archive was published"
+            )
+        else:
+            publisher_run.mark_failed()
+            self.logger.debug(
+                f"Marked PublisherRun id={publisher_run_id} as failed"
+            )
+
+        IStore(ArchivePublisherRun).flush()
+        self.txn.commit()
 
     def main(self, reset_store_between_archives=True):
         """See `LaunchpadScript`."""
@@ -805,24 +833,22 @@ class PublishDistro(PublisherScript):
                     archive_ids.append(archive.id)
 
             for archive_id in archive_ids:
-                self._create_publishing_history(archive_id, publisher_run_id)
                 self.processArchive(
-                    archive_id, reset_store=reset_store_between_archives
+                    archive_id,
+                    publisher_run_id,
+                    reset_store=reset_store_between_archives,
                 )
 
             succeeded = True
 
+        except Exception:
+            # Abort the transaction before finally block and raise the same
+            # exception.
+            self.txn.abort()
+            raise
+
         finally:
             # Re-fetch the PublisherRun as processArchive resets the store.
-            publisher_run = getUtility(IArchivePublisherRunSet).getById(
-                publisher_run_id
-            )
-
-            if succeeded:
-                publisher_run.mark_succeeded()
-            else:
-                publisher_run.mark_failed()
-
-            IStore(ArchivePublisherRun).flush()
+            self._update_publisher_run_status(publisher_run_id, succeeded)
 
         self.logger.debug("Ciao")

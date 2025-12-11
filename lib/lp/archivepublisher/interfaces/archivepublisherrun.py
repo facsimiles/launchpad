@@ -83,6 +83,15 @@ class IArchivePublisherRun(Interface):
     def mark_failed():
         """Mark the publisher run as failed."""
 
+    def publishing_history():
+        """Get the publishing history for this publisher run.
+
+        :return: A list of `IArchivePublishingHistory`.
+        """
+
+    def destroySelf():
+        """Destroy this publisher run."""
+
 
 class IArchivePublisherRunSet(Interface):
     """A set of archive publisher runs."""

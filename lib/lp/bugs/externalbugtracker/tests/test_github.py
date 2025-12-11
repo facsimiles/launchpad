@@ -250,18 +250,33 @@ class TestGitHub(TestCase):
             responses.calls[-1].request.url,
         )
 
-    def _addIssuesResponse(self):
+    # Mock the GH /issues endpoint. Please note that this
+    # also sets batch_query_threshold to 1.
+    def _addIssuesResponse(self, tracker):
+        tracker.batch_query_threshold = 1
         responses.add(
             "GET",
             "https://api.github.com/repos/user/repository/issues",
             json=self.sample_bugs,
         )
 
+    def _addSingleIssueResponses(self):
+        responses.add(
+            "GET",
+            "https://api.github.com/repos/user/repository/issues/1",
+            json=self.sample_bugs[0],
+        )
+        responses.add(
+            "GET",
+            "https://api.github.com/repos/user/repository/issues/2",
+            json=self.sample_bugs[1],
+        )
+
     @responses.activate
     def test_getRemoteBugBatch(self):
         _add_rate_limit_response("api.github.com")
-        self._addIssuesResponse()
         tracker = GitHub("https://github.com/user/repository/issues")
+        self._addIssuesResponse(tracker)
         self.assertEqual(
             {bug["number"]: bug for bug in self.sample_bugs[:2]},
             tracker.getRemoteBugBatch(["1", "2"]),
@@ -274,8 +289,8 @@ class TestGitHub(TestCase):
     @responses.activate
     def test_getRemoteBugBatch_last_accessed(self):
         _add_rate_limit_response("api.github.com")
-        self._addIssuesResponse()
         tracker = GitHub("https://github.com/user/repository/issues")
+        self._addIssuesResponse(tracker)
         since = datetime(2015, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         self.assertEqual(
             {bug["number"]: bug for bug in self.sample_bugs[:2]},
@@ -290,8 +305,8 @@ class TestGitHub(TestCase):
     @responses.activate
     def test_getRemoteBugBatch_caching(self):
         _add_rate_limit_response("api.github.com")
-        self._addIssuesResponse()
         tracker = GitHub("https://github.com/user/repository/issues")
+        self._addIssuesResponse(tracker)
         tracker.initializeRemoteBugDB(
             [str(bug["number"]) for bug in self.sample_bugs]
         )
@@ -301,6 +316,40 @@ class TestGitHub(TestCase):
             tracker.getRemoteBugBatch(["1", "2"]),
         )
         self.assertEqual(0, len(responses.calls))
+
+    @responses.activate
+    def test_initializeRemoteBugDB_below_threshold(self):
+        _add_rate_limit_response("api.github.com")
+        self._addSingleIssueResponses()
+        tracker = GitHub("https://github.com/user/repository/issues")
+        tracker.batch_query_threshold = 2
+        tracker.initializeRemoteBugDB(["1", "2"])
+
+        self.assertEqual(
+            "https://api.github.com/repos/user/repository/issues/1",
+            responses.calls[-2].request.url,
+        )
+        self.assertEqual(
+            "https://api.github.com/repos/user/repository/issues/2",
+            responses.calls[-1].request.url,
+        )
+        self.assertEqual(2, len(tracker.bugs))
+
+    @responses.activate
+    def test_initializeRemoteBugDB_above_threshold(self):
+        # If the number of bugs is above the threshold, they are fetched
+        # in a batch. We have to modify batch_query_threshold for this test.
+        _add_rate_limit_response("api.github.com")
+        tracker = GitHub("https://github.com/user/repository/issues")
+        self._addIssuesResponse(tracker)
+        tracker.batch_query_threshold = 1
+        tracker.initializeRemoteBugDB(["1", "2"])
+
+        self.assertEqual(
+            "https://api.github.com/repos/user/repository/issues?state=all",
+            responses.calls[-1].request.url,
+        )
+        self.assertEqual(2, len(tracker.bugs))
 
     @responses.activate
     def test_getRemoteBugBatch_pagination(self):
@@ -360,8 +409,8 @@ class TestGitHub(TestCase):
             },
         ]
         _add_rate_limit_response("api.github.com")
-        self._addIssuesResponse()
         tracker = GitHub("https://github.com/user/repository/issues")
+        self._addIssuesResponse(tracker)
         tracker.initializeRemoteBugDB(["1", "2"])
         remote_status = tracker.getRemoteStatus("1")
         self.assertEqual("open", remote_status)
@@ -385,7 +434,7 @@ class TestGitHub(TestCase):
             },
         ]
         _add_rate_limit_response("api.github.com")
-        self._addIssuesResponse()
+        self._addSingleIssueResponses()
         tracker = GitHub("https://github.com/user/repository/issues")
         tracker.initializeRemoteBugDB(["1", "2"])
         remote_status = tracker.getRemoteStatus("1")
@@ -483,6 +532,7 @@ class TestGitHubUpdateBugWatches(TestCaseWithFactory):
         logger = BufferLogger()
         bug_watch_updater = CheckwatchesMaster(transaction, logger=logger)
         github = get_external_bugtracker(bug_tracker)
+        github.batch_query_threshold = 1
         bug_watch_updater.updateBugWatches(github, bug_tracker.watches)
         self.assertEqual(
             "INFO Updating 10 watches for 10 bugs on "
