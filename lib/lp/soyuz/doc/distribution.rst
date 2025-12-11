@@ -215,6 +215,8 @@ Retrieving only pending-acceptance PPAs
 PENDING publishing records, it's used in 'publish-distro' in '--ppa'
 mode to avoiding querying all PPAs.
 
+It is also used in '--archive' mode to only query pending archives.
+
 Nothing is pending-publication in sampledata:
 
     >>> ubuntu.getPendingPublicationPPAs().count()
@@ -235,12 +237,24 @@ source to another location within the PPA.
     >>> pending_ppa.id == cprov.archive.id
     True
 
+We can also filter by the Celso's PPA id.
+
+    >>> [pending_ppa] = ubuntu.getPendingPublicationPPAs(
+    ...     archive_ids=[cprov.archive.id]
+    ... )
+    >>> pending_ppa.id == cprov.archive.id
+    True
+
 Publishing the record will exclude Celso's PPA from pending-publication
 state:
 
     >>> src_pub.setPublished()
 
     >>> ubuntu.getPendingPublicationPPAs().count()
+    0
+    >>> ubuntu.getPendingPublicationPPAs(
+    ...     archive_ids=[cprov.archive.id]
+    ... ).count()
     0
 
 We can also make Celso's PPA pending publication by deleting a published

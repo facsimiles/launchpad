@@ -996,8 +996,11 @@ class IDistributionView(
     def getPendingAcceptancePPAs():
         """Return only pending acceptance PPAs in this distribution."""
 
-    def getPendingPublicationPPAs():
+    def getPendingPublicationPPAs(archive_ids=None):
         """Return all PPAs in this distribution that are pending publication.
+
+        :param archive_ids: If given, only PPAs whose archive ID is in this
+            list will be considered.
 
         A PPA is said to be pending publication if it has publishing records
         in the pending state or if it had packages deleted from it.
