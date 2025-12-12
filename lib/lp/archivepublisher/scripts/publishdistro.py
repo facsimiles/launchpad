@@ -390,10 +390,25 @@ class PublishDistro(PublisherScript):
         else:
             return distribution.getPendingPublicationPPAs()
 
+    def getArchives(self, archive_references, distribution):
+        """Find the archives with the given references."""
+        archives = self.findArchives(archive_references, distribution)
+
+        if (
+            self.isCareful(self.options.careful_publishing)
+            or self.options.include_non_pending
+        ):
+            return archives
+        else:
+            archive_ids = [archive.id for archive in archives]
+            return distribution.getPendingPublicationPPAs(
+                archive_ids=archive_ids
+            )
+
     def getTargetArchives(self, distribution):
         """Find the archive(s) selected by the script's options."""
         if self.options.archives:
-            return self.findArchives(self.options.archives, distribution)
+            return self.getArchives(self.options.archives, distribution)
         elif self.options.partner:
             return [distribution.getArchiveByComponent("partner")]
         elif self.options.ppa:

@@ -1909,12 +1909,18 @@ class Distribution(
             .config(distinct=True)
         )
 
-    def getPendingPublicationPPAs(self):
+    def getPendingPublicationPPAs(self, archive_ids=None):
         """See `IDistribution`."""
+
+        archive_ids_clause = []
+        if archive_ids:
+            archive_ids_clause = [Archive.id.is_in(archive_ids)]
+
         src_archives = (
             IStore(Archive)
             .find(
                 Archive,
+                *archive_ids_clause,
                 Archive.purpose == ArchivePurpose.PPA,
                 Archive.distribution == self,
                 SourcePackagePublishingHistory.archive == Archive.id,
@@ -1939,6 +1945,7 @@ class Distribution(
             IStore(Archive)
             .find(
                 Archive,
+                *archive_ids_clause,
                 Archive.purpose == ArchivePurpose.PPA,
                 Archive.distribution == self,
                 BinaryPackagePublishingHistory.archive == Archive.id,
@@ -1963,6 +1970,7 @@ class Distribution(
             IStore(Archive)
             .find(
                 Archive,
+                *archive_ids_clause,
                 Archive.purpose == ArchivePurpose.PPA,
                 Archive.distribution == self,
                 ArchiveFile.archive == Archive.id,
@@ -1977,6 +1985,7 @@ class Distribution(
             IStore(Archive)
             .find(
                 Archive,
+                *archive_ids_clause,
                 Archive.purpose == ArchivePurpose.PPA,
                 Archive.distribution == self,
                 Archive.dirty_suites != None,
@@ -1988,6 +1997,7 @@ class Distribution(
             IStore(Archive)
             .find(
                 Archive,
+                *archive_ids_clause,
                 Archive.purpose == ArchivePurpose.PPA,
                 Archive.distribution == self,
                 Archive.status == ArchiveStatus.DELETING,

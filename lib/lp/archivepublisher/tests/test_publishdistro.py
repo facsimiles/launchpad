@@ -1686,10 +1686,12 @@ class TestPublishDistroMethods(TestCaseWithFactory):
 
     def test_getTargetArchives_gets_specific_archives(self):
         # If the selected exclusive option is "archive,"
-        # getTargetArchives looks for the specified archives.
+        # getTargetArchives uses getArchives to look for the specified archives
+        # and return only the ones pending publication.
         distro = self.makeDistro()
 
         ppa_1 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+        self.factory.makeSourcePackagePublishingHistory(archive=ppa_1)
         ppa_2 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
 
         # create another random archive in the same distro
@@ -1697,7 +1699,64 @@ class TestPublishDistroMethods(TestCaseWithFactory):
 
         script = self.makeScript(
             distro,
-            ["--archive", ppa_1.reference, "--archive", ppa_2.reference],
+            [
+                "--archive",
+                ppa_1.reference,
+                "--archive",
+                ppa_2.reference,
+            ],
+        )
+        self.assertContentEqual([ppa_1], script.getTargetArchives(distro))
+
+    def test_getTargetArchives_gets_specific_archives_non_pending(self):
+        # If the selected options are "archive, include-non-pending"
+        # getTargetArchives uses getArchives to look for the specified archives
+        # and return all of them
+        distro = self.makeDistro()
+
+        ppa_1 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+        self.factory.makeSourcePackagePublishingHistory(archive=ppa_1)
+        ppa_2 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+
+        # create another random archive in the same distro
+        self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+
+        script = self.makeScript(
+            distro,
+            [
+                "--include-non-pending",
+                "--archive",
+                ppa_1.reference,
+                "--archive",
+                ppa_2.reference,
+            ],
+        )
+        self.assertContentEqual(
+            [ppa_1, ppa_2], script.getTargetArchives(distro)
+        )
+
+    def test_getTargetArchives_gets_specific_archives_careful(self):
+        # If the selected options are "archive, careful"
+        # getTargetArchives uses getArchives to look for the specified archives
+        # and return all of them
+        distro = self.makeDistro()
+
+        ppa_1 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+        self.factory.makeSourcePackagePublishingHistory(archive=ppa_1)
+        ppa_2 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+
+        # create another random archive in the same distro
+        self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+
+        script = self.makeScript(
+            distro,
+            [
+                "--careful",
+                "--archive",
+                ppa_1.reference,
+                "--archive",
+                ppa_2.reference,
+            ],
         )
         self.assertContentEqual(
             [ppa_1, ppa_2], script.getTargetArchives(distro)
