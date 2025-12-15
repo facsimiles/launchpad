@@ -686,7 +686,8 @@ class Publisher:
         OtherSPPH = ClassAlias(SourcePackagePublishingHistory)
         published_sprs = Select(
             1,
-            And(
+            tables=[OtherSPPH],
+            where=And(
                 OtherSPPH.archive == self.archive,
                 OtherSPPH.sourcepackagerelease_id
                 == SourcePackagePublishingHistory.sourcepackagerelease_id,
@@ -747,7 +748,8 @@ class Publisher:
         OtherBPPH = ClassAlias(BinaryPackagePublishingHistory)
         published_bprs = Select(
             1,
-            And(
+            tables=[OtherBPPH],
+            where=And(
                 OtherBPPH.archive == self.archive,
                 OtherBPPH.binarypackagerelease_id
                 == BinaryPackagePublishingHistory.binarypackagerelease_id,
