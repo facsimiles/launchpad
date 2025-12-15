@@ -26,7 +26,8 @@ from operator import attrgetter
 
 from artifactory import ArtifactoryPath
 from debian.deb822 import Release, _multivalued
-from storm.expr import Desc
+from storm.expr import And, Desc, Exists, Join, Not, Select
+from storm.locals import ClassAlias
 from zope.component import getUtility
 from zope.interface import Attribute, Interface, implementer
 
@@ -69,6 +70,7 @@ from lp.soyuz.interfaces.publishing import (
     active_publishing_status,
 )
 from lp.soyuz.model.archivefile import ArchiveFile
+from lp.soyuz.model.binarypackagebuild import BinaryPackageBuild
 from lp.soyuz.model.binarypackagerelease import BinaryPackageRelease
 from lp.soyuz.model.distroarchseries import DistroArchSeries
 from lp.soyuz.model.publishing import (
@@ -662,7 +664,6 @@ class Publisher:
         """
         self.log.debug("* Step A2: Mark pockets with deletions as dirty")
 
-        # Query part that is common to both queries below.
         def base_conditions(table):
             return [
                 table.archive == self.archive,
@@ -672,7 +673,7 @@ class Publisher:
             ]
 
         # We need to get a set of suite names that have publications that
-        # are waiting to be deleted.  Each suite name is added to the
+        # are waiting to be deleted. Each suite name is added to the
         # dirty_suites set.
 
         # Make the source publications query.
@@ -680,6 +681,46 @@ class Publisher:
         conditions.append(
             SourcePackagePublishingHistory.distroseries_id == DistroSeries.id
         )
+        # We need to filter out SPPHs with source package releases that
+        # are also used by other SPPHs
+        OtherSPPH = ClassAlias(SourcePackagePublishingHistory)
+        published_sprs = Select(
+            1,
+            And(
+                OtherSPPH.archive == self.archive,
+                OtherSPPH.sourcepackagerelease_id
+                == SourcePackagePublishingHistory.sourcepackagerelease_id,
+                OtherSPPH.status.is_in(active_publishing_status),
+            ),
+        )
+        conditions.append(Not(Exists(published_sprs)))
+        # Also exclude SPPHs where the corresponding
+        # binary packages are still published
+        published_bprs_via_build = Select(
+            1,
+            tables=[
+                BinaryPackagePublishingHistory,
+                Join(
+                    BinaryPackageRelease,
+                    BinaryPackagePublishingHistory.binarypackagerelease_id
+                    == BinaryPackageRelease.id,
+                ),
+                Join(
+                    BinaryPackageBuild,
+                    BinaryPackageRelease.build_id == BinaryPackageBuild.id,
+                ),
+            ],
+            where=And(
+                BinaryPackagePublishingHistory.archive == self.archive,
+                BinaryPackagePublishingHistory.status.is_in(
+                    active_publishing_status
+                ),
+                BinaryPackageBuild.source_package_release_id
+                == SourcePackagePublishingHistory.sourcepackagerelease_id,
+            ),
+        )
+        conditions.append(Not(Exists(published_bprs_via_build)))
+
         source_suites = (
             IStore(SourcePackagePublishingHistory)
             .find(
@@ -699,6 +740,21 @@ class Publisher:
                 DistroArchSeries.distroseries == DistroSeries.id,
             ]
         )
+        # We need to filter out BPPHs with binary package releases that
+        # are also used by other BPPHs. This usually happens either through
+        # a re-publishing of a kernel package in the same suite or due
+        # to a new series opening
+        OtherBPPH = ClassAlias(BinaryPackagePublishingHistory)
+        published_bprs = Select(
+            1,
+            And(
+                OtherBPPH.archive == self.archive,
+                OtherBPPH.binarypackagerelease_id
+                == BinaryPackagePublishingHistory.binarypackagerelease_id,
+                OtherBPPH.status.is_in(active_publishing_status),
+            ),
+        )
+        conditions.append(Not(Exists(published_bprs)))
         binary_suites = (
             IStore(BinaryPackagePublishingHistory)
             .find(
