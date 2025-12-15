@@ -5,6 +5,7 @@
 
 __all__ = [
     "PublishDistro",
+    "ARCHIVEPUBLISHER_HISTORY_ENABLED",
 ]
 
 import os
@@ -42,6 +43,7 @@ from lp.archivepublisher.publishing import (
 from lp.archivepublisher.scripts.base import PublisherScript
 from lp.services.config import config
 from lp.services.database.interfaces import IStore
+from lp.services.features import getFeatureFlag
 from lp.services.limitedlist import LimitedList
 from lp.services.scripts.base import LaunchpadScriptFailure
 from lp.services.webapp.adapter import (
@@ -54,6 +56,8 @@ from lp.soyuz.enums import (
     ArchiveStatus,
 )
 from lp.soyuz.interfaces.archive import MAIN_ARCHIVE_PURPOSES, IArchiveSet
+
+ARCHIVEPUBLISHER_HISTORY_ENABLED = "archivepublisher.history.enabled"
 
 
 def is_ppa_private(ppa):
@@ -772,16 +776,22 @@ class PublishDistro(PublisherScript):
 
     def _create_publisher_run(self):
         """Create PublisherRun record for this run."""
+        if not getFeatureFlag(ARCHIVEPUBLISHER_HISTORY_ENABLED):
+            return None
+
         publisher_run_set = getUtility(IArchivePublisherRunSet)
         publisher_run = publisher_run_set.new()
 
         IStore(ArchivePublisherRun).flush()
         self.txn.commit()
         self.logger.debug(f"Created PublisherRun id={publisher_run.id}")
-        return publisher_run
+        return publisher_run.id
 
     def _create_publishing_history(self, archive_id, publisher_run_id):
         """Create PublishingHistory records for all processed archives."""
+        if not publisher_run_id:
+            return
+
         archive = getUtility(IArchiveSet).get(archive_id)
         publisher_run = getUtility(IArchivePublisherRunSet).getById(
             publisher_run_id
@@ -793,6 +803,9 @@ class PublishDistro(PublisherScript):
 
     def _update_publisher_run_status(self, publisher_run_id, succeeded):
         """Update the status of the given PublisherRun.id."""
+        if not publisher_run_id:
+            return
+
         publisher_run = getUtility(IArchivePublisherRunSet).getById(
             publisher_run_id
         )
@@ -819,8 +832,7 @@ class PublishDistro(PublisherScript):
 
     def main(self, reset_store_between_archives=True):
         """See `LaunchpadScript`."""
-        publisher_run = self._create_publisher_run()
-        publisher_run_id = publisher_run.id
+        publisher_run_id = self._create_publisher_run()
 
         succeeded = False
         archive_ids = []
