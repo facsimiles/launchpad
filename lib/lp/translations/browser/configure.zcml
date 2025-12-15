@@ -581,12 +581,6 @@
         template="../templates/hastranslationimports-index.pt"/>
     <browser:page
         for="lp.registry.interfaces.productseries.IProductSeries"
-        name="+translations-settings"
-        class="lp.translations.browser.productseries.ProductSeriesTranslationsSettingsView"
-        permission="launchpad.Edit"
-        template="../templates/productseries-translations-settings.pt"/>
-    <browser:page
-        for="lp.registry.interfaces.productseries.IProductSeries"
         name="+templates"
         class="lp.translations.browser.productseries.ProductSeriesTemplatesView"
         permission="zope.Public"

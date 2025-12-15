@@ -286,79 +286,6 @@ notice but not the link to the project's settings.
     ... )
     trunk does not translate its messages.
 
-Branch synchronization options
-------------------------------
-
-When no imports or exports have been set up, the page indicates that
-
-    >>> browser.open(frobnicator_trunk_url)
-    >>> sync_settings = first_tag_by_class(
-    ...     browser.contents, "automatic-synchronization"
-    ... )
-    >>> print(extract_text(sync_settings))
-    Automatic synchronization
-    This project is currently not using any synchronization
-    with bazaar branches.
-
-If a translation branch is set we indicate that exports are happening.
-Imports are not mentioned until a series branch has been set.
-
-    >>> login("foo.bar@canonical.com")
-    >>> from lp.translations.interfaces.translations import (
-    ...     TranslationsBranchImportMode,
-    ... )
-    >>> branch = factory.makeBranch(product=frobnicator)
-    >>> frobnicator_trunk.branch = None
-    >>> frobnicator_trunk.translations_autoimport_mode = (
-    ...     TranslationsBranchImportMode.IMPORT_TEMPLATES
-    ... )
-    >>> frobnicator_trunk.translations_branch = branch
-    >>> logout()
-
-    >>> browser.open(frobnicator_trunk_url)
-    >>> sync_settings = first_tag_by_class(
-    ...     browser.contents, "automatic-synchronization"
-    ... )
-    >>> print(extract_text(sync_settings))
-    Automatic synchronization
-    Translations are exported daily to branch
-    lp://dev/~person-name.../frobnicator/branch....
-
-If the branch is private, though the page pretends to non-privileged users
-that no synchronization has been set up.
-
-    >>> from lp.app.enums import InformationType
-    >>> login("foo.bar@canonical.com")
-    >>> private_branch = factory.makeBranch(
-    ...     product=frobnicator, information_type=InformationType.USERDATA
-    ... )
-    >>> frobnicator_trunk.translations_branch = private_branch
-    >>> logout()
-
-    >>> browser.open(frobnicator_trunk_url)
-    >>> sync_settings = first_tag_by_class(
-    ...     browser.contents, "automatic-synchronization"
-    ... )
-    >>> print(extract_text(sync_settings))
-    Automatic synchronization
-    This project is currently not using any synchronization
-    with bazaar branches.
-
-Imports are indicated in likewise manner once a series branch has been set.
-
-    >>> login("foo.bar@canonical.com")
-    >>> frobnicator_trunk.branch = branch
-    >>> logout()
-
-    >>> browser.open(frobnicator_trunk_url)
-    >>> sync_settings = first_tag_by_class(
-    ...     browser.contents, "automatic-synchronization"
-    ... )
-    >>> print(extract_text(sync_settings))
-    Automatic synchronization
-    Translations are imported with every update from branch
-    lp://dev/frobnicator.
-
 
 Translation focus
 -----------------
@@ -431,27 +358,19 @@ the new series.
     ...     admin_browser.contents, "portlet-untranslatable-branches"
     ... )
     >>> print(extract_text(untranslatable))
-    Set up translations for a series...
-    evo-new series — manual or automatic...
+    Set up translations for a series
+    Evolution evo-new series —
+    manual import
 
 For each series there is a link for accessing the series translations
-page together with link for uploading a template from that series
-(manual) and setting automatic imports.
+page together with link for uploading a template from that series.
 
     >>> print(admin_browser.getLink("Evolution evo-new series").url)
     http://translations.launchpad.test/evolution/evo-new/+translations
 
     >>> print(
     ...     admin_browser.getLink(
-    ...         "manual", url="/evolution/evo-new/+translations-upload"
+    ...         "manual import", url="/evolution/evo-new/+translations-upload"
     ...     ).url
     ... )
     http://translations.launchpad.test/evolution/evo-new/+translations-upload
-
-    >>> print(
-    ...     admin_browser.getLink(
-    ...         "automatic", url="/evolution/evo-new/+translations-settings"
-    ...     ).url
-    ... )
-    ... # noqa
-    http://translations.launchpad.test/evolution/evo-new/+translations-settings

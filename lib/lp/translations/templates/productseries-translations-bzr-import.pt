@@ -35,11 +35,6 @@
 	    (<a href="https://help.launchpad.net/Translations/ImportPolicy"
                 >Read the translations import policy</a>)
 	  </p>
-	  <p tal:condition="not:view/has_imports_enabled"
-             id="settings-display" class="info sprite">
-	    To enable continuous imports please change the settings
-	    <a tal:attributes="href view/translations_settings_url">here</a>.
-	  </p>
 	</tal:rosetta>
 	<p tal:define="branch context/branch"
 	   id="branch-display">
