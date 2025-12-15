@@ -27,9 +27,9 @@
     <code>.tar.bz2</code>).
   </p>
   <p>
-    When uploading a tarball or importing from a Bazaar branch, you must
+    When uploading a tarball, you must
     follow our <a href="https://help.launchpad.net/Translations/YourProject/ImportPolicy"
-    >translations import policy</a>. At a minimum, your tarball or branch must:
+    >translations import policy</a>. At a minimum, your tarball must:
   </p>
 
   <ul class="bulleted">
