@@ -19,6 +19,7 @@ options:
           - checkwatches
           - copy_packages
           - craft-build-job
+          - ct-delivery-job
           - cve
           - distributionmirror
           - distroseriesdifferencejob
