@@ -15,6 +15,10 @@ extends: ../launchpad-db-lazr.conf
 batch_query_threshold: {{ checkwatches_batch_query_threshold }}
 xmlrpc_url: http://{{ domain_xmlrpc_private }}:{{ port_xmlrpc }}/bugs
 
+[commitment_tracker]
+endpoint: {{ commitment_tracker_endpoint }}
+timeout: {{ commitment_tracker_timeout }}
+
 [launchpad_session]
 database: {{ db_session }}
 dbuser: {{ db_session_user }}

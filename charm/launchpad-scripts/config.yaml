@@ -16,6 +16,18 @@ options:
     type: string
     description: YAML-encoded dict mapping the credentials name to values.
     default: "{}"
+  commitment_tracker_endpoint:
+    type: string
+    description: Commitment Tracker endpoint URL to POST releases to.
+    default: "https://localhost.com/"
+  commitment_tracker_api_key:
+    type: string
+    description: API key for authenticating to Commitment Tracker.
+    default:
+  commitment_tracker_timeout:
+    type: int
+    description: Timeout for Commitment Tracker requests, in seconds.
+    default: 5
   enable_debian_bugs_mirroring:
     type: boolean
     description: |
