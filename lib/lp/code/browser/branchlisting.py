@@ -820,7 +820,7 @@ class RecentlyChangedBranchesView(NoContextBranchListingView):
 class PersonBranchesMenu(ApplicationMenu):
     usedfor = IPerson
     facet = "branches"
-    links = ["branches", "active_reviews", "source_package_recipes", "snaps"]
+    links = ["git", "branches", "active_reviews", "source_package_recipes", "snaps"]
 
     @property
     def person(self):
@@ -831,8 +831,11 @@ class PersonBranchesMenu(ApplicationMenu):
         """
         return self.context
 
+    def git(self):
+        return Link(canonical_url(self.context, rootsite="code"), "Git repositories")
+
     def branches(self):
-        return Link(canonical_url(self.context, rootsite="code"), "Branches")
+        return Link("+branches", "Branches")
 
     def active_reviews(self):
         return Link("+activereviews", "Active reviews")
