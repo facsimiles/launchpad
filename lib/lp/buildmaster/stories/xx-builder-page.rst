@@ -414,3 +414,28 @@ The statistics should reflect that there are no cleaning builders available.
     Bob The Builder : Build Farm
 
 
+Verify dirty builders without jobs are counted as cleaning
+-----------------------------------------------------------
+
+A builder in DIRTY status without a current job should be counted as cleaning
+and should be displayed in the cleaning statistics.
+
+First, create a new builder and set it to dirty status without a job.
+
+    >>> with admin_logged_in():
+    ...     dirty_builder = factory.makeBuilder(name="dirty-test")
+    ...     dirty_builder.builderok = True
+    ...     dirty_builder.setCleanStatus(BuilderCleanStatus.DIRTY)
+    ...
+
+Verify that the dirty builder appears in the cleaning statistics.
+
+    >>> cprov_browser.open("http://launchpad.test/builders")
+    >>> print(extract_text(find_main_content(cprov_browser.contents)))
+    The Launchpad build farm
+    ...
+    4 registered build machines: 2 available (0 building, 1 cleaning,
+    1 idle) and 2 disabled
+    ...
+
+

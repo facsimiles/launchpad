@@ -238,6 +238,15 @@ class BuilderSetView(CleanInfoMixin, LaunchpadView):
                 if b.clean_status == BuilderCleanStatus.CLEANING
                 and b.builderok
             ]
+            + [
+                # All dirty builders without a job, show up as "Cleaning" in
+                # the UI, so include them.
+                b
+                for b in self.builders
+                if b.clean_status == BuilderCleanStatus.DIRTY
+                and b.builderok
+                and b.currentjob is None
+            ]
         )
 
     @property
