@@ -6,7 +6,7 @@ There are several views of the branches related to a person.
 First, check that the condensed branch listing page works:
 
     >>> browser = setupBrowser(auth="Basic test@canonical.com:test")
-    >>> browser.open("http://code.launchpad.test/~name12")
+    >>> browser.open("http://code.launchpad.test/~name12/+branches")
     >>> print(browser.title)
     Code : Sample Person
 
@@ -20,7 +20,7 @@ listing view for that person.
 If a person does not have any related branches, we print an informative
 message.
 
-    >>> browser.open("http://code.launchpad.test/~kinnison")
+    >>> browser.open("http://code.launchpad.test/~kinnison/+branches")
     >>> print(
     ...     extract_text(
     ...         find_tag_by_id(browser.contents, "no-branch-message")
@@ -34,7 +34,7 @@ Junk branches
 
 On the user's own code page, they will see directions on pushing a branch.
 
-    >>> browser.open("http://code.launchpad.test/~name12")
+    >>> browser.open("http://code.launchpad.test/~name12/+branches")
     >>> print(
     ...     extract_text(
     ...         find_tag_by_id(browser.contents, "junk-branch-directions")
@@ -50,7 +50,7 @@ Owned Branches
 
 A person's owned branches are shown on their code application overview page.
 
-    >>> browser.open("http://code.launchpad.test/~name12")
+    >>> browser.open("http://code.launchpad.test/~name12/+branches")
     >>> table = find_tag_by_id(browser.contents, "branchtable")
     >>> for row in table.tbody.find_all("tr"):
     ...     print(extract_text(row))
@@ -64,7 +64,7 @@ Registered Branches
 
 There is also a filter for registered branches.
 
-    >>> browser.open("http://code.launchpad.test/~name12")
+    >>> browser.open("http://code.launchpad.test/~name12/+branches")
     >>> browser.getControl(name="field.category").displayValue = [
     ...     "Registered"
     ... ]
@@ -85,7 +85,7 @@ Subscribed branches
 From the persons main listing page, there is also a filter for
 subscribed branches.
 
-    >>> browser.open("http://code.launchpad.test/~name12")
+    >>> browser.open("http://code.launchpad.test/~name12/+branches")
     >>> browser.getControl(name="field.category").displayValue = [
     ...     "Subscribed"
     ... ]
@@ -121,8 +121,9 @@ Firstly lets set up a new person with no branches.
 The summary is shown.
 
     >>> eric_browser = setupBrowser(auth="Basic eric@example.com:test")
-    >>> eric_browser.open("http://code.launchpad.test/~eric")
+    >>> eric_browser.open("http://code.launchpad.test/~eric/+branches")
     >>> print_tag_with_id(eric_browser.contents, "portlet-person-codesummary")
+    Git repositories
     Branches
     Active reviews
     Source package recipes
@@ -135,8 +136,9 @@ Now we'll create another branch, and unsubscribe the owner from it.
     >>> ignored = b2.unsubscribe(eric, eric)
     >>> logout()
 
-    >>> eric_browser.open("http://code.launchpad.test/~eric")
+    >>> eric_browser.open("http://code.launchpad.test/~eric/+branches")
     >>> print_tag_with_id(eric_browser.contents, "portlet-person-codesummary")
+    Git repositories
     Branches
     Active reviews
     Source package recipes

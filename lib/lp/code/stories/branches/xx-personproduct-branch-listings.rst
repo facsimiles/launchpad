@@ -47,7 +47,9 @@ that only the fooix branches are shown.
 
     >>> browser.open("http://code.launchpad.test/~eric/fooix")
     >>> print_tag_with_id(browser.contents, "portlet-person-codesummary")
-    Branches ...
+    Git repositories
+    Branches
+    Active reviews
     >>> print_tag_with_id(browser.contents, "branchtable")
     Name                         ...
     lp://dev/~eric/fooix/feature ...
