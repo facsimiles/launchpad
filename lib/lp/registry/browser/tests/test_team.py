@@ -199,20 +199,6 @@ class TestTeamPersonRenameFormMixin:
             view = create_initialized_view(team, name=self.view_name)
             self.assertFalse(view.form_fields["name"].for_display)
 
-    def test_cannot_rename_team_with_active_mailinglist(self):
-        # Because renaming mailing lists is non-trivial in Mailman 2.1,
-        # renaming teams with mailing lists is prohibited.
-        owner = self.factory.makePerson()
-        team = self.factory.makeTeam(owner=owner)
-        self.factory.makeMailingList(team, owner)
-        with person_logged_in(owner):
-            view = create_initialized_view(team, name=self.view_name)
-            self.assertTrue(view.form_fields["name"].for_display)
-            self.assertEqual(
-                "This team has a mailing list and may not be renamed.",
-                view.widgets["name"].hint,
-            )
-
     def test_can_rename_team_with_purged_mailinglist(self):
         # A team with a mailing list which is purged can be renamed.
         owner = self.factory.makePerson()
@@ -224,25 +210,6 @@ class TestTeamPersonRenameFormMixin:
         with person_logged_in(owner):
             view = create_initialized_view(team, name=self.view_name)
             self.assertFalse(view.form_fields["name"].for_display)
-
-    def test_cannot_rename_team_with_multiple_reasons(self):
-        # Since public teams can have mailing lists and PPAs simultaneously,
-        # there will be scenarios where more than one of these conditions are
-        # actually blocking the team to be renamed.
-        owner = self.factory.makePerson()
-        team = self.factory.makeTeam(owner=owner)
-        self.factory.makeMailingList(team, owner)
-        archive = self.factory.makeArchive(owner=team)
-        self.factory.makeSourcePackagePublishingHistory(archive=archive)
-        get_property_cache(team).archive = archive
-        with person_logged_in(owner):
-            view = create_initialized_view(team, name=self.view_name)
-            self.assertTrue(view.form_fields["name"].for_display)
-            self.assertEqual(
-                "This team has an active PPA with packages published and "
-                "a mailing list and may not be renamed.",
-                view.widgets["name"].hint,
-            )
 
 
 class TestTeamEditView(TestTeamPersonRenameFormMixin, TestCaseWithFactory):

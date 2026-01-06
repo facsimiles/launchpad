@@ -32,11 +32,7 @@ class TeamJoinMixin:
         A user can subscribe to the list if the team has an active
         mailing list, and if they do not already have a subscription.
         """
-        if self.team_has_mailing_list:
-            # If we are already subscribed, then we can not subscribe again.
-            return not self.user_is_subscribed_to_list
-        else:
-            return False
+        return False
 
     @property
     def user_is_subscribed_to_list(self):
@@ -54,12 +50,6 @@ class TeamJoinMixin:
         assert mailing_list is not None, "This team has no mailing list."
         has_subscription = bool(mailing_list.getSubscription(self.user))
         return has_subscription
-
-    @property
-    def team_has_mailing_list(self):
-        """Is the team mailing list available for subscription?"""
-        mailing_list = self.context.mailing_list
-        return mailing_list is not None and mailing_list.is_usable
 
     @property
     def user_is_active_member(self):

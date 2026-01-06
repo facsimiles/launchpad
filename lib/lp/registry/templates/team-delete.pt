@@ -11,11 +11,6 @@
         Deleting a team is permanent. It cannot be undone.
       </p>
 
-      <p tal:condition="view/has_mailing_list">
-        <strong>This team cannot be deleted until its mailing list is first
-        deactivated, then purged after the deactivation is confirmed.</strong>
-      </p>
-
       <p tal:condition="context/activemembers/count">
         <tal:dupe_name replace="context/fmt:displayname" /> has
         <tal:member_count replace="context/activemembers/count" />
