@@ -16,10 +16,10 @@ options:
     type: string
     description: YAML-encoded dict mapping the credentials name to values.
     default: "{}"
-  commitment_tracker_endpoint:
+  commitment_tracker_base_url:
     type: string
-    description: Commitment Tracker endpoint URL to POST releases to.
-    default: "https://localhost.com/"
+    description: Commitment Tracker base URL.
+    default:
   commitment_tracker_api_key:
     type: string
     description: API key for authenticating to Commitment Tracker.
