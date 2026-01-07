@@ -67,7 +67,7 @@ repos:
         # use the proxy correctly in Launchpad CI builds.
         language_version: "20.6.1"
 -   repo: https://github.com/keewis/blackdoc
-    rev: v0.3.9
+    rev: v0.4.6
     hooks:
     -   id: blackdoc
         args: ["-l", "78"]
