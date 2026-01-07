@@ -353,7 +353,7 @@ Latest Branches for a Person
 On a person's code page on code.launchpad.test, we should show a link
 to the atom feed for that person's latest branches.
 
-    >>> browser.open("http://code.launchpad.test/~mark")
+    >>> browser.open("http://code.launchpad.test/~mark/+branches")
     >>> soup = BeautifulSoup(browser.contents)
     >>> soup.head.find_all("link", type="application/atom+xml")
     [<link href="http://feeds.launchpad.test/~mark/branches.atom"

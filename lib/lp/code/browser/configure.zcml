@@ -738,7 +738,7 @@
         <browser:defaultView
             for="lp.registry.interfaces.person.IPerson"
             layer="lp.code.publisher.CodeLayer"
-            name="+branches"/>
+            name="+git"/>
         <browser:page
             for="lp.registry.interfaces.person.IPerson"
             class="lp.code.browser.branchlisting.PersonBranchesView"

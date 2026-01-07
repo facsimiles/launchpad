@@ -103,6 +103,7 @@ and approved merges.
 
     >>> browser.open("http://code.launchpad.test/~albert")
     >>> print_tag_with_id(browser.contents, "portlet-person-codesummary")
+    Git repositories
     Branches
     Active reviews
     Source package recipes

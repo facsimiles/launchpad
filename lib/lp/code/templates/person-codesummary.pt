@@ -7,6 +7,9 @@
   tal:define="menu context/menu:branches; features request/features">
 
   <table>
+    <tr class="code-links" tal:condition="menu/git/enabled">
+      <td tal:content="structure menu/git/render" />
+    </tr>
     <tr class="code-links" tal:condition="menu/branches/enabled">
       <td tal:content="structure menu/branches/render" />
     </tr>
