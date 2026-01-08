@@ -1,25 +1,45 @@
 # Copyright 2025 Canonical Ltd.  This software is licensed under the
 # GNU Affero General Public License version 3 (see the file LICENSE).
 
+import datetime
+from datetime import timezone
+
+import requests
 import transaction
 from zope.component import getUtility
 from zope.security.proxy import removeSecurityProxy
 
-from lp.archivepublisher.interfaces.ctdeliveryjob import ICTDeliveryJobSource
-from lp.archivepublisher.model.ctdeliverydebjob import CTDeliveryDebJob
+from lp.archivepublisher.interfaces.ctdeliveryjob import (
+    ICTDeliveryDebJobSource,
+)
+from lp.archivepublisher.model import ctdeliverydebjob as jobmod
+from lp.archivepublisher.model.archivepublisherrun import (
+    ArchivePublisherRunStatus,
+)
+from lp.archivepublisher.model.ctdeliverydebjob import (
+    CT_DELIVERY_ENABLED,
+    CTDeliveryDebJob,
+)
+from lp.registry.interfaces.pocket import PackagePublishingPocket
+from lp.services.commitmenttracker.client import CommitmentTrackerClient
+from lp.services.database import interfaces as dbinterfaces
 from lp.services.features.testing import FeatureFixture
 from lp.services.job.tests import block_on_job
+from lp.soyuz.enums import PackagePublishingStatus
 from lp.testing import TestCaseWithFactory
-from lp.testing.layers import CeleryJobLayer, DatabaseFunctionalLayer
+from lp.testing.layers import CeleryJobLayer, LaunchpadScriptLayer
 
 
 class CTDeliveryDebJobTests(TestCaseWithFactory):
     """Test case for CTDeliveryDebJob."""
 
-    layer = DatabaseFunctionalLayer
+    layer = LaunchpadScriptLayer
 
     def setUp(self):
         super().setUp()
+        # Default: enable CT delivery for tests unless explicitly disabled in
+        # a given test case.
+        self.useFixture(FeatureFixture({CT_DELIVERY_ENABLED: True}))
         self.publisher_run = self.factory.makeArchivePublisherRun()
         self.archive = self.factory.makeArchive()
         self.archive_history = self.factory.makeArchivePublishingHistory(
@@ -28,7 +48,7 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
     @property
     def job_source(self):
-        return getUtility(ICTDeliveryJobSource)
+        return getUtility(ICTDeliveryDebJobSource)
 
     def test_getOopsVars(self):
         """Test getOopsVars method."""
@@ -46,11 +66,12 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
     def test___repr__(self):
         """Test __repr__ method."""
         metadata = {
-            "request": {},
             "result": {
                 "error_description": [],
                 "bpph": [],
                 "spph": [],
+                "ct_success_count": 0,
+                "ct_failure_count": 0,
             },
         }
 
@@ -69,11 +90,12 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         """Test that CTDeliveryDebJob specified with arguments can
         be gotten out again."""
         metadata = {
-            "request": {},
             "result": {
                 "error_description": [],
                 "bpph": [],
                 "spph": [],
+                "ct_success_count": 0,
+                "ct_failure_count": 0,
             },
         }
 
@@ -87,14 +109,12 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         job = self.job_source.create(self.archive_history)
         job.run()
 
-        self.assertEqual(
-            job.metadata.get("result"),
-            {
-                "error_description": [],
-                "bpph": ["hello-1.1"],
-                "spph": [],
-            },
-        )
+        result = job.metadata.get("result")
+        self.assertEqual([], result.get("error_description"))
+        self.assertIn("bpph", result)
+        self.assertIn("spph", result)
+        self.assertIn("ct_success_count", result)
+        self.assertIn("ct_failure_count", result)
 
     def test_get(self):
         """CTDeliveryDebJob.get() returns the import job for the given
@@ -122,6 +142,275 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         job.notifyUserError(message)
         self.assertEqual([message], removeSecurityProxy(job).error_description)
 
+    def _setup_published_history(self):
+        """Create prev/current runs and published SPPH/BPPH with files."""
+        # Provide a previous successful run/history so the window is defined.
+        prev_run = self.factory.makeArchivePublisherRun()
+        prev_run = removeSecurityProxy(prev_run)
+        prev_run.status = ArchivePublisherRunStatus.SUCCEEDED
+        prev_run.date_finished = datetime.datetime.now(
+            timezone.utc
+        ) - datetime.timedelta(hours=2)
+        prev_hist = self.factory.makeArchivePublishingHistory(
+            archive=self.archive, publisher_run=prev_run
+        )
+        dbinterfaces.IStore(prev_run).flush()
+        dbinterfaces.IStore(prev_hist).flush()
+
+        # Create real SPPH/BPPH within window.
+        # Source publish
+        spph = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph = removeSecurityProxy(spph)
+        spph.datepublished = datetime.datetime.now(
+            timezone.utc
+        ) - datetime.timedelta(hours=1)
+        # Ensure SPPH has a file/sha256.
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph).flush()
+
+        # Binary publish (with file so sha256 is present).
+        bpph = self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        bpph = removeSecurityProxy(bpph)
+        bpph.datecreated = datetime.datetime.now(
+            timezone.utc
+        ) - datetime.timedelta(minutes=90)
+        bpph.datepublished = datetime.datetime.now(
+            timezone.utc
+        ) - datetime.timedelta(minutes=80)
+        dbinterfaces.IStore(bpph).flush()
+
+        ah = removeSecurityProxy(self.archive_history)
+        ah.publisher_run.date_finished = datetime.datetime.now(timezone.utc)
+        return bpph, spph
+
+    def test_run_records_counts_and_errors(self):
+        """Job run records CT counts and failure summaries."""
+        bpph, spph = self._setup_published_history()
+
+        def _client_with_failing_post():
+            client = CommitmentTrackerClient(base_url="http://commitment.test")
+
+            def _fail_post(*args, **kwargs):
+                raise requests.RequestException("boom")
+
+            client.session.post = _fail_post
+            return client
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            _client_with_failing_post,
+        )
+
+        job = self.job_source.create(self.archive_history)
+        job.run()
+        result = job.metadata.get("result")
+        self.assertEqual([bpph.id], result["bpph"])
+        self.assertEqual([spph.id], result["spph"])
+        self.assertEqual(0, result["ct_success_count"])
+        self.assertEqual(2, result["ct_failure_count"])
+        self.assertGreaterEqual(len(result["error_description"]), 2)
+
+    def test_run_records_counts_success(self):
+        """Job run records CT counts on success."""
+        bpph, spph = self._setup_published_history()
+
+        def _client_with_ok_post():
+            client = CommitmentTrackerClient(base_url="http://commitment.test")
+
+            def _ok_post(*args, **kwargs):
+                class _Resp:
+                    status_code = 200
+                    text = ""
+
+                return _Resp()
+
+            client.session.post = _ok_post
+            return client
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            _client_with_ok_post,
+        )
+
+        job = self.job_source.create(self.archive_history)
+        job.run()
+        result = job.metadata.get("result")
+        self.assertEqual([bpph.id], result["bpph"])
+        self.assertEqual([spph.id], result["spph"])
+        self.assertEqual(2, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+        self.assertEqual([], result["error_description"])
+
+    def test_run_feature_flag_disabled(self):
+        """Run exits early when feature flag is off."""
+        self.useFixture(
+            # Feature flags are stored as strings; use an empty string to be
+            # falsy under bool().
+            FeatureFixture({CT_DELIVERY_ENABLED: ""})
+        )
+
+        # Ensure the run would otherwise proceed.
+        ah = removeSecurityProxy(self.archive_history)
+        ah.publisher_run.date_finished = datetime.datetime.now(timezone.utc)
+
+        def _should_not_call():
+            raise AssertionError(
+                "CT client should not be called when disabled"
+            )
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            _should_not_call,
+        )
+
+        job = self.job_source.create(self.archive_history)
+        self.assertIsNone(job)
+
+    def test_run_first_run_uses_lookback_window(self):
+        """First run falls back to lookback window and delivers payloads."""
+        now = datetime.datetime.now(timezone.utc)
+        ah = removeSecurityProxy(self.archive_history)
+        ah.publisher_run.date_finished = now
+        dbinterfaces.IStore(ah.publisher_run).flush()
+
+        # Create publishes within lookback (no previous run exists).
+        spph = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph = removeSecurityProxy(spph)
+        spph.datecreated = now
+        spph.datepublished = now
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph).flush()
+
+        bpph = self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        bpph = removeSecurityProxy(bpph)
+        bpph.datecreated = now
+        bpph.datepublished = now
+        dbinterfaces.IStore(bpph).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        job = self.job_source.create(self.archive_history)
+        job.run()
+        result = job.metadata["result"]
+        self.assertEqual([bpph.id], result["bpph"])
+        self.assertEqual([spph.id], result["spph"])
+        self.assertEqual(2, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+        self.assertEqual([], result["error_description"])
+        self.assertEqual(2, len(captured.get("payloads", [])))
+
+    def test_run_pocket_to_enum_conversion(self):
+        """Pocket numeric values map to enum suffix strings."""
+        bpph, spph = self._setup_published_history()
+        bpph = removeSecurityProxy(bpph)
+        spph = removeSecurityProxy(spph)
+        bpph.pocket = PackagePublishingPocket.UPDATES
+        spph.pocket = PackagePublishingPocket.UPDATES
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        job = self.job_source.create(self.archive_history)
+        job.run()
+
+        payloads = captured.get("payloads", [])
+        self.assertEqual(2, len(payloads))
+        pockets = [
+            p["release"]["properties"]["archive_pocket"] for p in payloads
+        ]
+        self.assertEqual(["updates", "updates"], pockets)
+
+        result = job.metadata["result"]
+        self.assertEqual(2, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+        self.assertEqual([], result["error_description"])
+
+    def test_run_no_payloads_to_deliver(self):
+        """Run exits early when no payloads fall in the window."""
+        prev_run = self.factory.makeArchivePublisherRun()
+        prev_run = removeSecurityProxy(prev_run)
+        prev_run.status = ArchivePublisherRunStatus.SUCCEEDED
+        prev_run.date_finished = datetime.datetime.now(
+            timezone.utc
+        ) - datetime.timedelta(hours=2)
+        prev_hist = self.factory.makeArchivePublishingHistory(
+            archive=self.archive, publisher_run=prev_run
+        )
+        dbinterfaces.IStore(prev_run).flush()
+        dbinterfaces.IStore(prev_hist).flush()
+
+        ah = removeSecurityProxy(self.archive_history)
+        ah.publisher_run.date_finished = datetime.datetime.now(timezone.utc)
+
+        def _should_not_call():
+            raise AssertionError(
+                "CT client should not be called when no payloads exist"
+            )
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            _should_not_call,
+        )
+
+        job = self.job_source.create(self.archive_history)
+        job.run()
+
+        result = job.metadata["result"]
+        self.assertEqual([], result["bpph"])
+        self.assertEqual([], result["spph"])
+        self.assertEqual(0, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+        self.assertEqual([], result["error_description"])
+
 
 class TestViaCelery(TestCaseWithFactory):
     layer = CeleryJobLayer
@@ -139,17 +428,19 @@ class TestViaCelery(TestCaseWithFactory):
         fixture = FeatureFixture(
             {
                 "jobs.celery.enabled_classes": "CTDeliveryDebJob",
+                CT_DELIVERY_ENABLED: True,
             }
         )
         self.useFixture(fixture)
-        job_source = getUtility(ICTDeliveryJobSource)
+        job_source = getUtility(ICTDeliveryDebJobSource)
 
         metadata = {
-            "request": {},
             "result": {
                 "error_description": [],
-                "bpph": ["hello-1.1"],
+                "bpph": [],
                 "spph": [],
+                "ct_success_count": 0,
+                "ct_failure_count": 0,
             },
         }
 

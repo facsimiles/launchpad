@@ -4,7 +4,7 @@
 __all__ = [
     "CTDeliveryJobType",
     "ICTDeliveryJob",
-    "ICTDeliveryJobSource",
+    "ICTDeliveryDebJobSource",
     "ICTDeliveryDebJob",
 ]
 
@@ -68,7 +68,7 @@ class ICTDeliveryJob(Interface):
         """Destroy this object."""
 
 
-class ICTDeliveryJobSource(IJobSource):
+class ICTDeliveryDebJobSource(IJobSource):
     """An interface for acquiring ICTDeliveryDebJob."""
 
     def create(publishing_history):
