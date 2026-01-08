@@ -31,10 +31,14 @@ from lp.archivepublisher.interfaces.archivepublisherrun import (
 from lp.archivepublisher.interfaces.archivepublishinghistory import (
     IArchivePublishingHistorySet,
 )
+from lp.archivepublisher.interfaces.ctdeliveryjob import (
+    ICTDeliveryDebJobSource,
+)
 from lp.archivepublisher.model.archivepublisherrun import ArchivePublisherRun
 from lp.archivepublisher.model.archivepublishinghistory import (
     ArchivePublishingHistory,
 )
+from lp.archivepublisher.model.ctdeliveryjob import CTDeliveryJob
 from lp.archivepublisher.publishing import (
     GLOBAL_PUBLISHER_LOCK,
     cannot_modify_suite,
@@ -628,14 +632,9 @@ class PublishDistro(PublisherScript):
             clear_request_started()
 
         if work_done:
-            self._create_publishing_history(archive_id, publisher_run_id)
-            self.txn.commit()
-            if reset_store:
-                # Reset the store after processing each dirty archive, as
-                # otherwise the process of publishing large archives can
-                # accumulate a large number of alive objects in the Storm
-                # store and cause performance problems.
-                Store.of(archive).reset()
+            self._finalize_archive_publish(
+                archive, archive_id, publisher_run_id, reset_store
+            )
 
     def _buildRsyncCommand(self, src, dest, extra_options=None):
         if extra_options is None:
@@ -790,16 +789,52 @@ class PublishDistro(PublisherScript):
     def _create_publishing_history(self, archive_id, publisher_run_id):
         """Create PublishingHistory records for all processed archives."""
         if not publisher_run_id:
-            return
+            return None
 
         archive = getUtility(IArchiveSet).get(archive_id)
         publisher_run = getUtility(IArchivePublisherRunSet).getById(
             publisher_run_id
         )
 
-        getUtility(IArchivePublishingHistorySet).new(archive, publisher_run)
+        publishing_history = getUtility(IArchivePublishingHistorySet).new(
+            archive, publisher_run
+        )
         IStore(ArchivePublishingHistory).flush()
         self.logger.debug(f"Created PublishingHistory archive_id={archive_id}")
+        return publishing_history.id
+
+    def _finalize_archive_publish(
+        self, archive, archive_id, publisher_run_id, reset_store
+    ):
+        """Record history, enqueue CT job, and reset store if needed."""
+        publishing_history_id = None
+        try:
+            publishing_history_id = self._create_publishing_history(
+                archive_id, publisher_run_id
+            )
+        except Exception:
+            self.logger.warning(
+                "Failed to record ArchivePublishingHistory for archive %s",
+                archive_id,
+            )
+        if publishing_history_id:
+            try:
+                getUtility(ICTDeliveryDebJobSource).create(
+                    publishing_history_id
+                )
+                IStore(CTDeliveryJob).flush()
+            except Exception:
+                self.logger.warning(
+                    "Failed to enqueue CTDeliveryDebJob for archive %s",
+                    publishing_history_id,
+                )
+        self.txn.commit()
+        if reset_store:
+            # Reset the store after processing each dirty archive, as otherwise
+            # the process of publishing large archives can accumulate a large
+            # number of alive objects in the Storm store and cause performance
+            # problems.
+            Store.of(archive).reset()
 
     def _update_publisher_run_status(self, publisher_run_id, succeeded):
         """Update the status of the given PublisherRun.id."""
@@ -828,10 +863,6 @@ class PublishDistro(PublisherScript):
             )
 
         IStore(ArchivePublisherRun).flush()
-
-        # getUtility(ICTDeliveryJobSource).create(publishing_history)
-        # IStore(CTDeliveryJob).flush()
-        # self.logger.debug("Created CTDeliveryDebJob")
         self.txn.commit()
 
     def main(self, reset_store_between_archives=True):

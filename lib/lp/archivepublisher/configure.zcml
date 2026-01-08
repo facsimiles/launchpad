@@ -82,8 +82,8 @@
     <!-- CTDeliveryDebJob -->
     <lp:securedutility
       component="lp.archivepublisher.model.ctdeliverydebjob.CTDeliveryDebJob"
-      provides="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryJobSource">
-        <allow interface="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryJobSource"/>
+      provides="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryDebJobSource">
+        <allow interface="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryDebJobSource"/>
     </lp:securedutility>
     <class class="lp.archivepublisher.model.ctdeliverydebjob.CTDeliveryDebJob">
         <allow interface="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryDebJob" />
