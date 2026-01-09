@@ -412,6 +412,244 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         self.assertEqual(0, result["ct_failure_count"])
         self.assertEqual([], result["error_description"])
 
+    def test_manual_mode_create_requires_parameters(self):
+        """Manual mode requires archive_id, date_start, and date_end."""
+        # Missing archive_id
+        self.assertRaisesWithContent(
+            ValueError,
+            "archive_id is required",
+            CTDeliveryDebJob.create_manual,
+            archive_id=None,
+            date_start=datetime.datetime.now(timezone.utc),
+            date_end=datetime.datetime.now(timezone.utc),
+        )
+
+        # Missing date_start
+        self.assertRaisesWithContent(
+            ValueError,
+            "date_start and date_end are required",
+            CTDeliveryDebJob.create_manual,
+            archive_id=self.archive.id,
+            date_start=None,
+            date_end=datetime.datetime.now(timezone.utc),
+        )
+
+        # Missing date_end
+        self.assertRaisesWithContent(
+            ValueError,
+            "date_start and date_end are required",
+            CTDeliveryDebJob.create_manual,
+            archive_id=self.archive.id,
+            date_start=datetime.datetime.now(timezone.utc),
+            date_end=None,
+        )
+
+    def test_manual_mode_create_stores_metadata(self):
+        """Manual mode stores parameters in metadata."""
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=self.archive.id,
+            date_start=date_start,
+            date_end=date_end,
+        )
+
+        self.assertIsNotNone(job)
+        manual_mode = job.metadata.get("manual_mode")
+        self.assertIsNotNone(manual_mode)
+        self.assertEqual(self.archive.id, manual_mode["archive_id"])
+        self.assertEqual(date_start.timestamp(), manual_mode["date_start"])
+        self.assertEqual(date_end.timestamp(), manual_mode["date_end"])
+
+        # Should have no publishing_history
+        self.assertIsNone(job.context.publishing_history_id)
+
+    def test_manual_mode_run_with_published_data(self):
+        """Manual mode processes publications within date range."""
+        # Create publications within a specific date range
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+        publish_date = datetime.datetime(2024, 1, 15, tzinfo=timezone.utc)
+
+        # Create a source package publication
+        spph = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph = removeSecurityProxy(spph)
+        spph.datecreated = publish_date
+        spph.datepublished = publish_date
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph).flush()
+
+        # Create a binary package publication
+        bpph = self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        bpph = removeSecurityProxy(bpph)
+        bpph.datecreated = publish_date
+        bpph.datepublished = publish_date
+        dbinterfaces.IStore(bpph).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        # Create and run job in manual mode
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=self.archive.id,
+            date_start=date_start,
+            date_end=date_end,
+        )
+        job.run()
+
+        # Verify results
+        result = job.metadata["result"]
+        self.assertEqual([bpph.id], result["bpph"])
+        self.assertEqual([spph.id], result["spph"])
+        self.assertEqual(2, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+        self.assertEqual([], result["error_description"])
+
+        # Verify payloads were sent
+        payloads = captured.get("payloads", [])
+        self.assertEqual(2, len(payloads))
+
+    def test_manual_mode_run_excludes_outside_date_range(self):
+        """Manual mode excludes publications outside date range."""
+        # Define date range
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+
+        # Create publication BEFORE date range
+        spph_before = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph_before = removeSecurityProxy(spph_before)
+        spph_before.datecreated = datetime.datetime(
+            2023, 12, 15, tzinfo=timezone.utc
+        )
+        spph_before.datepublished = datetime.datetime(
+            2023, 12, 15, tzinfo=timezone.utc
+        )
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph_before.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph_before).flush()
+
+        # Create publication AFTER date range
+        spph_after = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph_after = removeSecurityProxy(spph_after)
+        spph_after.datecreated = datetime.datetime(
+            2024, 2, 15, tzinfo=timezone.utc
+        )
+        spph_after.datepublished = datetime.datetime(
+            2024, 2, 15, tzinfo=timezone.utc
+        )
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph_after.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph_after).flush()
+
+        # Create publication WITHIN date range
+        spph_within = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph_within = removeSecurityProxy(spph_within)
+        spph_within.datecreated = datetime.datetime(
+            2024, 1, 15, tzinfo=timezone.utc
+        )
+        spph_within.datepublished = datetime.datetime(
+            2024, 1, 15, tzinfo=timezone.utc
+        )
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph_within.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph_within).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        # Create and run job in manual mode
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=self.archive.id,
+            date_start=date_start,
+            date_end=date_end,
+        )
+        job.run()
+
+        # Verify only the publication within range is included
+        result = job.metadata["result"]
+        self.assertEqual([spph_within.id], result["spph"])
+        self.assertEqual(1, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+
+        # Verify only one payload was sent
+        payloads = captured.get("payloads", [])
+        self.assertEqual(1, len(payloads))
+
+    def test_manual_mode_run_with_nonexistent_archive(self):
+        """Manual mode handles nonexistent archive gracefully."""
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+
+        # Use an archive ID that doesn't exist
+        nonexistent_archive_id = 999999
+
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=nonexistent_archive_id,
+            date_start=date_start,
+            date_end=date_end,
+        )
+
+        # Should not raise, just log and return
+        job.run()
+
+        # No payloads should be sent
+        result = job.metadata["result"]
+        self.assertEqual([], result["bpph"])
+        self.assertEqual([], result["spph"])
+        self.assertEqual(0, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+
 
 class TestViaCelery(TestCaseWithFactory):
     layer = CeleryJobLayer

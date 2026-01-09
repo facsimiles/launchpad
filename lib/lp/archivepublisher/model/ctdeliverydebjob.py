@@ -21,6 +21,7 @@ from storm.expr import (
     Select,
     Table,
 )
+from zope.component import getUtility
 from zope.interface import implementer, provider
 
 from lp.archivepublisher.interfaces.ctdeliveryjob import (
@@ -45,11 +46,17 @@ from lp.services.config import config
 from lp.services.database.interfaces import IPrimaryStore, IStore
 from lp.services.features import getFeatureFlag
 from lp.services.job.model.job import Job
-from lp.soyuz.enums import ArchivePurpose
+from lp.soyuz.enums import ArchivePurpose, PackagePublishingStatus
+from lp.soyuz.interfaces.archive import IArchiveSet
 
 logger = logging.getLogger(__name__)
 
 CT_DELIVERY_ENABLED = "commitment_tracker.delivery.enabled"
+
+POCKET_TO_NAME = {
+    item.value: pocketsuffix[item][1:] if pocketsuffix[item] else None
+    for item in PackagePublishingPocket.items
+}
 
 
 @implementer(ICTDeliveryDebJob)
@@ -90,11 +97,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         return self.context.metadata
 
     @classmethod
-    def create(
-        cls,
-        publishing_history_id,
-    ):
-        """Create a new `CTDeliveryDebJob`.
+    def create(cls, publishing_history_id):
+        """Create a new `CTDeliveryDebJob` using `IArchivePublishingHistory`.
 
         :param publishing_history_id: The id of the
             `IArchivePublishingHistory` associated with this job.
@@ -108,8 +112,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
         if publishing_history_id is None:
             raise ValueError("publishing_history not found")
-
-        store = IPrimaryStore(CTDeliveryJob)
 
         # Schedule the initialization.
         metadata = {
@@ -127,8 +129,69 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
         # Configure retry policy for the underlying Job.
         ctdeliveryjob.job.max_retries = cls.max_retries
+
+        store = IPrimaryStore(CTDeliveryJob)
         store.add(ctdeliveryjob)
         derived_job = cls(ctdeliveryjob)
+        derived_job.celeryRunOnCommit()
+        IStore(CTDeliveryJob).flush()
+        return derived_job
+
+    @classmethod
+    def create_manual(cls, archive_id, date_start, date_end):
+        """Create a new `CTDeliveryDebJob` manually.
+
+        :param archive_id: The id of the archive to process.
+        :param date_start: Start of the date range.
+        :param date_end: End of the date range.
+        """
+        if not cls._is_delivery_enabled():
+            logger.info(
+                "[CT] Delivery disabled via feature flag %s",
+                CT_DELIVERY_ENABLED,
+            )
+            return None
+        # Manual mode: require archive_id and date range
+        if archive_id is None:
+            raise ValueError("archive_id is required")
+
+        if date_start is None or date_end is None:
+            raise ValueError("date_start and date_end are required")
+
+        if date_start > date_end:
+            raise ValueError(
+                "date_start must be less than or equal to date_end"
+            )
+
+        # Schedule the initialization.
+        metadata = {
+            "result": {
+                "error_description": [],
+                "bpph": [],
+                "spph": [],
+                "ct_success_count": 0,
+                "ct_failure_count": 0,
+            },
+            "manual_mode": {
+                "archive_id": archive_id,
+                "date_start": date_start.timestamp(),
+                "date_end": date_end.timestamp(),
+            },
+        }
+
+        ctdeliveryjob = CTDeliveryJob(None, cls.class_job_type, metadata)
+        # Configure retry policy for the underlying Job.
+        ctdeliveryjob.job.max_retries = cls.max_retries
+
+        store = IPrimaryStore(CTDeliveryJob)
+        store.add(ctdeliveryjob)
+        derived_job = cls(ctdeliveryjob)
+
+        # Manual mode jobs can be slow if the archive is large.
+        derived_job.task_queue = "launchpad_job_slow"
+        derived_job.soft_time_limit = timedelta(minutes=15)
+        derived_job.lease_duration = timedelta(minutes=15)
+
         derived_job.celeryRunOnCommit()
         IStore(CTDeliveryJob).flush()
         return derived_job
@@ -178,6 +241,17 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             )
             return
 
+        manual_mode = self.metadata.get("manual_mode")
+
+        if manual_mode:
+            # Manual mode: process date range for an archive
+            self._run_manual_mode(manual_mode)
+        else:
+            # Single publishing history mode
+            self._run_publishing_mode()
+
+    def _run_publishing_mode(self):
+        """Run in single publishing history mode."""
         if self.publishing_history is None:
             logger.warning(
                 "Publishing history %s not found; skipping job",
@@ -222,6 +296,70 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         else:
             prev_run_id, prev_finished = prev_row
 
+        self._deliver_to_ct(
+            archive=archive,
+            distribution_name=distribution_name,
+            archive_reference=archive_reference,
+            prev_finished=prev_finished,
+            curr_finished=curr_finished,
+            lookback_start=lookback_start,
+            prev_run_id=prev_run_id,
+            current_run_id=current_run.id if current_run else None,
+        )
+
+    def _run_manual_mode(self, manual_mode_params):
+        """Run in manual mode for initial population or backfilling."""
+        archive_id = int(manual_mode_params["archive_id"])
+        date_start = datetime.fromtimestamp(manual_mode_params["date_start"])
+        date_end = datetime.fromtimestamp(manual_mode_params["date_end"])
+        lookback_start = date_start - timedelta(days=60)
+
+        # Fetch archive
+        archive = getUtility(IArchiveSet).get(archive_id)
+        if archive is None:
+            logger.warning("Archive %s not found; skipping job", archive_id)
+            return
+
+        distribution_name = archive.distribution.name
+        archive_reference = (
+            "primary"
+            if archive.purpose == ArchivePurpose.PRIMARY
+            else archive.reference
+        )
+
+        logger.info(
+            (
+                "CTDeliveryDebJob manual mode: archive=%s "
+                "date_start=%s date_end=%s"
+            ),
+            archive_id,
+            date_start,
+            date_end,
+        )
+
+        self._deliver_to_ct(
+            archive=archive,
+            distribution_name=distribution_name,
+            archive_reference=archive_reference,
+            prev_finished=date_start,
+            curr_finished=date_end,
+            lookback_start=lookback_start,
+            prev_run_id=None,
+            current_run_id=None,
+        )
+
+    def _deliver_to_ct(
+        self,
+        archive,
+        distribution_name,
+        archive_reference,
+        prev_finished,
+        curr_finished,
+        lookback_start,
+        prev_run_id,
+        current_run_id,
+    ):
+        """Common processing and delivery logic for both modes."""
         store = IStore(ArchivePublisherRun)
 
         # Fetch BPPH/SPPH rows in the window.
@@ -277,7 +415,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             archive.id,
             prev_run_id,
             prev_finished,
-            current_run.id,
+            current_run_id,
             curr_finished,
             len(bpph_rows),
             len(spph_rows),
@@ -418,7 +556,9 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
         bpph_where = And(
             Eq(Column("archive", bpph), archive.id),
-            Eq(Column("status", bpph), 2),
+            Eq(
+                Column("status", bpph), PackagePublishingStatus.PUBLISHED.value
+            ),
             Gt(Column("datecreated", bpph), lookback_start),
             Le(Column("datecreated", bpph), curr_finished),
             Gt(Column("datepublished", bpph), prev_finished),
@@ -521,7 +661,9 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
         spph_where = And(
             Eq(Column("archive", spph), archive.id),
-            Eq(Column("status", spph), 2),
+            Eq(
+                Column("status", spph), PackagePublishingStatus.PUBLISHED.value
+            ),
             Gt(Column("datecreated", spph), lookback_start),
             Le(Column("datecreated", spph), curr_finished),
             Gt(Column("datepublished", spph), prev_finished),
@@ -598,7 +740,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                         "archive_base": distribution_name,
                         "archive_reference": archive_reference,
                         "archive_series": distroseries_name,
-                        "archive_pocket": self._pocket_to_name(pocket),
+                        "archive_pocket": POCKET_TO_NAME.get(pocket),
                         "archive_component": component,
                     },
                 },
@@ -638,7 +780,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                         "archive_base": distribution_name,
                         "archive_reference": archive_reference,
                         "archive_series": distroseries_name,
-                        "archive_pocket": self._pocket_to_name(pocket),
+                        "archive_pocket": POCKET_TO_NAME.get(pocket),
                         "archive_component": component,
                     },
                 },
@@ -648,15 +790,3 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         payloads = binary_payloads + source_payloads
 
         return payloads, bpph_ids, spph_ids
-
-    @staticmethod
-    def _pocket_to_name(pocket_value):
-        # Map DB numeric to enum using the canonical enum items
-        try:
-            for item in PackagePublishingPocket.items:
-                if getattr(item, "value", None) == pocket_value:
-                    suffix = pocketsuffix.get(item, "")
-                    return suffix[1:] if suffix else None
-        except Exception:
-            return None
-        return None
