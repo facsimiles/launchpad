@@ -133,11 +133,13 @@ class SnapBuildStoreUploadStatus(EnumeratedType):
 class ISnapBuildView(IPackageBuildView, IPrivacy):
     """`ISnapBuild` attributes that require launchpad.View permission."""
 
-    build_request = Reference(
-        ISnapBuildRequest,
-        title=_("The build request that caused this build to be created."),
-        required=False,
-        readonly=True,
+    build_request = exported(
+        Reference(
+            ISnapBuildRequest,
+            title=_("The build request that caused this build to be created."),
+            required=False,
+            readonly=True,
+        )
     )
 
     requester = exported(

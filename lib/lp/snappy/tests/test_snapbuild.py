@@ -873,6 +873,19 @@ class TestSnapBuildWebservice(TestCaseWithFactory):
             self.assertFalse(build["can_be_rescored"])
             self.assertFalse(build["can_be_cancelled"])
 
+    def test_build_request(self):
+        # The build_request property is exposed.
+        snap = self.factory.makeSnap()
+        request = self.factory.makeSnapBuildRequest(snap=snap)
+        db_build = self.factory.makeSnapBuild(
+            requester=self.person, snap=snap, build_request=request
+        )
+        build_url = api_url(db_build)
+        logout()
+        build = self.webservice.get(build_url).jsonBody()
+        with person_logged_in(self.person):
+            self.assertEqual(self.getURL(request), build["build_request_link"])
+
     def test_public(self):
         # A SnapBuild with a public Snap and archive is itself public.
         db_build = self.factory.makeSnapBuild()
