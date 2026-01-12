@@ -29,6 +29,7 @@ __all__ = [
 
 
 import hashlib
+import logging
 import sys
 from binascii import b2a_qp
 from email import charset
@@ -60,6 +61,8 @@ from lp.services.timeline.requesttimeline import get_request_timeline
 del charset.CHARSETS["utf-8"]
 charset.add_charset("utf-8", charset.SHORTEST, charset.QP, "utf-8")
 charset.add_alias("utf8", "utf-8")
+
+logger = logging.getLogger(__name__)
 
 
 def do_paranoid_email_content_validation(from_addr, to_addrs, subject, body):
@@ -414,16 +417,52 @@ def sendmail(message, to_addrs=None, bulk=True):
     Returns the Message-Id
     """
     validate_message(message)
+
+    # Add a Message-Id: header if it isn't already there
+    if "message-id" not in message:
+        message["Message-Id"] = get_msgid()
+
     if to_addrs is None:
         to_addrs = get_addresses_from_header(str(message["to"]))
         if message["cc"]:
             to_addrs = to_addrs + get_addresses_from_header(str(message["cc"]))
 
-    do_paranoid_envelope_to_validation(to_addrs)
+    # Filter out mailing list addresses to prevent sending to them.
+    # The Launchpad mailing lists service has been shut down, so we need to
+    # filter out any @lists.launchpad.net addresses to avoid delivery failures.
+    def is_lp_list(addr):
+        for _, email in getaddresses([str(addr)]):
+            if email and email.lower().endswith("@lists.launchpad.net"):
+                return True
+        return False
 
-    # Add a Message-Id: header if it isn't already there
-    if "message-id" not in message:
-        message["Message-Id"] = get_msgid()
+    mailing_list_addrs = [addr for addr in to_addrs if is_lp_list(addr)]
+    filtered_to_addrs = [addr for addr in to_addrs if not is_lp_list(addr)]
+
+    if mailing_list_addrs:
+        logger.info(
+            "Filtered out Launchpad mailing list addresses from email "
+            "recipients. Subject: %s, Filtered addresses: %s, Remaining "
+            "recipients: %s",
+            message.get("Subject", "(no subject)"),
+            ", ".join(mailing_list_addrs),
+            len(filtered_to_addrs),
+        )
+
+    # If all addresses were filtered out, log and return without sending
+    if not filtered_to_addrs:
+        logger.info(
+            "All recipient addresses were Launchpad mailing list addresses "
+            "and filtered out. Email not sent. Subject: %s, "
+            "Filtered mailing list addresses: %s",
+            message.get("Subject", "(no subject)"),
+            ", ".join(mailing_list_addrs),
+        )
+        return message["Message-Id"][1:-1]
+
+    to_addrs = filtered_to_addrs
+
+    do_paranoid_envelope_to_validation(to_addrs)
 
     # Add a Date: header if it isn't already there
     if "date" not in message:

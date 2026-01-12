@@ -323,6 +323,67 @@ class TestMailController(TestCase):
         self.assertEqual(a0.detail, subject)
         self.assertIsInstance(a0.detail, str)
 
+    def test_blocklist_filters_all_lists(self):
+        """When all recipients are mailing lists, no email is sent."""
+        fake_mailer = RecordingMailer()
+        self.useFixture(ZopeUtilityFixture(fake_mailer, IMailDelivery, "Mail"))
+
+        message = Message()
+        message.add_header("From", "bounces@canonical.com")
+        message.add_header(
+            "To",
+            "team1@lists.launchpad.net, team2@lists.launchpad.net",
+        )
+        message.add_header("CC", "team3@lists.launchpad.net")
+        message["Subject"] = "All lists"
+
+        result = sendmail.sendmail(message)
+        self.assertFalse(hasattr(fake_mailer, "to_addr"))
+        self.assertTrue(result)
+        self.assertIsInstance(result, str)
+
+    def test_blocklist_preserves_existing_message_id(self):
+        """Existing Message-Id is preserved when all recipients filtered."""
+        fake_mailer = RecordingMailer()
+        self.useFixture(ZopeUtilityFixture(fake_mailer, IMailDelivery, "Mail"))
+
+        message = Message()
+        message.add_header("From", "bounces@canonical.com")
+        message.add_header("To", "team1@lists.launchpad.net")
+        message["Subject"] = "All lists"
+        existing_msgid = "<existing-id@example.com>"
+        message["Message-Id"] = existing_msgid
+
+        result = sendmail.sendmail(message)
+        self.assertEqual(result, "existing-id@example.com")
+
+    def test_blocklist_mixed_recipients(self):
+        """Mixed lists filtered (case-insensitive), non-lists kept,
+        content preserved."""
+        fake_mailer = RecordingMailer()
+        self.useFixture(ZopeUtilityFixture(fake_mailer, IMailDelivery, "Mail"))
+        message = Message()
+        message.add_header("From", "sender@example.com")
+        message.add_header(
+            "To", 'ok@example.com, "Team" <team@lists.launchpad.net>'
+        )
+        # Mailing list filter should be case-insensitive
+        message.add_header("CC", "user2@example.com, TEAM@LISTS.LAUNCHPAD.NET")
+        message["Subject"] = "Test Subject"
+        message.set_payload("Test body content")
+        sendmail.sendmail(message)
+
+        # Verify email was sent only to the non-list addresses
+        self.assertTrue(hasattr(fake_mailer, "to_addr"))
+        self.assertEqual(len(fake_mailer.to_addr), 2)
+        self.assertCountEqual(
+            fake_mailer.to_addr, ["ok@example.com", "user2@example.com"]
+        )
+
+        # Verify message content is preserved
+        self.assertIn(b"Test body content", fake_mailer.raw_message)
+        self.assertEqual(fake_mailer.from_addr, "bounces@canonical.com")
+
 
 @implementer(IMailDelivery)
 class RecordingMailer:
