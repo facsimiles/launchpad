@@ -104,6 +104,22 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         naked_job = removeSecurityProxy(job)
         self.assertEqual(naked_job.metadata, metadata)
 
+    def test_create_raises_error_when_publishing_history_is_none(self):
+        """Test that create() raises ValueError when publishing_history_id is
+        None."""
+        self.assertRaisesWithContent(
+            ValueError,
+            "publishing_history not found",
+            self.job_source.create,
+            publishing_history_id=None,
+        )
+
+    def test_create_feature_flag_disabled_returns_none(self):
+        """Test that create() returns None when feature flag is disabled."""
+        self.useFixture(FeatureFixture({CT_DELIVERY_ENABLED: ""}))
+        job = self.job_source.create(self.archive_history)
+        self.assertIsNone(job)
+
     def test_run(self):
         """Run CTDeliveryDebJob."""
         job = self.job_source.create(self.archive_history)
@@ -412,9 +428,38 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         self.assertEqual(0, result["ct_failure_count"])
         self.assertEqual([], result["error_description"])
 
+    def test_run_with_none_finished_date_uses_now(self):
+        """Test that run uses current time when publisher_run.date_finished is
+        None."""
+        # Set date_finished to None
+        ah = removeSecurityProxy(self.archive_history)
+        ah.publisher_run.date_finished = None
+        dbinterfaces.IStore(ah.publisher_run).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        # Should not raise and should complete
+        job = self.job_source.create(self.archive_history)
+        job.run()
+
+        # No publishes in window
+        result = job.metadata["result"]
+        self.assertEqual(0, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+
     def test_manual_mode_create_requires_parameters(self):
-        """Manual mode requires archive_id, date_start, and date_end."""
-        # Missing archive_id
+        """Manual mode requires archive_id."""
         self.assertRaisesWithContent(
             ValueError,
             "archive_id is required",
@@ -424,25 +469,34 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
             date_end=datetime.datetime.now(timezone.utc),
         )
 
-        # Missing date_start
+    def test_manual_mode_create_validates_date_order(self):
+        """Manual mode validates that date_start <= date_end."""
+        date_start = datetime.datetime(2024, 2, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+
         self.assertRaisesWithContent(
             ValueError,
-            "date_start and date_end are required",
+            "date_start must be less than or equal to date_end",
             CTDeliveryDebJob.create_manual,
             archive_id=self.archive.id,
-            date_start=None,
-            date_end=datetime.datetime.now(timezone.utc),
+            date_start=date_start,
+            date_end=date_end,
         )
 
-        # Missing date_end
-        self.assertRaisesWithContent(
-            ValueError,
-            "date_start and date_end are required",
-            CTDeliveryDebJob.create_manual,
+    def test_manual_mode_create_feature_flag_disabled(self):
+        """Manual mode returns None when feature flag is disabled."""
+        self.useFixture(FeatureFixture({CT_DELIVERY_ENABLED: ""}))
+
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+
+        job = CTDeliveryDebJob.create_manual(
             archive_id=self.archive.id,
-            date_start=datetime.datetime.now(timezone.utc),
-            date_end=None,
+            date_start=date_start,
+            date_end=date_end,
         )
+
+        self.assertIsNone(job)
 
     def test_manual_mode_create_stores_metadata(self):
         """Manual mode stores parameters in metadata."""
@@ -649,6 +703,218 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         self.assertEqual([], result["spph"])
         self.assertEqual(0, result["ct_success_count"])
         self.assertEqual(0, result["ct_failure_count"])
+
+    def test_manual_mode_with_none_dates(self):
+        """Manual mode works with None dates."""
+        # Create publication within recent timeframe
+        publish_date = datetime.datetime.now(timezone.utc)
+
+        spph = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph = removeSecurityProxy(spph)
+        spph.datecreated = publish_date
+        spph.datepublished = publish_date
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        # Create and run job with no date constraints
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=self.archive.id,
+        )
+        job.run()
+
+        # Should find and process the recent publication
+        result = job.metadata["result"]
+        self.assertIn(spph.id, result["spph"])
+        self.assertGreater(result["ct_success_count"], 0)
+
+    def test_manual_mode_with_distroseries_filter(self):
+        """Manual mode filters by distroseries when provided."""
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+        publish_date = datetime.datetime(2024, 1, 15, tzinfo=timezone.utc)
+
+        # Create distroseries
+        distroseries1 = self.factory.makeDistroSeries(
+            distribution=self.archive.distribution
+        )
+        distroseries2 = self.factory.makeDistroSeries(
+            distribution=self.archive.distribution
+        )
+
+        # Create publication in distroseries1
+        spph1 = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            distroseries=distroseries1,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph1 = removeSecurityProxy(spph1)
+        spph1.datecreated = publish_date
+        spph1.datepublished = publish_date
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph1.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph1).flush()
+
+        # Create publication in distroseries2
+        spph2 = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            distroseries=distroseries2,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph2 = removeSecurityProxy(spph2)
+        spph2.datecreated = publish_date
+        spph2.datepublished = publish_date
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph2.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph2).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        # Filter by distroseries1
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=self.archive.id,
+            date_start=date_start,
+            date_end=date_end,
+            distroseries=distroseries1.id,
+        )
+        job.run()
+
+        # Should only include spph1
+        result = job.metadata["result"]
+        self.assertEqual([spph1.id], result["spph"])
+        self.assertEqual(1, result["ct_success_count"])
+
+    def test_run_with_superseded_status_filter(self):
+        """Job includes only SUPERSEDED publications when status filter is
+        set to SUPERSEDED."""
+        # Create publications that should be excluded
+        spph_published = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph_published = removeSecurityProxy(spph_published)
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph_published.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph_published).flush()
+
+        bpph_pending = self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PENDING,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.DELETED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.OBSOLETE,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        bpph_pending = removeSecurityProxy(bpph_pending)
+        dbinterfaces.IStore(bpph_pending).flush()
+
+        # Create superseded publications that should be included
+        spph_superseded = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.SUPERSEDED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph_superseded = removeSecurityProxy(spph_superseded)
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph_superseded.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph_superseded).flush()
+
+        bpph_superseded = self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.SUPERSEDED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        bpph_superseded = removeSecurityProxy(bpph_superseded)
+        dbinterfaces.IStore(bpph_superseded).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        # Create manual job with SUPERSEDED status filter
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=self.archive.id,
+            status=PackagePublishingStatus.SUPERSEDED.value,
+        )
+        job.run()
+
+        # Only superseded (not published) should be included
+        result = job.metadata["result"]
+        self.assertEqual([bpph_superseded.id], result["bpph"])
+        self.assertEqual([spph_superseded.id], result["spph"])
+        self.assertEqual(2, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+
+        # Should only have 2 payloads (the superseded ones)
+        payloads = captured.get("payloads", [])
+        self.assertEqual(2, len(payloads))
 
 
 class TestViaCelery(TestCaseWithFactory):
