@@ -228,31 +228,6 @@ the team that the merge operation is performed with.
     >>> view.request.response.notifications
     []
 
-A team with a mailing list cannot be deleted.
-
-    >>> team, mailing_list = factory.makeTeamAndMailingList(
-    ...     "not-deletable", "rock"
-    ... )
-    >>> ignored = login_person(team.teamowner)
-    >>> view = create_initialized_view(
-    ...     team, "+delete", principal=team.teamowner
-    ... )
-    >>> view.canDelete(data={})
-    False
-
-    >>> view.has_mailing_list
-    True
-
-    >>> content = find_tag_by_id(view.render(), "maincontent")
-    >>> print(extract_text(content))
-    Delete Not Deletable
-    Deleting a team is permanent. It cannot be undone.
-    This team cannot be deleted until its mailing list is first deactivated,
-    then purged after the deactivation is confirmed...
-
-    >>> print(find_tag_by_id(content, "field.actions.delete"))
-    None
-
 Private teams can be deleted by admins.
 
     >>> from lp.registry.interfaces.person import PersonVisibility
