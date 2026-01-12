@@ -24,7 +24,7 @@ class CommitmentTrackerClient:
     def __init__(
         self,
         base_url: str,
-        release_endpoint: str = "/release",
+        release_endpoint: str = "/releases",
         api_key: Optional[str] = None,
         timeout: int = 5,
         http_proxy: Optional[str] = None,
@@ -139,7 +139,7 @@ def get_commitment_tracker_client() -> CommitmentTrackerClient:
     """Build a client from config; callers should ensure config exists."""
     ct_config = getattr(config, "commitment_tracker", None)
     base_url = getattr(ct_config, "base_url", None)
-    release_endpoint = getattr(ct_config, "release_endpoint", "/release")
+    release_endpoint = getattr(ct_config, "release_endpoint", "/releases")
 
     def _clean_url(url: Optional[str]) -> Optional[str]:
         if not url or url == "none":
