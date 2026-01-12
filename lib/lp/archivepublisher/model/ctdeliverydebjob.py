@@ -546,9 +546,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         archive_reference,
         curr_finished,
     ):
-        release_date_str = (
-            curr_finished.date().isoformat() if curr_finished else None
-        )
+        released_at = curr_finished.isoformat() if curr_finished else None
 
         binary_payloads = []
         bpph_ids = []
@@ -574,7 +572,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             )
             payload = {
                 "release": {
-                    "release_date": release_date_str,
+                    "released_at": released_at,
                     "external_link": None,
                     "properties": {
                         "type": "deb",
@@ -616,7 +614,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             spph_ids.append(spph_id)
             payload = {
                 "release": {
-                    "release_date": release_date_str,
+                    "released_at": released_at,
                     "external_link": None,
                     "properties": {
                         "type": "deb-source",
