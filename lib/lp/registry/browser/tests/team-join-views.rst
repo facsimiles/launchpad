@@ -54,27 +54,3 @@ Therefore no error message is seen.
 
     >>> join_team(no_list_team)
     You have successfully joined open-team-no-list.
-
-Someone subscribing to a moderated team's list will be shown an
-informative message regarding the delayed subscription.
-
-    >>> moderated_team = make_team(
-    ...     "moderated-team-with-list", TeamMembershipPolicy.MODERATED
-    ... )
-    >>> moderated_list = new_list_for_team(moderated_team)
-
-    >>> join_team(moderated_team)
-    Your request to join moderated-team-with-list is awaiting approval.
-    Your mailing list subscription is awaiting approval.
-
-Users joining an open team will be immediately subscribed to the
-team's list.
-
-    >>> open_team = make_team(
-    ...     "open-team-with-list", TeamMembershipPolicy.OPEN
-    ... )
-    >>> open_list = new_list_for_team(open_team)
-
-    >>> join_team(open_team)
-    You have successfully joined open-team-with-list.
-    You have been subscribed to this team&#x2019;s mailing list.
