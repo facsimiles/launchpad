@@ -162,7 +162,7 @@ viewable branches.
     ...         params["field.category"] = category
     ...     # The batch argument is given to override the default batch
     ...     # size of five.
-    ...     full_url = "http://code.launchpad.test/~name12?%s" % (
+    ...     full_url = "http://code.launchpad.test/~name12/+branches?%s" % (
     ...         urlencode(params),
     ...     )
     ...     browser.open(full_url)

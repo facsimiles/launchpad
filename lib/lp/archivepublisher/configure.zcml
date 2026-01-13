@@ -74,6 +74,22 @@
             interface="lp.archivepublisher.interfaces.archivepublishinghistory.IArchivePublishingHistory"/>
     </class>
 
+    <!-- CTDeliveryJob -->
+    <class class="lp.archivepublisher.model.ctdeliveryjob.CTDeliveryJob">
+        <allow interface="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryJob" />
+    </class>
+
+    <!-- CTDeliveryDebJob -->
+    <lp:securedutility
+      component="lp.archivepublisher.model.ctdeliverydebjob.CTDeliveryDebJob"
+      provides="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryDebJobSource">
+        <allow interface="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryDebJobSource"/>
+    </lp:securedutility>
+    <class class="lp.archivepublisher.model.ctdeliverydebjob.CTDeliveryDebJob">
+        <allow interface="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryDebJob" />
+        <allow interface="lp.archivepublisher.interfaces.ctdeliveryjob.ICTDeliveryJob" />
+    </class>
+
     <!-- Custom upload handlers
 
          This is a marker as per the comment in lib/lp/soyuz/enums.py:

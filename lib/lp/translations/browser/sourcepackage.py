@@ -26,7 +26,6 @@ from lp.services.webapp.escaping import structured
 from lp.services.webapp.publisher import LaunchpadView
 from lp.translations.browser.poexportrequest import BaseExportView
 from lp.translations.browser.product import ProductTranslationsMenu
-from lp.translations.browser.productseries import ProductSeriesTranslationsMenu
 from lp.translations.browser.translations import TranslationsMixin
 from lp.translations.browser.translationsharing import (
     TranslationSharingDetailsMixin,
@@ -465,40 +464,3 @@ class SourcePackageTranslationSharingDetailsView(LaunchpadView):
         """
         id = "upstream-translations-complete"
         return self.getConfigureTranslationsLink(id)
-
-    def getTranslationSynchronisationLink(self, id):
-        """The HTML link to the series translation synchronisation page."""
-        packaging = self.context.direct_packaging
-        if packaging is not None:
-            productseries = self.context.direct_packaging.productseries
-            productseries_menu = ProductSeriesTranslationsMenu(productseries)
-            settings_link = productseries_menu.settings()
-            url = "%s/%s" % (
-                canonical_url(productseries),
-                settings_link.target,
-            )
-            hidden = not settings_link.enabled
-        else:
-            url = "#"
-            hidden = True
-        icon = "edit"
-        text = "Configure Translation Synchronisation"
-        return self.icon_link(id, icon, url, text, hidden)
-
-    @property
-    def translation_sync_link_unconfigured(self):
-        """The HTML link to the series translation synchronisation page.
-
-        Variant for the status "not configured"
-        """
-        id = "translation-synchronisation-incomplete"
-        return self.getTranslationSynchronisationLink(id)
-
-    @property
-    def translation_sync_link_configured(self):
-        """The HTML link to the series translation synchronisation page.
-
-        Variant for the status "configured"
-        """
-        id = "translation-synchronisation-complete"
-        return self.getTranslationSynchronisationLink(id)

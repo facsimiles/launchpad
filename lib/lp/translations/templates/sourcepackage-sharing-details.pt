@@ -96,24 +96,6 @@
               <img src="/@@/spinner" class="hidden"
                    id="translation-complete-spinner"/>
             </li>
-            <li tal:attributes="class view/upstream_sync_disabled_class"
-                id="upstream-sync-incomplete">
-              Automatic synchronization of translations is not enabled.
-              <span id="upstream-sync-incomplete-picker">
-              <a tal:replace="structure view/translation_sync_link_unconfigured/escapedtext" />
-              </span>
-              <img src="/@@/spinner" class="hidden"
-                   id="upstream-sync-incomplete-spinner"/>
-            </li>
-            <li tal:attributes="class view/upstream_sync_enabled_class"
-                id="upstream-sync-complete">
-              Automatic synchronization of translations is enabled.
-              <span id="upstream-sync-complete-picker">
-              <a tal:replace="structure view/translation_sync_link_configured/escapedtext" />
-              </span>
-              <img src="/@@/spinner" class="hidden"
-                   id="upstream-sync-complete-spinner"/>
-            </li>
           </ul>
         </dd>
       </dl>

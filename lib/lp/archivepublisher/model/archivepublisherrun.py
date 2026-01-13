@@ -6,6 +6,7 @@
 __all__ = [
     "ArchivePublisherRun",
     "ArchivePublisherRunSet",
+    "ArchivePublisherRunStatus",
 ]
 
 from datetime import datetime, timezone

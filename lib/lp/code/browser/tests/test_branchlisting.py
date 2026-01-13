@@ -306,7 +306,7 @@ class TestSimplifiedPersonBranchesView(TestCaseWithFactory):
                 "Branches link",
                 "a",
                 text="Branches",
-                attrs={"href": self.code_base_url},
+                attrs={"href": self.code_base_url + "/+branches"},
             )
         )
         page = self.get_branch_list_page(page_name="+branches")
@@ -699,7 +699,8 @@ class TestPersonBranchesPage(BrowserTestCase):
         # the related 'Branches owned by' section at the bottom of the page.
         private_team, member, branch = self._make_branch_for_private_team()
         browser = self.getUserBrowser(
-            canonical_url(member, rootsite="code"), member
+            canonical_url(member, rootsite="code", view_name="+branches"),
+            member,
         )
         branches = find_tag_by_id(browser.contents, "portlet-team-branches")
         text = extract_text(branches)
@@ -729,7 +730,9 @@ class TestPersonBranchesPage(BrowserTestCase):
         badname = "<script>Test</script>"
         escapedname = "no branches related to &lt;script&gt;Test"
         baduser = self.factory.makePerson(displayname=badname)
-        browser = self.getViewBrowser(baduser, rootsite="code")
+        browser = self.getViewBrowser(
+            baduser, view_name="+branches", rootsite="code"
+        )
         # the content should not appear in tact because it's been escaped
         self.assertTrue(badname not in browser.contents)
         self.assertTrue(escapedname in browser.contents)

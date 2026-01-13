@@ -36,7 +36,7 @@ there.
     >>> vb = factory.makeAnyBranch(owner=vikings)
     >>> logout()
 
-    >>> browser.open("http://code.launchpad.test/~eric")
+    >>> browser.open("http://code.launchpad.test/~eric/+branches")
     >>> tb = find_tag_by_id(browser.contents, "portlet-team-branches")
     >>> print(extract_text(tb.h2))
     Branches owned by

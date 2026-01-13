@@ -319,7 +319,6 @@ class TestPersonTargetGitListingView:
 
         # No details about the non-existent default repo are shown.
         # XXX: This should show instructions to create one.
-        self.assertNotIn("Branches", content)
         self.assertNotIn("Browse the code", content)
         self.assertNotIn("git clone", content)
 
@@ -575,7 +574,6 @@ class TestPlainGitListingView:
 
         # No details about the default repo are shown, as a person
         # without a target doesn't have a default repo
-        self.assertNotIn("Branches", content)
         self.assertNotIn("Browse the code", content)
         self.assertNotIn("git clone", content)
         self.assertNotIn("bug-1234", content)

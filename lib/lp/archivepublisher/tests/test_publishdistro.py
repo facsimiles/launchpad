@@ -33,7 +33,10 @@ from lp.archivepublisher.interfaces.archivepublishinghistory import (
 from lp.archivepublisher.interfaces.publisherconfig import IPublisherConfigSet
 from lp.archivepublisher.model.archivepublisherrun import ArchivePublisherRun
 from lp.archivepublisher.publishing import GLOBAL_PUBLISHER_LOCK, Publisher
-from lp.archivepublisher.scripts.publishdistro import PublishDistro
+from lp.archivepublisher.scripts.publishdistro import (
+    ARCHIVEPUBLISHER_HISTORY_ENABLED,
+    PublishDistro,
+)
 from lp.archivepublisher.tests.artifactory_fixture import (
     FakeArtifactoryFixture,
 )
@@ -42,6 +45,7 @@ from lp.registry.interfaces.person import IPersonSet
 from lp.registry.interfaces.pocket import PackagePublishingPocket
 from lp.services.config import config
 from lp.services.database.interfaces import IStore
+from lp.services.features.testing import FeatureFixture
 from lp.services.log.logger import BufferLogger
 from lp.services.osutils import write_file
 from lp.services.scripts.base import LOCK_PATH, LaunchpadScriptFailure
@@ -1686,10 +1690,12 @@ class TestPublishDistroMethods(TestCaseWithFactory):
 
     def test_getTargetArchives_gets_specific_archives(self):
         # If the selected exclusive option is "archive,"
-        # getTargetArchives looks for the specified archives.
+        # getTargetArchives uses getArchives to look for the specified archives
+        # and return only the ones pending publication.
         distro = self.makeDistro()
 
         ppa_1 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+        self.factory.makeSourcePackagePublishingHistory(archive=ppa_1)
         ppa_2 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
 
         # create another random archive in the same distro
@@ -1697,7 +1703,64 @@ class TestPublishDistroMethods(TestCaseWithFactory):
 
         script = self.makeScript(
             distro,
-            ["--archive", ppa_1.reference, "--archive", ppa_2.reference],
+            [
+                "--archive",
+                ppa_1.reference,
+                "--archive",
+                ppa_2.reference,
+            ],
+        )
+        self.assertContentEqual([ppa_1], script.getTargetArchives(distro))
+
+    def test_getTargetArchives_gets_specific_archives_non_pending(self):
+        # If the selected options are "archive, include-non-pending"
+        # getTargetArchives uses getArchives to look for the specified archives
+        # and return all of them
+        distro = self.makeDistro()
+
+        ppa_1 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+        self.factory.makeSourcePackagePublishingHistory(archive=ppa_1)
+        ppa_2 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+
+        # create another random archive in the same distro
+        self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+
+        script = self.makeScript(
+            distro,
+            [
+                "--include-non-pending",
+                "--archive",
+                ppa_1.reference,
+                "--archive",
+                ppa_2.reference,
+            ],
+        )
+        self.assertContentEqual(
+            [ppa_1, ppa_2], script.getTargetArchives(distro)
+        )
+
+    def test_getTargetArchives_gets_specific_archives_careful(self):
+        # If the selected options are "archive, careful"
+        # getTargetArchives uses getArchives to look for the specified archives
+        # and return all of them
+        distro = self.makeDistro()
+
+        ppa_1 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+        self.factory.makeSourcePackagePublishingHistory(archive=ppa_1)
+        ppa_2 = self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+
+        # create another random archive in the same distro
+        self.factory.makeArchive(distro, purpose=ArchivePurpose.PPA)
+
+        script = self.makeScript(
+            distro,
+            [
+                "--careful",
+                "--archive",
+                ppa_1.reference,
+                "--archive",
+                ppa_2.reference,
+            ],
         )
         self.assertContentEqual(
             [ppa_1, ppa_2], script.getTargetArchives(distro)
@@ -2204,8 +2267,35 @@ class TestPublishDistroMethods(TestCaseWithFactory):
             script.lockfilepath, os.path.join(LOCK_PATH, GLOBAL_PUBLISHER_LOCK)
         )
 
+    def test_main_no_history_enabled(self):
+        """Test that PublishingHistory and PublisherRun records are not created
+        if the feature flag is not enabled."""
+        archive1 = self.factory.makeArchive()
+        script = self.makeScript()
+        script.txn = FakeTransaction()
+        script.findDistros = FakeMethod([archive1.distribution])
+        script.getTargetArchives = FakeMethod([archive1])
+        publisher = FakePublisher()
+        script.getPublisher = FakeMethod(publisher)
+
+        script.main()
+
+        # Check PublishingHistory record was not created
+        publishing_history_set = getUtility(IArchivePublishingHistorySet)
+        histories1 = list(publishing_history_set.getByArchive(archive1))
+        self.assertEqual(0, len(histories1))
+
+        # Check PublisherRun record was not created
+        store = IStore(ArchivePublisherRun)
+        publisher_run = store.find(ArchivePublisherRun).one()
+        self.assertIsNone(publisher_run)
+
     def test_main_creates_publishing_history_records(self):
         """Test that PublishingHistory and PublisherRun records are created."""
+        self.useFixture(
+            FeatureFixture({ARCHIVEPUBLISHER_HISTORY_ENABLED: "on"})
+        )
+
         archive1 = self.factory.makeArchive()
         archive2 = self.factory.makeArchive()
         script = self.makeScript()
@@ -2249,6 +2339,9 @@ class TestPublishDistroMethods(TestCaseWithFactory):
     def test_main_publisher_run_failed(self):
         """Test that main sets the PublisherRun status and timestamps to
         FAILED on exception."""
+        self.useFixture(
+            FeatureFixture({ARCHIVEPUBLISHER_HISTORY_ENABLED: "on"})
+        )
 
         # Mock processArchive to raise an exception
         def mock_processArchive(
@@ -2304,6 +2397,9 @@ class TestPublishDistroMethods(TestCaseWithFactory):
 
     def test_main_no_archives(self):
         """Test that history is None if there are no archives to publish."""
+        self.useFixture(
+            FeatureFixture({ARCHIVEPUBLISHER_HISTORY_ENABLED: "on"})
+        )
         archive = self.factory.makeArchive()
 
         script = self.makeScript()
@@ -2331,6 +2427,9 @@ class TestPublishDistroMethods(TestCaseWithFactory):
         # processArchive() checks if the archive was published or deleted,
         # and if neither happened, it does not commmit the transaction. We use
         # this to avoid creating history records when no work is done.
+        self.useFixture(
+            FeatureFixture({ARCHIVEPUBLISHER_HISTORY_ENABLED: "on"})
+        )
 
         archive = self.factory.makeArchive()
         # Disable publication for this archive: work_done=False
@@ -2359,6 +2458,10 @@ class TestPublishDistroMethods(TestCaseWithFactory):
     def test_main_partial_failure_history(self):
         """Test that if one archive fails, previous ones are committed but run
         is FAILED."""
+        self.useFixture(
+            FeatureFixture({ARCHIVEPUBLISHER_HISTORY_ENABLED: "on"})
+        )
+
         archive1 = self.factory.makeArchive()
         archive2 = self.factory.makeArchive()
         script = self.makeScript()

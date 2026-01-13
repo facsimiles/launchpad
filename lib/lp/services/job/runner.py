@@ -24,6 +24,7 @@ from calendar import timegm
 from datetime import datetime, timedelta, timezone
 from resource import RLIMIT_AS, getrlimit, setrlimit
 from signal import SIGHUP, signal
+from typing import ClassVar, Tuple, Type
 from uuid import uuid4
 
 import transaction
@@ -99,9 +100,9 @@ class BaseRunnableJob(BaseRunnableJobSource):
     If so, they should also provide getOperationDescription.
     """
 
-    user_error_types = ()
+    user_error_types: ClassVar[Tuple[Type[BaseException], ...]] = ()
 
-    retry_error_types = ()
+    retry_error_types: ClassVar[Tuple[Type[BaseException], ...]] = ()
 
     task_queue = "launchpad_job"
 

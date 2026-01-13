@@ -179,17 +179,10 @@ class TestCanConfigureTranslations(TestCaseWithFactory):
             view_name="+translations-upload",
             rootsite="translations",
         )
-        automatic_url = canonical_url(
-            product.development_focus,
-            view_name="+translations-settings",
-            rootsite="translations",
-        )
         self.assertThat(content, self.hasLink(series_url))
         self.assertThat(content, self.hasLink(manual_url))
-        self.assertThat(content, self.hasLink(automatic_url))
         with person_logged_in(product.owner):
             product.information_type = InformationType.PROPRIETARY
         content = self.getTranslationsContent(product)
         self.assertThat(content, Not(self.hasLink(series_url)))
         self.assertThat(content, Not(self.hasLink(manual_url)))
-        self.assertThat(content, Not(self.hasLink(automatic_url)))

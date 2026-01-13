@@ -17,6 +17,7 @@
 
 <body>
   <metal:side fill-slot="side" tal:define="context_menu context/menu:context">
+    <tal:summary replace="structure context/@@+codesummary | nothing"/>
     <tal:has-target condition="view/target">
       <div id="branch-portlet"
           tal:condition="not: view/target/pillar/codehosting_usage/enumvalue:UNKNOWN">

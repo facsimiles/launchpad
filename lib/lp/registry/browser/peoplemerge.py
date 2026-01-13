@@ -21,7 +21,6 @@ from lp.app.browser.launchpadform import LaunchpadFormView, action
 from lp.app.interfaces.launchpad import ILaunchpadCelebrities
 from lp.code.interfaces.branchcollection import IAllBranches
 from lp.code.interfaces.gitcollection import IAllGitRepositories
-from lp.registry.interfaces.mailinglist import PURGE_STATES, MailingListStatus
 from lp.registry.interfaces.person import (
     IAdminPeopleMergeSchema,
     IAdminTeamMergeSchema,
@@ -227,20 +226,12 @@ class AdminTeamMergeView(AdminMergeBaseView):
     label = "Merge Launchpad teams"
     schema = IAdminTeamMergeSchema
 
-    def hasMailingList(self, team):
-        unused_states = [state for state in PURGE_STATES]
-        unused_states.append(MailingListStatus.PURGED)
-        return (
-            team.mailing_list is not None
-            and team.mailing_list.status not in unused_states
-        )
-
     @cachedproperty
     def registry_experts(self):
         return getUtility(ILaunchpadCelebrities).registry_experts
 
     def validate(self, data):
-        """Check there are no mailing lists associated with the dupe team."""
+        """Check there are no errors associated with the dupe team."""
         # If errors have already been discovered there is no need to continue,
         # especially since some of our expected data may be missing in the
         # case of user-entered invalid data.
@@ -248,17 +239,6 @@ class AdminTeamMergeView(AdminMergeBaseView):
             return
 
         super().validate(data)
-        dupe_team = data["dupe_person"]
-        # We cannot merge the teams if there is a mailing list on the
-        # duplicate person, unless that mailing list is purged.
-        if self.hasMailingList(dupe_team):
-            self.addError(
-                _(
-                    "${name} is associated with a Launchpad mailing list; we "
-                    "can't merge it.",
-                    mapping=dict(name=dupe_team.name),
-                )
-            )
 
     @action("Merge", name="merge")
     def merge_action(self, action, data):
@@ -330,12 +310,8 @@ class DeleteTeamView(AdminTeamMergeView):
     def success_url(self):
         return canonical_url(getUtility(IPersonSet))
 
-    @property
-    def has_mailing_list(self):
-        return self.hasMailingList(self.context)
-
     def canDelete(self, data):
-        return not self.has_mailing_list
+        return True
 
     @action("Delete", name="delete", condition=canDelete)
     def merge_action(self, action, data):

@@ -22,7 +22,7 @@ Sample Person is used as the logged in user in order to show their private
 branches in the listings.
 
     >>> browser = setupBrowser(auth="Basic test@canonical.com:test")
-    >>> browser.open("http://code.launchpad.test/~name12")
+    >>> browser.open("http://code.launchpad.test/~name12/+branches")
     >>> links = find_tag_by_id(browser.contents, "branch-batch-links")
     >>> print(links.decode_contents())
     <BLANKLINE>
@@ -68,7 +68,7 @@ and are really just branch metadata without the revisions behind them.
 If the branch listing has few enough entries that batching isn't
 needed, then the table is sortable and no batching navigation links are shown.
 
-    >>> browser.open("http://code.launchpad.test/~name12")
+    >>> browser.open("http://code.launchpad.test/~name12/+branches")
     >>> browser.getControl(name="field.category").displayValue = [
     ...     "Subscribed"
     ... ]
@@ -86,7 +86,7 @@ are shown.  Current branches are those that have a lifecycle status of
 Development, Experimental or Mature.  Merged or Abandoned branches are not
 shown.
 
-    >>> browser.open("http://code.launchpad.test/~name12")
+    >>> browser.open("http://code.launchpad.test/~name12/+branches")
     >>> table = find_tag_by_id(browser.contents, "branchtable")
     >>> for row in table.tbody.find_all("tr"):
     ...     print(extract_text(row))
@@ -302,7 +302,7 @@ allows changing the sort order.
 On branch listings for a person, the default ordering is by most recently
 changed first.
 
-    >>> browser.open("http://code.launchpad.test/~name12")
+    >>> browser.open("http://code.launchpad.test/~name12/+branches")
     >>> sort_by_control = browser.getControl(name="field.sort_by")
     >>> sort_by_control.value
     ['most recently changed first']

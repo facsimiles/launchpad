@@ -5,6 +5,7 @@
 
 __all__ = [
     "PublishDistro",
+    "ARCHIVEPUBLISHER_HISTORY_ENABLED",
 ]
 
 import os
@@ -30,10 +31,14 @@ from lp.archivepublisher.interfaces.archivepublisherrun import (
 from lp.archivepublisher.interfaces.archivepublishinghistory import (
     IArchivePublishingHistorySet,
 )
+from lp.archivepublisher.interfaces.ctdeliveryjob import (
+    ICTDeliveryDebJobSource,
+)
 from lp.archivepublisher.model.archivepublisherrun import ArchivePublisherRun
 from lp.archivepublisher.model.archivepublishinghistory import (
     ArchivePublishingHistory,
 )
+from lp.archivepublisher.model.ctdeliveryjob import CTDeliveryJob
 from lp.archivepublisher.publishing import (
     GLOBAL_PUBLISHER_LOCK,
     cannot_modify_suite,
@@ -42,6 +47,7 @@ from lp.archivepublisher.publishing import (
 from lp.archivepublisher.scripts.base import PublisherScript
 from lp.services.config import config
 from lp.services.database.interfaces import IStore
+from lp.services.features import getFeatureFlag
 from lp.services.limitedlist import LimitedList
 from lp.services.scripts.base import LaunchpadScriptFailure
 from lp.services.webapp.adapter import (
@@ -54,6 +60,8 @@ from lp.soyuz.enums import (
     ArchiveStatus,
 )
 from lp.soyuz.interfaces.archive import MAIN_ARCHIVE_PURPOSES, IArchiveSet
+
+ARCHIVEPUBLISHER_HISTORY_ENABLED = "archivepublisher.history.enabled"
 
 
 def is_ppa_private(ppa):
@@ -390,10 +398,25 @@ class PublishDistro(PublisherScript):
         else:
             return distribution.getPendingPublicationPPAs()
 
+    def getArchives(self, archive_references, distribution):
+        """Find the archives with the given references."""
+        archives = self.findArchives(archive_references, distribution)
+
+        if (
+            self.isCareful(self.options.careful_publishing)
+            or self.options.include_non_pending
+        ):
+            return archives
+        else:
+            archive_ids = [archive.id for archive in archives]
+            return distribution.getPendingPublicationPPAs(
+                archive_ids=archive_ids
+            )
+
     def getTargetArchives(self, distribution):
         """Find the archive(s) selected by the script's options."""
         if self.options.archives:
-            return self.findArchives(self.options.archives, distribution)
+            return self.getArchives(self.options.archives, distribution)
         elif self.options.partner:
             return [distribution.getArchiveByComponent("partner")]
         elif self.options.ppa:
@@ -609,14 +632,9 @@ class PublishDistro(PublisherScript):
             clear_request_started()
 
         if work_done:
-            self._create_publishing_history(archive_id, publisher_run_id)
-            self.txn.commit()
-            if reset_store:
-                # Reset the store after processing each dirty archive, as
-                # otherwise the process of publishing large archives can
-                # accumulate a large number of alive objects in the Storm
-                # store and cause performance problems.
-                Store.of(archive).reset()
+            self._finalize_archive_publish(
+                archive, archive_id, publisher_run_id, reset_store
+            )
 
     def _buildRsyncCommand(self, src, dest, extra_options=None):
         if extra_options is None:
@@ -757,27 +775,72 @@ class PublishDistro(PublisherScript):
 
     def _create_publisher_run(self):
         """Create PublisherRun record for this run."""
+        if not getFeatureFlag(ARCHIVEPUBLISHER_HISTORY_ENABLED):
+            return None
+
         publisher_run_set = getUtility(IArchivePublisherRunSet)
         publisher_run = publisher_run_set.new()
 
         IStore(ArchivePublisherRun).flush()
         self.txn.commit()
         self.logger.debug(f"Created PublisherRun id={publisher_run.id}")
-        return publisher_run
+        return publisher_run.id
 
     def _create_publishing_history(self, archive_id, publisher_run_id):
         """Create PublishingHistory records for all processed archives."""
+        if not publisher_run_id:
+            return None
+
         archive = getUtility(IArchiveSet).get(archive_id)
         publisher_run = getUtility(IArchivePublisherRunSet).getById(
             publisher_run_id
         )
 
-        getUtility(IArchivePublishingHistorySet).new(archive, publisher_run)
+        publishing_history = getUtility(IArchivePublishingHistorySet).new(
+            archive, publisher_run
+        )
         IStore(ArchivePublishingHistory).flush()
         self.logger.debug(f"Created PublishingHistory archive_id={archive_id}")
+        return publishing_history.id
+
+    def _finalize_archive_publish(
+        self, archive, archive_id, publisher_run_id, reset_store
+    ):
+        """Record history, enqueue CT job, and reset store if needed."""
+        publishing_history_id = None
+        try:
+            publishing_history_id = self._create_publishing_history(
+                archive_id, publisher_run_id
+            )
+        except Exception:
+            self.logger.warning(
+                "Failed to record ArchivePublishingHistory for archive %s",
+                archive_id,
+            )
+        if publishing_history_id:
+            try:
+                getUtility(ICTDeliveryDebJobSource).create(
+                    publishing_history_id
+                )
+                IStore(CTDeliveryJob).flush()
+            except Exception:
+                self.logger.warning(
+                    "Failed to enqueue CTDeliveryDebJob for archive %s",
+                    publishing_history_id,
+                )
+        self.txn.commit()
+        if reset_store:
+            # Reset the store after processing each dirty archive, as otherwise
+            # the process of publishing large archives can accumulate a large
+            # number of alive objects in the Storm store and cause performance
+            # problems.
+            Store.of(archive).reset()
 
     def _update_publisher_run_status(self, publisher_run_id, succeeded):
         """Update the status of the given PublisherRun.id."""
+        if not publisher_run_id:
+            return
+
         publisher_run = getUtility(IArchivePublisherRunSet).getById(
             publisher_run_id
         )
@@ -804,8 +867,7 @@ class PublishDistro(PublisherScript):
 
     def main(self, reset_store_between_archives=True):
         """See `LaunchpadScript`."""
-        publisher_run = self._create_publisher_run()
-        publisher_run_id = publisher_run.id
+        publisher_run_id = self._create_publisher_run()
 
         succeeded = False
         archive_ids = []

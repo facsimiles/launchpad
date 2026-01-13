@@ -3,13 +3,16 @@
   xmlns:tal="http://xml.zope.org/namespaces/tal"
   xmlns:metal="http://xml.zope.org/namespaces/metal"
   xmlns:i18n="http://xml.zope.org/namespaces/i18n"
-  metal:use-macro="view/macro:page/main_only"
+  metal:use-macro="view/macro:page/main_side"
   i18n:domain="launchpad">
 
 <body>
 
-<div metal:fill-slot="main">
+<metal:side fill-slot="side" tal:define="context_menu context/menu:context">
+  <tal:summary replace="structure context/@@+codesummary | nothing"/>
+</metal:side>
 
+<div metal:fill-slot="main">
   <tal:has-proposals condition="view/proposal_count"
                      define = "approved view/review_groups/approved|nothing;
                                to_do view/review_groups/to_do|nothing;
