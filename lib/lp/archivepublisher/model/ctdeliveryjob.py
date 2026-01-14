@@ -30,7 +30,7 @@ class CTDeliveryJob(StormBase):
 
     id = Int(primary=True)
 
-    publishing_history_id = Int(name="publishing_history")
+    publishing_history_id = Int(name="publishing_history", allow_none=True)
     publishing_history = Reference(
         publishing_history_id, "ArchivePublishingHistory.id"
     )

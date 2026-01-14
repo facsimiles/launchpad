@@ -5,6 +5,7 @@ __all__ = ["CTDeliveryDebJob"]
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import List, Optional, Tuple
 
 from storm.expr import (
     SQL,
@@ -21,6 +22,7 @@ from storm.expr import (
     Select,
     Table,
 )
+from zope.component import getUtility
 from zope.interface import implementer, provider
 
 from lp.archivepublisher.interfaces.ctdeliveryjob import (
@@ -45,11 +47,20 @@ from lp.services.config import config
 from lp.services.database.interfaces import IPrimaryStore, IStore
 from lp.services.features import getFeatureFlag
 from lp.services.job.model.job import Job
-from lp.soyuz.enums import ArchivePurpose
+from lp.soyuz.enums import ArchivePurpose, PackagePublishingStatus
+from lp.soyuz.interfaces.archive import IArchiveSet
 
 logger = logging.getLogger(__name__)
 
 CT_DELIVERY_ENABLED = "commitment_tracker.delivery.enabled"
+CT_DELIVERY_MANUAL_TIMEOUT = (
+    "commitment_tracker.delivery.manual_timeout_minutes"
+)
+
+POCKET_TO_NAME = {
+    item.value: pocketsuffix.get(item)[1:] if pocketsuffix.get(item) else None
+    for item in PackagePublishingPocket.items
+}
 
 
 @implementer(ICTDeliveryDebJob)
@@ -71,15 +82,33 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         """Return True if the CT delivery feature flag is enabled."""
         return bool(getFeatureFlag(CT_DELIVERY_ENABLED))
 
+    @staticmethod
+    def _get_manual_timeout_minutes():
+        """Return the timeout in minutes for manual mode jobs.
+
+        Defaults to 30 minutes if not configured via feature flag.
+        """
+        timeout_str = getFeatureFlag(CT_DELIVERY_MANUAL_TIMEOUT)
+        if timeout_str:
+            try:
+                return int(timeout_str)
+            except (ValueError, TypeError):
+                logger.warning(
+                    f"[CT] Invalid value for {CT_DELIVERY_MANUAL_TIMEOUT}: "
+                    f"{timeout_str}, using default 30"
+                )
+        return 30
+
     @property
     def publishing_history(self):
         # Prefer the Storm-loaded reference on the context; fall back to an
         # explicit fetch by id if not already loaded.
         if getattr(self.context, "publishing_history", None) is not None:
             return self.context.publishing_history
-        return IStore(ArchivePublishingHistory).get(
-            self.context.publishing_history_id
-        )
+        if self.context.publishing_history_id is not None:
+            return IStore(ArchivePublishingHistory).get(
+                self.context.publishing_history_id
+            )
 
     @property
     def error_description(self):
@@ -91,25 +120,22 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
     @classmethod
     def create(
-        cls,
-        publishing_history_id,
-    ):
-        """Create a new `CTDeliveryDebJob`.
+        cls, publishing_history_id: int
+    ) -> Optional["CTDeliveryDebJob"]:
+        """Create a new `CTDeliveryDebJob` using `IArchivePublishingHistory`.
 
         :param publishing_history_id: The id of the
             `IArchivePublishingHistory` associated with this job.
         """
         if not cls._is_delivery_enabled():
             logger.info(
-                "[CT] Delivery disabled via feature flag %s",
-                CT_DELIVERY_ENABLED,
+                "[CT] Delivery disabled via feature flag "
+                f"{CT_DELIVERY_ENABLED}"
             )
             return None
 
         if publishing_history_id is None:
             raise ValueError("publishing_history not found")
-
-        store = IPrimaryStore(CTDeliveryJob)
 
         # Schedule the initialization.
         metadata = {
@@ -127,8 +153,80 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
         # Configure retry policy for the underlying Job.
         ctdeliveryjob.job.max_retries = cls.max_retries
+
+        store = IPrimaryStore(CTDeliveryJob)
         store.add(ctdeliveryjob)
         derived_job = cls(ctdeliveryjob)
+        derived_job.celeryRunOnCommit()
+        IStore(CTDeliveryJob).flush()
+        return derived_job
+
+    @classmethod
+    def create_manual(
+        cls,
+        archive_id: int,
+        date_start: Optional[datetime] = None,
+        date_end: Optional[datetime] = None,
+        distroseries: Optional[int] = None,
+        status: int = PackagePublishingStatus.PUBLISHED.value,
+    ) -> Optional["CTDeliveryDebJob"]:
+        """Create a new `CTDeliveryDebJob` manually.
+
+        :param archive_id: The id of the archive to process.
+        :param date_start: Start of the date range.
+        :param date_end: End of the date range.
+        :param distroseries: The id of the distroseries to filter.
+        :param status: The publishing status to filter by.
+        """
+        if not cls._is_delivery_enabled():
+            logger.info(
+                "[CT] Delivery disabled via feature flag "
+                f"{CT_DELIVERY_ENABLED}"
+            )
+            return None
+
+        if archive_id is None:
+            raise ValueError("archive_id is required")
+
+        if date_start and date_end and date_start > date_end:
+            raise ValueError(
+                "date_start must be less than or equal to date_end"
+            )
+
+        manual_mode = {
+            "archive_id": archive_id,
+            "status": status,
+            "date_start": date_start.timestamp() if date_start else None,
+            "date_end": date_end.timestamp() if date_end else None,
+            "distroseries": distroseries,
+        }
+
+        metadata = {
+            "result": {
+                "error_description": [],
+                "bpph": [],
+                "spph": [],
+                "ct_success_count": 0,
+                "ct_failure_count": 0,
+            },
+            "manual_mode": manual_mode,
+        }
+
+        ctdeliveryjob = CTDeliveryJob(None, cls.class_job_type, metadata)
+        # Configure retry policy for the underlying Job.
+        ctdeliveryjob.job.max_retries = cls.max_retries
+
+        store = IPrimaryStore(CTDeliveryJob)
+        store.add(ctdeliveryjob)
+        derived_job = cls(ctdeliveryjob)
+
+        # Manual mode jobs can be slow if the archive is large.
+        derived_job.task_queue = "launchpad_job_slow"
+        # Configure time limits from feature flag
+        timeout_minutes = cls._get_manual_timeout_minutes()
+        derived_job.soft_time_limit = timedelta(minutes=timeout_minutes)
+        derived_job.lease_duration = timedelta(minutes=timeout_minutes)
+
         derived_job.celeryRunOnCommit()
         IStore(CTDeliveryJob).flush()
         return derived_job
@@ -147,7 +245,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         return (cls(job) for job in jobs)
 
     @classmethod
-    def get(cls, publishing_history):
+    def get(cls, publishing_history) -> Optional["CTDeliveryDebJob"]:
         """See `ICTDeliveryDebJob`."""
         ctdelivery_job = (
             IStore(CTDeliveryJob)
@@ -161,7 +259,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
         return None if ctdelivery_job is None else cls(ctdelivery_job)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Returns an informative representation of the job."""
         return (
             f"<{self.__class__.__name__} for "
@@ -169,19 +267,30 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             f"metadata: {self.metadata}>"
         )
 
-    def run(self):
+    def run(self) -> None:
         """See `IRunnableJob`."""
         if not self._is_delivery_enabled():
             logger.info(
-                "[CT] Delivery disabled via feature flag %s; skipping.",
-                CT_DELIVERY_ENABLED,
+                "[CT] Delivery disabled via feature flag "
+                f"{CT_DELIVERY_ENABLED}; skipping."
             )
             return
 
+        manual_mode = self.metadata.get("manual_mode")
+
+        if manual_mode:
+            # Manual mode: process date range for an archive
+            self._run_manual_mode(manual_mode)
+        else:
+            # Single publishing history mode
+            self._run_publishing_mode()
+
+    def _run_publishing_mode(self) -> None:
+        """Run in single publishing history mode."""
         if self.publishing_history is None:
             logger.warning(
-                "Publishing history %s not found; skipping job",
-                self.context.publishing_history_id,
+                f"Publishing history {self.context.publishing_history_id} not "
+                "found; skipping job"
             )
             return
 
@@ -211,41 +320,135 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             # initial publishes are still delivered to CT.
             prev_run_id, prev_finished = None, lookback_start
             logger.info(
-                (
-                    "No previous successful run found for archive %s; "
-                    "run=%s. Using lookback window starting %s."
-                ),
-                archive.id,
-                current_run.id,
-                lookback_start,
+                f"No previous successful run found for archive {archive.id}; "
+                f"run={current_run.id}. Using lookback window starting "
+                f"{lookback_start}."
             )
         else:
             prev_run_id, prev_finished = prev_row
 
+        self._deliver_to_ct(
+            archive=archive,
+            distribution_name=distribution_name,
+            archive_reference=archive_reference,
+            datecreated_start=lookback_start,
+            datecreated_end=curr_finished,
+            datepublished_start=prev_finished,
+            datepublished_end=curr_finished,
+            prev_run_id=prev_run_id,
+            current_run_id=current_run.id if current_run else None,
+            distroseries=None,
+        )
+
+    def _run_manual_mode(self, manual_mode_params: dict) -> None:
+        """Run in manual mode for initial population or backfilling."""
+        archive_id = int(manual_mode_params["archive_id"])
+        date_start = manual_mode_params.get("date_start")
+        date_end = manual_mode_params.get("date_end")
+        distroseries = manual_mode_params.get("distroseries")
+        status = int(manual_mode_params.get("status"))
+
+        lookback_start = None
+        if date_start is not None:
+            date_start = datetime.fromtimestamp(date_start, tz=timezone.utc)
+            lookback_start = date_start - timedelta(days=60)
+        if date_end is not None:
+            date_end = datetime.fromtimestamp(date_end, tz=timezone.utc)
+
+        # Fetch archive
+        archive = getUtility(IArchiveSet).get(archive_id)
+        if archive is None:
+            logger.warning(f"Archive {archive_id} not found; skipping job")
+            return
+
+        distribution_name = archive.distribution.name
+        archive_reference = (
+            "primary"
+            if archive.purpose == ArchivePurpose.PRIMARY
+            else archive.reference
+        )
+
+        logger.info(
+            f"CTDeliveryDebJob manual mode: archive={archive_id} "
+            f"date_start={date_start} date_end={date_end} "
+            f"distroseries={distroseries}"
+        )
+
+        self._deliver_to_ct(
+            archive=archive,
+            distribution_name=distribution_name,
+            archive_reference=archive_reference,
+            datecreated_start=lookback_start,
+            datecreated_end=date_end,
+            datepublished_start=date_start,
+            datepublished_end=date_end,
+            prev_run_id=None,
+            current_run_id=None,
+            distroseries=distroseries,
+            status=status,
+        )
+
+    def _deliver_to_ct(
+        self,
+        archive,
+        distribution_name: str,
+        archive_reference: str,
+        datecreated_start: Optional[datetime],
+        datecreated_end: Optional[datetime],
+        datepublished_start: Optional[datetime],
+        datepublished_end: Optional[datetime],
+        prev_run_id: Optional[int],
+        current_run_id: Optional[int],
+        distroseries: Optional[int],
+        status: int = PackagePublishingStatus.PUBLISHED.value,
+    ) -> None:
+        """Common processing and delivery logic for both modes."""
+        logger.debug(
+            f"CTDeliveryDebJob for archive={archive.reference} "
+            f"datecreated_start={datecreated_start} "
+            f"datecreated_end={datecreated_end} "
+            f"datepublished_start={datepublished_start} "
+            f"datepublished_end={datepublished_end} "
+            f"distroseries={distroseries} status={status}"
+        )
+
         store = IStore(ArchivePublisherRun)
 
         # Fetch BPPH/SPPH rows in the window.
+        logger.info(f"Querying BPPH rows for archive {archive.reference}")
         bpph_rows = self._query_bpph_rows(
             store=store,
             archive=archive,
-            prev_finished=prev_finished,
-            curr_finished=curr_finished,
-            lookback_start=lookback_start,
+            datecreated_start=datecreated_start,
+            datecreated_end=datecreated_end,
+            datepublished_start=datepublished_start,
+            datepublished_end=datepublished_end,
+            distroseries=distroseries,
+            status=status,
         )
+
+        logger.info(f"Querying SPPH rows for archive {archive.reference}")
         spph_rows = self._query_spph_rows(
             store=store,
             archive=archive,
-            prev_finished=prev_finished,
-            curr_finished=curr_finished,
-            lookback_start=lookback_start,
+            datecreated_start=datecreated_start,
+            datecreated_end=datecreated_end,
+            datepublished_start=datepublished_start,
+            datepublished_end=datepublished_end,
+            distroseries=distroseries,
+            status=status,
         )
 
+        logger.info(
+            f"Building payloads for CT delivery: binaries={len(bpph_rows)} "
+            f"sources={len(spph_rows)}"
+        )
         payloads, bpph_ids, spph_ids = self._build_payloads(
             bpph_rows=bpph_rows,
             spph_rows=spph_rows,
             distribution_name=distribution_name,
             archive_reference=archive_reference,
-            curr_finished=curr_finished,
+            curr_finished=datepublished_end,
         )
 
         # Persist a light summary in metadata (keep payloads out).
@@ -259,6 +462,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             logger.info("[CT] no payloads to deliver for this window.")
             return
 
+        logger.info(f"Sending {len(payloads)} payloads to CT")
         client = get_commitment_tracker_client()
         success_count, failure_errors = client.send_payloads_with_results(
             payloads
@@ -270,20 +474,13 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
 
         logger.info(
-            (
-                "CTDeliveryDebJob window: archive=%s prev_run=%s(%s) "
-                "curr_run=%s(%s) binaries=%d sources=%d"
-            ),
-            archive.id,
-            prev_run_id,
-            prev_finished,
-            current_run.id,
-            curr_finished,
-            len(bpph_rows),
-            len(spph_rows),
+            f"CTDeliveryDebJob window: archive={archive.id} "
+            f"prev_run={prev_run_id}({datepublished_start}) "
+            f"curr_run={current_run_id}({datepublished_end}) "
+            f"binaries={len(bpph_rows)} sources={len(spph_rows)}"
         )
 
-    def notifyUserError(self, error):
+    def notifyUserError(self, error) -> None:
         """Calls up and also saves the error text in this job's metadata.
 
         See `BaseRunnableJob`.
@@ -298,7 +495,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         error_description.append(str(error))
         self.metadata["result"]["error_description"] = error_description
 
-    def getOopsVars(self):
+    def getOopsVars(self) -> List[Tuple]:
         """See `IRunnableJob`."""
         vars = super().getOopsVars()
         vars.extend(
@@ -310,7 +507,9 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
         return vars
 
-    def _find_previous_run(self, archive_id, before_ts):
+    def _find_previous_run(
+        self, archive_id: int, before_ts: datetime
+    ) -> Optional[Tuple]:
         """Find previous successful run for this archive before a timestamp."""
         apr = Alias(Table("ArchivePublisherRun"), "apr")
         aph = Alias(Table("ArchivePublishingHistory"), "aph")
@@ -337,8 +536,16 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         return None if row is None else row
 
     def _query_bpph_rows(
-        self, store, archive, prev_finished, curr_finished, lookback_start
-    ):
+        self,
+        store,
+        archive,
+        datecreated_start: Optional[datetime],
+        datecreated_end: Optional[datetime],
+        datepublished_start: Optional[datetime],
+        datepublished_end: Optional[datetime],
+        distroseries: Optional[int],
+        status: int,
+    ) -> List[Tuple]:
         # Window is (prev_finished, curr_finished]
         bpph = Alias(Table("binarypackagepublishinghistory"), "bpph")
         bpr = Alias(Table("binarypackagerelease"), "bpr")
@@ -416,14 +623,29 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             ),
         )
 
-        bpph_where = And(
+        bpph_where_clauses = [
             Eq(Column("archive", bpph), archive.id),
-            Eq(Column("status", bpph), 2),
-            Gt(Column("datecreated", bpph), lookback_start),
-            Le(Column("datecreated", bpph), curr_finished),
-            Gt(Column("datepublished", bpph), prev_finished),
-            Le(Column("datepublished", bpph), curr_finished),
-        )
+            Eq(Column("status", bpph), status),
+        ]
+        if datecreated_start is not None:
+            bpph_where_clauses.append(
+                Gt(Column("datecreated", bpph), datecreated_start)
+            )
+        if datecreated_end is not None:
+            bpph_where_clauses.append(
+                Le(Column("datecreated", bpph), datecreated_end)
+            )
+        if datepublished_start is not None:
+            bpph_where_clauses.append(
+                Gt(Column("datepublished", bpph), datepublished_start)
+            )
+        if datepublished_end is not None:
+            bpph_where_clauses.append(
+                Le(Column("datepublished", bpph), datepublished_end)
+            )
+        if distroseries:
+            bpph_where_clauses.append(Eq(Column("id", ds), distroseries))
+        bpph_where = And(*bpph_where_clauses)
 
         arch_agg = SQL(
             "string_agg(DISTINCT das.architecturetag, ', ' "
@@ -462,8 +684,16 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         return store.execute(bpph_select).get_all()
 
     def _query_spph_rows(
-        self, store, archive, prev_finished, curr_finished, lookback_start
-    ):
+        self,
+        store,
+        archive,
+        datecreated_start: Optional[datetime],
+        datecreated_end: Optional[datetime],
+        datepublished_start: Optional[datetime],
+        datepublished_end: Optional[datetime],
+        distroseries: Optional[int],
+        status: int,
+    ) -> List[Tuple]:
         # SPPH aggregation in window.
         spph = Alias(Table("sourcepackagepublishinghistory"), "spph")
         spr = Alias(Table("sourcepackagerelease"), "spr")
@@ -519,14 +749,29 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             on=Eq(Column("content", lfa_s), Column("id", lfc_s)),
         )
 
-        spph_where = And(
+        spph_where_clauses = [
             Eq(Column("archive", spph), archive.id),
-            Eq(Column("status", spph), 2),
-            Gt(Column("datecreated", spph), lookback_start),
-            Le(Column("datecreated", spph), curr_finished),
-            Gt(Column("datepublished", spph), prev_finished),
-            Le(Column("datepublished", spph), curr_finished),
-        )
+            Eq(Column("status", spph), status),
+        ]
+        if datecreated_start is not None:
+            spph_where_clauses.append(
+                Gt(Column("datecreated", spph), datecreated_start)
+            )
+        if datecreated_end is not None:
+            spph_where_clauses.append(
+                Le(Column("datecreated", spph), datecreated_end)
+            )
+        if datepublished_start is not None:
+            spph_where_clauses.append(
+                Gt(Column("datepublished", spph), datepublished_start)
+            )
+        if datepublished_end is not None:
+            spph_where_clauses.append(
+                Le(Column("datepublished", spph), datepublished_end)
+            )
+        if distroseries is not None:
+            spph_where_clauses.append(Eq(Column("id", ds_s), distroseries))
+        spph_where = And(*spph_where_clauses)
 
         spph_select = Select(
             columns=[
@@ -554,12 +799,12 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
     def _build_payloads(
         self,
-        bpph_rows,
-        spph_rows,
-        distribution_name,
-        archive_reference,
-        curr_finished,
-    ):
+        bpph_rows: List[Tuple],
+        spph_rows: List[Tuple],
+        distribution_name: str,
+        archive_reference: str,
+        curr_finished: Optional[datetime],
+    ) -> Tuple[List[dict], List[int], List[int]]:
         released_at = curr_finished.isoformat() if curr_finished else None
 
         binary_payloads = []
@@ -598,7 +843,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                         "archive_base": distribution_name,
                         "archive_reference": archive_reference,
                         "archive_series": distroseries_name,
-                        "archive_pocket": self._pocket_to_name(pocket),
+                        "archive_pocket": POCKET_TO_NAME.get(pocket),
                         "archive_component": component,
                     },
                 },
@@ -638,7 +883,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                         "archive_base": distribution_name,
                         "archive_reference": archive_reference,
                         "archive_series": distroseries_name,
-                        "archive_pocket": self._pocket_to_name(pocket),
+                        "archive_pocket": POCKET_TO_NAME.get(pocket),
                         "archive_component": component,
                     },
                 },
@@ -648,15 +893,3 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         payloads = binary_payloads + source_payloads
 
         return payloads, bpph_ids, spph_ids
-
-    @staticmethod
-    def _pocket_to_name(pocket_value):
-        # Map DB numeric to enum using the canonical enum items
-        try:
-            for item in PackagePublishingPocket.items:
-                if getattr(item, "value", None) == pocket_value:
-                    suffix = pocketsuffix.get(item, "")
-                    return suffix[1:] if suffix else None
-        except Exception:
-            return None
-        return None

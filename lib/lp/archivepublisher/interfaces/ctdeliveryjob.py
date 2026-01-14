@@ -44,7 +44,7 @@ class ICTDeliveryJob(Interface):
     publishing_history = Reference(
         title=_("The Archive Publishing History associated with this job."),
         schema=IArchivePublishingHistory,
-        required=True,
+        required=False,
         readonly=True,
     )
 
