@@ -94,9 +94,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 return int(timeout_str)
             except (ValueError, TypeError):
                 logger.warning(
-                    "Invalid value for %s: %s, using default 30",
-                    CT_DELIVERY_MANUAL_TIMEOUT,
-                    timeout_str,
+                    f"[CT] Invalid value for {CT_DELIVERY_MANUAL_TIMEOUT}: "
+                    f"{timeout_str}, using default 30"
                 )
         return 30
 
@@ -130,8 +129,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         """
         if not cls._is_delivery_enabled():
             logger.info(
-                "[CT] Delivery disabled via feature flag %s",
-                CT_DELIVERY_ENABLED,
+                "[CT] Delivery disabled via feature flag "
+                f"{CT_DELIVERY_ENABLED}"
             )
             return None
 
@@ -181,8 +180,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         """
         if not cls._is_delivery_enabled():
             logger.info(
-                "[CT] Delivery disabled via feature flag %s",
-                CT_DELIVERY_ENABLED,
+                "[CT] Delivery disabled via feature flag "
+                f"{CT_DELIVERY_ENABLED}"
             )
             return None
 
@@ -272,8 +271,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         """See `IRunnableJob`."""
         if not self._is_delivery_enabled():
             logger.info(
-                "[CT] Delivery disabled via feature flag %s; skipping.",
-                CT_DELIVERY_ENABLED,
+                "[CT] Delivery disabled via feature flag "
+                f"{CT_DELIVERY_ENABLED}; skipping."
             )
             return
 
@@ -290,8 +289,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         """Run in single publishing history mode."""
         if self.publishing_history is None:
             logger.warning(
-                "Publishing history %s not found; skipping job",
-                self.context.publishing_history_id,
+                f"Publishing history {self.context.publishing_history_id} not "
+                "found; skipping job"
             )
             return
 
@@ -321,13 +320,9 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             # initial publishes are still delivered to CT.
             prev_run_id, prev_finished = None, lookback_start
             logger.info(
-                (
-                    "No previous successful run found for archive %s; "
-                    "run=%s. Using lookback window starting %s."
-                ),
-                archive.id,
-                current_run.id,
-                lookback_start,
+                f"No previous successful run found for archive {archive.id}; "
+                f"run={current_run.id}. Using lookback window starting "
+                f"{lookback_start}."
             )
         else:
             prev_run_id, prev_finished = prev_row
@@ -363,7 +358,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         # Fetch archive
         archive = getUtility(IArchiveSet).get(archive_id)
         if archive is None:
-            logger.warning("Archive %s not found; skipping job", archive_id)
+            logger.warning(f"Archive {archive_id} not found; skipping job")
             return
 
         distribution_name = archive.distribution.name
@@ -374,14 +369,9 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
 
         logger.info(
-            (
-                "CTDeliveryDebJob manual mode: archive=%s "
-                "date_start=%s date_end=%s distroseries=%s"
-            ),
-            archive_id,
-            date_start,
-            date_end,
-            distroseries,
+            f"CTDeliveryDebJob manual mode: archive={archive_id} "
+            f"date_start={date_start} date_end={date_end} "
+            f"distroseries={distroseries}"
         )
 
         self._deliver_to_ct(
@@ -413,9 +403,19 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         status: int = PackagePublishingStatus.PUBLISHED.value,
     ) -> None:
         """Common processing and delivery logic for both modes."""
+        logger.debug(
+            f"CTDeliveryDebJob for archive={archive.reference} "
+            f"datecreated_start={datecreated_start} "
+            f"datecreated_end={datecreated_end} "
+            f"datepublished_start={datepublished_start} "
+            f"datepublished_end={datepublished_end} "
+            f"distroseries={distroseries} status={status}"
+        )
+
         store = IStore(ArchivePublisherRun)
 
         # Fetch BPPH/SPPH rows in the window.
+        logger.info(f"Querying BPPH rows for archive {archive.reference}")
         bpph_rows = self._query_bpph_rows(
             store=store,
             archive=archive,
@@ -426,6 +426,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             distroseries=distroseries,
             status=status,
         )
+
+        logger.info(f"Querying SPPH rows for archive {archive.reference}")
         spph_rows = self._query_spph_rows(
             store=store,
             archive=archive,
@@ -437,6 +439,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             status=status,
         )
 
+        logger.info(
+            f"Building payloads for CT delivery: binaries={len(bpph_rows)} "
+            f"sources={len(spph_rows)}"
+        )
         payloads, bpph_ids, spph_ids = self._build_payloads(
             bpph_rows=bpph_rows,
             spph_rows=spph_rows,
@@ -456,6 +462,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             logger.info("[CT] no payloads to deliver for this window.")
             return
 
+        logger.info(f"Sending {len(payloads)} payloads to CT")
         client = get_commitment_tracker_client()
         success_count, failure_errors = client.send_payloads_with_results(
             payloads
@@ -467,17 +474,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
 
         logger.info(
-            (
-                "CTDeliveryDebJob window: archive=%s prev_run=%s(%s) "
-                "curr_run=%s(%s) binaries=%d sources=%d"
-            ),
-            archive.id,
-            prev_run_id,
-            datepublished_start,
-            current_run_id,
-            datepublished_end,
-            len(bpph_rows),
-            len(spph_rows),
+            f"CTDeliveryDebJob window: archive={archive.id} "
+            f"prev_run={prev_run_id}({datepublished_start}) "
+            f"curr_run={current_run_id}({datepublished_end}) "
+            f"binaries={len(bpph_rows)} sources={len(spph_rows)}"
         )
 
     def notifyUserError(self, error) -> None:
