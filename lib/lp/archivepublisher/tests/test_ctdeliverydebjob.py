@@ -286,6 +286,7 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         now = datetime.datetime.now(timezone.utc)
         ah = removeSecurityProxy(self.archive_history)
         ah.publisher_run.date_finished = now
+        ah.publisher_run.status = ArchivePublisherRunStatus.SUCCEEDED
         dbinterfaces.IStore(ah.publisher_run).flush()
 
         # Create publishes within lookback (no previous run exists).
