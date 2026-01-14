@@ -18,6 +18,7 @@ from lp.archivepublisher.model.archivepublisherrun import (
 )
 from lp.archivepublisher.model.ctdeliverydebjob import (
     CT_DELIVERY_ENABLED,
+    CT_DELIVERY_MANUAL_TIMEOUT,
     CTDeliveryDebJob,
 )
 from lp.registry.interfaces.pocket import PackagePublishingPocket
@@ -915,6 +916,32 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         # Should only have 2 payloads (the superseded ones)
         payloads = captured.get("payloads", [])
         self.assertEqual(2, len(payloads))
+
+    def test_get_manual_timeout_minutes_method(self):
+        """Test _get_manual_timeout_minutes static method."""
+        # Default value when not set
+        self.useFixture(FeatureFixture({CT_DELIVERY_ENABLED: True}))
+        self.assertEqual(30, CTDeliveryDebJob._get_manual_timeout_minutes())
+
+        # Configured value
+        self.useFixture(
+            FeatureFixture(
+                {
+                    CT_DELIVERY_MANUAL_TIMEOUT: "60",
+                }
+            )
+        )
+        self.assertEqual(60, CTDeliveryDebJob._get_manual_timeout_minutes())
+
+        # Invalid value falls back to default
+        self.useFixture(
+            FeatureFixture(
+                {
+                    CT_DELIVERY_MANUAL_TIMEOUT: "invalid",
+                }
+            )
+        )
+        self.assertEqual(30, CTDeliveryDebJob._get_manual_timeout_minutes())
 
 
 class TestViaCelery(TestCaseWithFactory):

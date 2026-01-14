@@ -53,9 +53,12 @@ from lp.soyuz.interfaces.archive import IArchiveSet
 logger = logging.getLogger(__name__)
 
 CT_DELIVERY_ENABLED = "commitment_tracker.delivery.enabled"
+CT_DELIVERY_MANUAL_TIMEOUT = (
+    "commitment_tracker.delivery.manual_timeout_minutes"
+)
 
 POCKET_TO_NAME = {
-    item.value: pocketsuffix[item][1:] if pocketsuffix[item] else None
+    item.value: pocketsuffix.get(item)[1:] if pocketsuffix.get(item) else None
     for item in PackagePublishingPocket.items
 }
 
@@ -78,6 +81,24 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
     def _is_delivery_enabled():
         """Return True if the CT delivery feature flag is enabled."""
         return bool(getFeatureFlag(CT_DELIVERY_ENABLED))
+
+    @staticmethod
+    def _get_manual_timeout_minutes():
+        """Return the timeout in minutes for manual mode jobs.
+
+        Defaults to 30 minutes if not configured via feature flag.
+        """
+        timeout_str = getFeatureFlag(CT_DELIVERY_MANUAL_TIMEOUT)
+        if timeout_str:
+            try:
+                return int(timeout_str)
+            except (ValueError, TypeError):
+                logger.warning(
+                    "Invalid value for %s: %s, using default 30",
+                    CT_DELIVERY_MANUAL_TIMEOUT,
+                    timeout_str,
+                )
+        return 30
 
     @property
     def publishing_history(self):
@@ -202,9 +223,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
         # Manual mode jobs can be slow if the archive is large.
         derived_job.task_queue = "launchpad_job_slow"
-        # TODO: adjust time limits as needed
-        derived_job.soft_time_limit = timedelta(minutes=15)
-        derived_job.lease_duration = timedelta(minutes=15)
+        # Configure time limits from feature flag
+        timeout_minutes = cls._get_manual_timeout_minutes()
+        derived_job.soft_time_limit = timedelta(minutes=timeout_minutes)
+        derived_job.lease_duration = timedelta(minutes=timeout_minutes)
 
         derived_job.celeryRunOnCommit()
         IStore(CTDeliveryJob).flush()
