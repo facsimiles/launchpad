@@ -16,6 +16,7 @@ from storm.expr import (
     Join,
     Le,
     LeftJoin,
+    Lt,
     Ne,
     Select,
     Table,
@@ -131,6 +132,19 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         derived_job.celeryRunOnCommit()
         IStore(CTDeliveryJob).flush()
         return derived_job
+
+    @classmethod
+    def iterReady(cls):
+        """See `IJobSource`."""
+        store = IPrimaryStore(CTDeliveryJob)
+        jobs = store.find(
+            CTDeliveryJob,
+            And(
+                CTDeliveryJob.job_type == cls.class_job_type,
+                CTDeliveryJob.job_id.is_in(Job.ready_jobs),
+            ),
+        )
+        return (cls(job) for job in jobs)
 
     @classmethod
     def get(cls, publishing_history):
@@ -309,7 +323,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 Column("status", apr),
                 ArchivePublisherRunStatus.SUCCEEDED.value,
             ),
-            Le(Column("date_finished", apr), before_ts),
+            Lt(Column("date_finished", apr), before_ts),
             Ne(Column("date_finished", apr), None),
         )
         select = Select(
