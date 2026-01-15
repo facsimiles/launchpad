@@ -264,9 +264,12 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
     def __repr__(self) -> str:
         """Returns an informative representation of the job."""
+        publishing_history_id = (
+            self.publishing_history.id if self.publishing_history else None
+        )
         return (
             f"<{self.__class__.__name__} for "
-            f"publishing_history: {self.publishing_history.id}, "
+            f"publishing_history: {publishing_history_id}, "
             f"metadata: {self.metadata}>"
         )
 

@@ -25,8 +25,8 @@ from lp.soyuz.interfaces.archive import IArchiveSet
 
 
 class CTPopulator(LaunchpadScript):
-    """Populate Commitment Tracker with Launchpad DEB data, using
-    the `CTDeliveryDebJob`."""
+    """Populate Commitment Tracker with Launchpad DEB data, using the
+    `CTDeliveryDebJob`."""
 
     def add_my_options(self):
         """Register options specific to this script."""
@@ -95,6 +95,15 @@ class CTPopulator(LaunchpadScript):
             action="store_true",
             default=False,
             help="Pretend; don't commit changes.",
+        )
+        self.parser.add_option(
+            "--profile",
+            dest="profile",
+            metavar="FILE",
+            help=(
+                "Run the script under the profiler and save the "
+                "profiling stats in FILE."
+            ),
         )
 
     def getOptions(self):
