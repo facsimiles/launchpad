@@ -5,7 +5,7 @@ __all__ = ["CTDeliveryDebJob"]
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from storm.expr import (
     SQL,
@@ -58,7 +58,9 @@ CT_DELIVERY_MANUAL_TIMEOUT = (
 )
 
 POCKET_TO_NAME = {
-    item.value: pocketsuffix.get(item)[1:] if pocketsuffix.get(item) else None
+    item.value: (
+        "release" if (_suffix := pocketsuffix[item]) == "" else _suffix[1:]
+    )
     for item in PackagePublishingPocket.items
 }
 
@@ -109,6 +111,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             return IStore(ArchivePublishingHistory).get(
                 self.context.publishing_history_id
             )
+        return None
 
     @property
     def error_description(self):
@@ -346,7 +349,12 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         date_start = manual_mode_params.get("date_start")
         date_end = manual_mode_params.get("date_end")
         distroseries = manual_mode_params.get("distroseries")
-        status = int(manual_mode_params.get("status"))
+        status_raw = manual_mode_params.get("status")
+        status = (
+            int(status_raw)
+            if status_raw is not None
+            else PackagePublishingStatus.PUBLISHED.value
+        )
 
         lookback_start = None
         if date_start is not None:
@@ -829,7 +837,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 if architectures_csv
                 else []
             )
-            payload = {
+            binary_payload: Dict[str, Any] = {
                 "release": {
                     "released_at": released_at,
                     "external_link": None,
@@ -849,14 +857,14 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 },
             }
             if sourcepackagename:
-                payload["release"]["properties"][
+                binary_payload["release"]["properties"][
                     "source_package_name"
                 ] = sourcepackagename
             if sourcepackageversion:
-                payload["release"]["properties"][
+                binary_payload["release"]["properties"][
                     "source_package_version"
                 ] = sourcepackageversion
-            binary_payloads.append(payload)
+            binary_payloads.append(binary_payload)
 
         source_payloads = []
         spph_ids = []
@@ -871,7 +879,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 spph_id,
             ) = row
             spph_ids.append(spph_id)
-            payload = {
+            source_payload: Dict[str, Any] = {
                 "release": {
                     "released_at": released_at,
                     "external_link": None,
@@ -888,7 +896,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                     },
                 },
             }
-            source_payloads.append(payload)
+            source_payloads.append(source_payload)
 
         payloads = binary_payloads + source_payloads
 
