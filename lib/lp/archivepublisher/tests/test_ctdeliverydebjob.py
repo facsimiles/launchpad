@@ -234,8 +234,8 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         job = self.job_source.create(self.archive_history)
         job.run()
         result = job.metadata.get("result")
-        self.assertEqual([bpph.id], result["bpph"])
-        self.assertEqual([spph.id], result["spph"])
+        self.assertEqual([str(bpph.id)], result["bpph"])
+        self.assertEqual([str(spph.id)], result["spph"])
         self.assertEqual(0, result["ct_success_count"])
         self.assertEqual(2, result["ct_failure_count"])
         self.assertGreaterEqual(len(result["error_description"]), 2)
@@ -266,8 +266,8 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         job = self.job_source.create(self.archive_history)
         job.run()
         result = job.metadata.get("result")
-        self.assertEqual([bpph.id], result["bpph"])
-        self.assertEqual([spph.id], result["spph"])
+        self.assertEqual([str(bpph.id)], result["bpph"])
+        self.assertEqual([str(spph.id)], result["spph"])
         self.assertEqual(2, result["ct_success_count"])
         self.assertEqual(0, result["ct_failure_count"])
         self.assertEqual([], result["error_description"])
@@ -348,11 +348,99 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         job = self.job_source.create(self.archive_history)
         job.run()
         result = job.metadata["result"]
-        self.assertEqual([bpph.id], result["bpph"])
-        self.assertEqual([spph.id], result["spph"])
+        self.assertEqual([str(bpph.id)], result["bpph"])
+        self.assertEqual([str(spph.id)], result["spph"])
         self.assertEqual(2, result["ct_success_count"])
         self.assertEqual(0, result["ct_failure_count"])
         self.assertEqual([], result["error_description"])
+
+    def test_run_architecture_grouping_payload(self):
+        """Test that architecture grouping creates just one payload."""
+        now = datetime.datetime.now(timezone.utc)
+        ah = removeSecurityProxy(self.archive_history)
+        ah.publisher_run.date_finished = now
+        ah.publisher_run.status = ArchivePublisherRunStatus.SUCCEEDED
+        dbinterfaces.IStore(ah.publisher_run).flush()
+
+        # Create publishes within lookback (no previous run exists).
+        spph = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph = removeSecurityProxy(spph)
+        spph.datecreated = now
+        spph.datepublished = now
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph).flush()
+
+        # Create amd64 bpph
+        distroseries = self.factory.makeDistroSeries(
+            distribution=self.archive.distribution
+        )
+        distroarchseries_amd64 = self.factory.makeDistroArchSeries(
+            distroseries=distroseries,
+            architecturetag="amd64",
+        )
+        bpph_amd64 = self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+            distroarchseries=distroarchseries_amd64,
+        )
+        bpph_amd64 = removeSecurityProxy(bpph_amd64)
+        bpph_amd64.datecreated = now
+        bpph_amd64.datepublished = now
+        dbinterfaces.IStore(bpph_amd64).flush()
+
+        # Create arm64 with same bpph attibutes except archseries
+        distroarchseries_arm64 = self.factory.makeDistroArchSeries(
+            distroseries=distroseries,
+            architecturetag="arm64",
+        )
+        bpph_arm64 = self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+            distroarchseries=distroarchseries_arm64,
+            component=bpph_amd64.component,
+            binarypackagerelease=bpph_amd64.binarypackagerelease,
+            sourcepackagename=bpph_amd64.sourcepackagename,
+        )
+        bpph_arm64 = removeSecurityProxy(bpph_arm64)
+        bpph_arm64.datecreated = now
+        bpph_arm64.datepublished = now
+        dbinterfaces.IStore(bpph_arm64).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        job = self.job_source.create(self.archive_history)
+        job.run()
+        result = job.metadata["result"]
+
+        # Both bpph ids should be recorded in the same element
+        self.assertEqual([f"{bpph_amd64.id}, {bpph_arm64.id}"], result["bpph"])
+        self.assertEqual([str(spph.id)], result["spph"])
+        self.assertEqual(2, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+        self.assertEqual([], result["error_description"])
+        self.assertEqual(2, len(captured.get("payloads", [])))
         self.assertEqual(2, len(captured.get("payloads", [])))
 
     def test_run_pocket_to_enum_conversion(self):
@@ -577,8 +665,8 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         # Verify results
         result = job.metadata["result"]
-        self.assertEqual([bpph.id], result["bpph"])
-        self.assertEqual([spph.id], result["spph"])
+        self.assertEqual([str(bpph.id)], result["bpph"])
+        self.assertEqual([str(spph.id)], result["spph"])
         self.assertEqual(2, result["ct_success_count"])
         self.assertEqual(0, result["ct_failure_count"])
         self.assertEqual([], result["error_description"])
@@ -673,7 +761,7 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         # Verify only the publication within range is included
         result = job.metadata["result"]
-        self.assertEqual([spph_within.id], result["spph"])
+        self.assertEqual([str(spph_within.id)], result["spph"])
         self.assertEqual(1, result["ct_success_count"])
         self.assertEqual(0, result["ct_failure_count"])
 
@@ -745,7 +833,7 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         # Should find and process the recent publication
         result = job.metadata["result"]
-        self.assertIn(spph.id, result["spph"])
+        self.assertIn(str(spph.id), result["spph"])
         self.assertGreater(result["ct_success_count"], 0)
 
     def test_manual_mode_with_distroseries_filter(self):
@@ -818,7 +906,7 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         # Should only include spph1
         result = job.metadata["result"]
-        self.assertEqual([spph1.id], result["spph"])
+        self.assertEqual([str(spph1.id)], result["spph"])
         self.assertEqual(1, result["ct_success_count"])
 
     def test_run_with_superseded_status_filter(self):
@@ -908,8 +996,8 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         # Only superseded (not published) should be included
         result = job.metadata["result"]
-        self.assertEqual([bpph_superseded.id], result["bpph"])
-        self.assertEqual([spph_superseded.id], result["spph"])
+        self.assertEqual([str(bpph_superseded.id)], result["bpph"])
+        self.assertEqual([str(spph_superseded.id)], result["spph"])
         self.assertEqual(2, result["ct_success_count"])
         self.assertEqual(0, result["ct_failure_count"])
 

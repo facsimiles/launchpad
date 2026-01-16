@@ -662,6 +662,9 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             "string_agg(DISTINCT das.architecturetag, ', ' "
             "ORDER BY das.architecturetag)"
         )
+        bpph_id_agg = SQL(
+            "string_agg(DISTINCT bpph.id::text, ', ' ORDER BY bpph.id::text)"
+        )
 
         bpph_select = Select(
             columns=[
@@ -675,7 +678,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 Column("name", spn_src),  # sourcepackagename
                 Column("version", spr_src),  # sourcepackageversion
                 Column("sha256", lfc),  # sha256
-                Column("id", bpph),  # bpph id
+                bpph_id_agg,  # bpph ids
             ],
             tables=bpph_tables,
             where=bpph_where,
@@ -689,7 +692,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 Column("id", spn_src),
                 Column("id", spr_src),
                 Column("id", lfc),
-                Column("id", bpph),
             ],
         )
         return store.execute(bpph_select).get_all()
@@ -796,15 +798,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             ],
             tables=spph_tables,
             where=spph_where,
-            group_by=[
-                Column("id", spn),
-                Column("id", component_tbl_s),
-                Column("pocket", spph),
-                Column("id", ds_s),
-                Column("id", spr),
-                Column("id", lfc_s),
-                Column("id", spph),
-            ],
         )
         return store.execute(spph_select).get_all()
 
@@ -815,7 +808,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         distribution_name: str,
         archive_reference: str,
         curr_finished: Optional[datetime],
-    ) -> Tuple[List[dict], List[int], List[int]]:
+    ) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
         released_at = curr_finished.isoformat() if curr_finished else None
 
         binary_payloads = []
@@ -832,9 +825,9 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 sourcepackagename,
                 sourcepackageversion,
                 sha256,
-                bpph_id,
+                bpph_ids_agg,
             ) = row
-            bpph_ids.append(bpph_id)
+            bpph_ids.append(str(bpph_ids_agg))
             architectures = (
                 [a.strip() for a in architectures_csv.split(",")]
                 if architectures_csv
@@ -881,7 +874,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 sha256,
                 spph_id,
             ) = row
-            spph_ids.append(spph_id)
+            spph_ids.append(str(spph_id))
             source_payload: Dict[str, Any] = {
                 "release": {
                     "released_at": released_at,
