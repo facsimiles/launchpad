@@ -26,7 +26,6 @@ Joining and Subscribing to the List
 
     # Define a helper for creating teams with a specific subscription
     # policy.
-    >>> from lp.registry.tests.mailinglists_helper import new_list_for_team
     >>> from lp.registry.interfaces.person import TeamMembershipPolicy
     >>> def make_team(teamname, membership_policy):
     ...     creator = personset.getByName("no-priv")
