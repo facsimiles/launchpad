@@ -71,11 +71,23 @@ repos:
     hooks:
     -   id: blackdoc
         args: ["-l", "78"]
+        # blackdoc v0.3.9 isn't compatible with black versions where
+        # black.decode_bytes requires a "mode" argument.
+        # Pin black for this hook to keep commits unblocked.
+        additional_dependencies:
+          - black==24.8.0
 -   repo: https://git.launchpad.net/lp-lint-doctest
     rev: '0.5'
     hooks:
     -   id: lp-lint-doctest
         args: [--allow-option-flag, IGNORE_EXCEPTION_MODULE_IN_PYTHON2]
+        # lp-lint-doctest 0.5 expects pyflakes messages formatted as
+        # "file:line: message". Newer pyflakes formats include a column, e.g.
+        # "(none):1:1: message" (extra ":"), which makes lp-lint-doctest crash:
+        # Pin pyflakes to avoid lp-lint-doctest crashing with:
+        # ValueError: too many values to unpack (expected 3)
+        additional_dependencies:
+          - pyflakes==2.4.0
 -   repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
     hooks:
