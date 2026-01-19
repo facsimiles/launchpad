@@ -1,7 +1,10 @@
 # Copyright 2025 Canonical Ltd.  This software is licensed under the
 # GNU Affero General Public License version 3 (see the file LICENSE).
 
+import csv
 import datetime
+import json
+import tempfile
 from datetime import timezone
 
 import requests
@@ -1031,6 +1034,80 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
             )
         )
         self.assertEqual(30, CTDeliveryDebJob._get_manual_timeout_minutes())
+
+    def test_csv_output_writes_file(self):
+        """Test that CSV output creates a properly formatted file."""
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+        publish_date = datetime.datetime(2024, 1, 15, tzinfo=timezone.utc)
+
+        # Create test publications
+        spph = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+        )
+        spph = removeSecurityProxy(spph)
+        spph.datecreated = publish_date
+        spph.datepublished = publish_date
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph).flush()
+
+        bpph = self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        bpph = removeSecurityProxy(bpph)
+        bpph.datecreated = publish_date
+        bpph.datepublished = publish_date
+        dbinterfaces.IStore(bpph).flush()
+
+        # Create temporary CSV file
+        with tempfile.NamedTemporaryFile() as tmpfile:
+            csv_path = tmpfile.name
+
+            # Create and run job with CSV output path
+            job = CTDeliveryDebJob.create_manual(
+                archive_id=self.archive.id,
+                date_start=date_start,
+                date_end=date_end,
+                csv_output=csv_path,
+            )
+            job.run()
+
+            # Get the CSV filename from metadata
+            result = job.metadata["result"]
+            self.assertIn("csv_filename", result)
+            csv_filename = result["csv_filename"]
+
+            with open(csv_filename, encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile)
+                rows = list(reader)
+
+                # Should have 2 rows (1 binary + 1 source)
+                self.assertEqual(2, len(rows))
+
+                for row in rows:
+                    self.assertIn("properties", row)
+                    self.assertIn("external_link", row)
+                    self.assertIn("released_at", row)
+                    self.assertIn("publisher", row)
+
+                    # Verify properties is valid JSON
+                    props = json.loads(row["properties"])
+                    self.assertIn("type", props)
+                    self.assertIn("name", props)
+                    self.assertIn("version", props)
+                    self.assertIn("sha256", props)
+
+            # Verify metadata shows success
+            self.assertEqual(2, result["ct_success_count"])
+            self.assertEqual(0, result["ct_failure_count"])
 
 
 class TestViaCelery(TestCaseWithFactory):

@@ -3,6 +3,8 @@
 
 __all__ = ["CTDeliveryDebJob"]
 
+import csv
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -172,6 +174,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         date_end: Optional[datetime] = None,
         distroseries: Optional[int] = None,
         status: int = PackagePublishingStatus.PUBLISHED.value,
+        csv_output: Optional[str] = None,
     ) -> Optional["CTDeliveryDebJob"]:
         """Create a new `CTDeliveryDebJob` manually.
 
@@ -180,6 +183,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         :param date_end: End of the date range.
         :param distroseries: The id of the distroseries to filter.
         :param status: The publishing status to filter by.
+        :param csv_output: If provided, path to CSV file for output instead
+                          of HTTP calls.
         """
         if not cls._is_delivery_enabled():
             logger.info(
@@ -202,6 +207,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             "date_start": date_start.timestamp() if date_start else None,
             "date_end": date_end.timestamp() if date_end else None,
             "distroseries": distroseries,
+            "csv_output": csv_output,
         }
 
         metadata = {
@@ -333,7 +339,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         else:
             prev_run_id, prev_finished = prev_row
 
-        self._deliver_to_ct(
+        self._process_publishing_window(
             archive=archive,
             distribution_name=distribution_name,
             archive_reference=archive_reference,
@@ -358,6 +364,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             if status_raw is not None
             else PackagePublishingStatus.PUBLISHED.value
         )
+        csv_output = manual_mode_params.get("csv_output")
 
         lookback_start = None
         if date_start is not None:
@@ -382,10 +389,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         logger.info(
             f"CTDeliveryDebJob manual mode: archive={archive_id} "
             f"date_start={date_start} date_end={date_end} "
-            f"distroseries={distroseries}"
+            f"distroseries={distroseries} csv_output={csv_output}"
         )
 
-        self._deliver_to_ct(
+        self._process_publishing_window(
             archive=archive,
             distribution_name=distribution_name,
             archive_reference=archive_reference,
@@ -397,9 +404,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             current_run_id=None,
             distroseries=distroseries,
             status=status,
+            csv_output=csv_output,
         )
 
-    def _deliver_to_ct(
+    def _process_publishing_window(
         self,
         archive,
         distribution_name: str,
@@ -412,10 +420,16 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         current_run_id: Optional[int],
         distroseries: Optional[int],
         status: int = PackagePublishingStatus.PUBLISHED.value,
+        csv_output: Optional[str] = None,
     ) -> None:
-        """Common processing and delivery logic for both modes."""
+        """Process publishing history within a time window.
+
+        1. Fetches publishing history (BPPH/SPPH)
+        2. Builds payloads from the history
+        3. Delivers payloads (via CSV or HTTP)
+        """
         logger.debug(
-            f"CTDeliveryDebJob for archive={archive.reference} "
+            f"Processing publishing window: archive={archive.reference} "
             f"datecreated_start={datecreated_start} "
             f"datecreated_end={datecreated_end} "
             f"datepublished_start={datepublished_start} "
@@ -425,7 +439,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
         store = IStore(ArchivePublisherRun)
 
-        # Fetch BPPH/SPPH rows in the window.
         logger.info(f"Querying BPPH rows for archive {archive.reference}")
         bpph_rows = self._query_bpph_rows(
             store=store,
@@ -468,28 +481,48 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         metadata["result"]["bpph"] = bpph_ids
         metadata["result"]["spph"] = spph_ids
 
-        # Deliver to Commitment Tracker if configured/enabled.
         if not payloads:
             logger.info("[CT] no payloads to deliver for this window.")
             return
 
-        logger.info(f"Sending {len(payloads)} payloads to CT")
-        client = get_commitment_tracker_client()
-        success_count, failure_errors = client.send_payloads_with_results(
-            payloads
-        )
-        metadata["result"]["ct_success_count"] = success_count
-        metadata["result"]["ct_failure_count"] = len(failure_errors)
-        metadata["result"].setdefault("error_description", []).extend(
-            failure_errors
-        )
+        self._deliver_payloads(payloads, csv_output)
 
         logger.info(
-            f"CTDeliveryDebJob window: archive={archive.id} "
+            f"Completed processing window: archive={archive.id} "
             f"prev_run={prev_run_id}({datepublished_start}) "
             f"curr_run={current_run_id}({datepublished_end}) "
             f"binaries={len(bpph_rows)} sources={len(spph_rows)}"
         )
+
+    def _deliver_payloads(
+        self, payloads: List[Dict[str, Any]], csv_output: Optional[str] = None
+    ) -> None:
+        """Deliver payloads either to CSV file or via HTTP.
+
+        :param payloads: List of payload dictionaries to deliver.
+        :param csv_output: If provided, path to CSV file for output.
+                          Otherwise, sends via HTTP to Commitment Tracker.
+        """
+        metadata = self.metadata.setdefault("result", {})
+
+        if csv_output:
+            logger.info(
+                f"Writing {len(payloads)} payloads to CSV: {csv_output}"
+            )
+            self._write_to_csv(payloads, csv_output)
+            metadata["ct_success_count"] = len(payloads)
+            metadata["ct_failure_count"] = 0
+            metadata["csv_filename"] = csv_output
+        else:
+            # Send via HTTP to Commitment Tracker
+            logger.info(f"Sending {len(payloads)} payloads to CT")
+            client = get_commitment_tracker_client()
+            success_count, failure_errors = client.send_payloads_with_results(
+                payloads
+            )
+            metadata["ct_success_count"] = success_count
+            metadata["ct_failure_count"] = len(failure_errors)
+            metadata.setdefault("error_description", []).extend(failure_errors)
 
     def notifyUserError(self, error) -> None:
         """Calls up and also saves the error text in this job's metadata.
@@ -882,6 +915,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                     "properties": {
                         "type": "deb-source",
                         "name": package_name,
+                        "version": version,
                         "architectures": [],
                         "sha256": sha256,
                         "archive_base": distribution_name,
@@ -897,3 +931,38 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         payloads = binary_payloads + source_payloads
 
         return payloads, bpph_ids, spph_ids
+
+    def _write_to_csv(
+        self, payloads: List[Dict[str, Any]], csv_filename: str
+    ) -> None:
+        """Write payloads to a CSV file formatted for PostgreSQL import."""
+        with open(csv_filename, "w", newline="", encoding="utf-8") as csvfile:
+            fieldnames = [
+                "properties",
+                "external_link",
+                "released_at",
+                "publisher",
+            ]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for payload in payloads:
+                release = payload.get("release", {})
+
+                # Convert properties to JSON string for JSONB column
+                properties_json = json.dumps(release.get("properties", {}))
+
+                # Extract other fields
+                external_link = release.get("external_link") or ""
+                released_at = release.get("released_at", "")
+
+                writer.writerow(
+                    {
+                        "properties": properties_json,
+                        "external_link": external_link,
+                        "released_at": released_at,
+                        "publisher": "launchpad",
+                    }
+                )
+
+        logger.info(f"Wrote {len(payloads)} records to CSV: {csv_filename}")

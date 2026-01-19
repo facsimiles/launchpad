@@ -4,6 +4,17 @@
 
 This script creates `CTDeliveryDebJob` for the given archive, status,
 distroseries and date range.
+
+When using the --csv option, the script outputs data to a CSV file instead of
+making HTTP calls to the Commitment Tracker. The CSV format is designed for
+PostgreSQL import and matches the release table schema:
+
+    Column        | Type                     | Description
+    --------------+--------------------------+----------------------------------
+    properties    | jsonb                    | Package metadata as JSON
+    external_link | text                     | External link (nullable)
+    released_at   | timestamp with time zone | Release timestamp
+    publisher     | publisher_identity       | Always 'launchpad'
 """
 
 __all__ = [
@@ -95,6 +106,16 @@ class CTPopulator(LaunchpadScript):
             action="store_true",
             default=False,
             help="Pretend; don't commit changes.",
+        )
+        self.parser.add_option(
+            "--csv",
+            dest="csv_output",
+            metavar="PATH",
+            default=None,
+            help=(
+                "Output results to CSV file at the specified path instead of "
+                "sending to Commitment Tracker."
+            ),
         )
         self.parser.add_option(
             "--profile",
@@ -217,6 +238,7 @@ class CTPopulator(LaunchpadScript):
             date_end=date_end,
             distroseries=distroseries_id,
             status=status.value,
+            csv_output=self.options.csv_output,
         )
 
         if job is None:

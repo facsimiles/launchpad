@@ -469,3 +469,20 @@ class TestCTPopulator(TestCaseWithFactory):
 
         call_args, call_kwargs = CTDeliveryDebJob.create_manual.calls[0]
         self.assertEqual(ppa.id, call_kwargs["archive_id"])
+
+    def test_script_with_csv_output(self):
+        """The script passes CSV output path to job creation."""
+        archive = self.factory.makeArchive()
+        csv_path = "/tmp/test_releases.csv"
+        script = self.makeScript(["-A", archive.reference, "--csv", csv_path])
+
+        self.patch(
+            CTDeliveryDebJob,
+            "create_manual",
+            FakeMethod(result=None),
+        )
+        script.main()
+
+        call_args, call_kwargs = CTDeliveryDebJob.create_manual.calls[0]
+        self.assertEqual(archive.id, call_kwargs["archive_id"])
+        self.assertEqual(csv_path, call_kwargs["csv_output"])
