@@ -218,6 +218,7 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         def _client_with_failing_post():
             client = CommitmentTrackerClient(base_url="http://commitment.test")
+            client.CT_MAX_RETRIES = 1
 
             def _fail_post(*args, **kwargs):
                 raise requests.RequestException("boom")
