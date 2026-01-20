@@ -669,6 +669,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         bpph_id_agg = SQL(
             "string_agg(DISTINCT bpph.id::text, ', ' ORDER BY bpph.id::text)"
         )
+        datepublished = SQL("MAX(bpph.datepublished)")
 
         bpph_select = Select(
             columns=[
@@ -683,6 +684,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 Column("version", spr_src),  # sourcepackageversion
                 Column("sha256", lfc),  # sha256
                 bpph_id_agg,  # bpph ids
+                datepublished,  # datepublished (one per group)
             ],
             tables=bpph_tables,
             where=bpph_where,
@@ -799,6 +801,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 Column("version", spr),  # version
                 Column("sha256", lfc_s),  # sha256
                 Column("id", spph),  # spph id
+                Column("datepublished", spph),  # datepublished
             ],
             tables=spph_tables,
             where=spph_where,
@@ -813,8 +816,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         archive_reference: str,
         curr_finished: Optional[datetime],
     ) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
-        released_at = curr_finished.isoformat() if curr_finished else None
-
         binary_payloads = []
         bpph_ids = []
         for row in bpph_rows:
@@ -830,6 +831,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 sourcepackageversion,
                 sha256,
                 bpph_ids_agg,
+                bpph_datepublished,
             ) = row
             bpph_ids.append(str(bpph_ids_agg))
             architectures = (
@@ -837,9 +839,14 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 if architectures_csv
                 else []
             )
+            bpph_released_at = (
+                bpph_datepublished.replace(tzinfo=timezone.utc).isoformat()
+                if bpph_datepublished
+                else None
+            )
             binary_payload: Dict[str, Any] = {
                 "release": {
-                    "released_at": released_at,
+                    "released_at": bpph_released_at,
                     "external_link": None,
                     "properties": {
                         "type": "deb",
@@ -877,11 +884,17 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 version,
                 sha256,
                 spph_id,
+                spph_datepublished,
             ) = row
             spph_ids.append(str(spph_id))
+            spph_released_at = (
+                spph_datepublished.replace(tzinfo=timezone.utc).isoformat()
+                if spph_datepublished
+                else None
+            )
             source_payload: Dict[str, Any] = {
                 "release": {
-                    "released_at": released_at,
+                    "released_at": spph_released_at,
                     "external_link": None,
                     "properties": {
                         "type": "deb-source",
