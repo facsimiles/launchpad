@@ -129,9 +129,11 @@ class CTPopulator(LaunchpadScript):
 
     def getOptions(self):
         """Verify command-line options and return the corresponding objects."""
-        if not self.options.archive:
+        # Require either archive or distroseries
+        if not self.options.archive and not self.options.distroseries:
             raise OptionValueError(
-                "Archive reference is required (use -A or --archive)."
+                "Either archive reference (-A/--archive) or distroseries "
+                "(-s/--series) is required."
             )
 
         # Validate date range if both dates are provided
@@ -151,19 +153,6 @@ class CTPopulator(LaunchpadScript):
                 f"Invalid status '{self.options.status}'. "
                 f"Must be one of: {', '.join(valid_statuses)}"
             )
-
-        # Resolve the archive
-        archive = getUtility(IArchiveSet).getByReference(self.options.archive)
-        if archive is None:
-            raise OptionValueError(
-                f"Archive '{self.options.archive}' not found."
-            )
-
-        self.logger.info(
-            "Processing archive: %s (%s)",
-            archive.reference,
-            archive.displayname,
-        )
 
         # Resolve distroseries ID if provided
         distroseries_id = None
@@ -197,6 +186,22 @@ class CTPopulator(LaunchpadScript):
                 distroseries.name,
             )
 
+        # Resolve the archive
+        archive = None
+        if self.options.archive:
+            archive = getUtility(IArchiveSet).getByReference(
+                self.options.archive
+            )
+            if archive is None:
+                raise OptionValueError(
+                    f"Archive '{self.options.archive}' not found."
+                )
+            self.logger.info(
+                "Processing archive: %s (%s)",
+                archive.reference,
+                archive.displayname,
+            )
+
         # Convert dates to UTC if provided
         date_start = None
         date_end = None
@@ -220,8 +225,9 @@ class CTPopulator(LaunchpadScript):
             self.getOptions()
         )
 
+        archive_id = archive.id if archive else None
         self.logger.info(
-            f"CTDeliveryDebJob: archive_id={archive.id}, "
+            f"CTDeliveryDebJob: archive_id={archive_id}, "
             f"date_start={date_start}, date_end={date_end}, "
             f"distroseries={distroseries_id}, status={status.name}"
         )
@@ -233,7 +239,7 @@ class CTPopulator(LaunchpadScript):
 
         # Create the job
         delivery_job = CTDeliveryDebJob.create_manual(
-            archive_id=archive.id,
+            archive_id=archive_id,
             date_start=date_start,
             date_end=date_end,
             distroseries=distroseries_id,

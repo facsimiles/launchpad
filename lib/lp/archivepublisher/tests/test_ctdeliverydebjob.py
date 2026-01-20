@@ -551,12 +551,13 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         self.assertEqual(0, result["ct_failure_count"])
 
     def test_manual_mode_create_requires_parameters(self):
-        """Manual mode requires archive_id."""
+        """Manual mode requires either archive_id or distroseries."""
         self.assertRaisesWithContent(
             ValueError,
-            "archive_id is required",
+            "Either archive_id or distroseries must be specified",
             CTDeliveryDebJob.create_manual,
             archive_id=None,
+            distroseries=None,
             date_start=datetime.datetime.now(timezone.utc),
             date_end=datetime.datetime.now(timezone.utc),
         )
@@ -610,6 +611,26 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         # Should have no publishing_history
         self.assertIsNone(job.context.publishing_history_id)
+
+    def test_manual_mode_create_with_distroseries_only(self):
+        """Manual mode can be created with only distroseries (no archive)."""
+        distroseries = self.factory.makeDistroSeries()
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=None,
+            distroseries=distroseries.id,
+            date_start=date_start,
+            date_end=date_end,
+        )
+
+        self.assertIsNotNone(job)
+        manual_mode = job.metadata.get("manual_mode")
+        self.assertIsNone(manual_mode["archive_id"])
+        self.assertEqual(distroseries.id, manual_mode["distroseries"])
+        self.assertEqual(date_start.timestamp(), manual_mode["date_start"])
+        self.assertEqual(date_end.timestamp(), manual_mode["date_end"])
 
     def test_manual_mode_run_with_published_data(self):
         """Manual mode processes publications within date range."""

@@ -149,7 +149,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
     @classmethod
     def create_manual(
         cls,
-        archive_id: int,
+        archive_id: Optional[int] = None,
         date_start: Optional[datetime] = None,
         date_end: Optional[datetime] = None,
         distroseries: Optional[int] = None,
@@ -172,8 +172,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             )
             return None
 
-        if archive_id is None:
-            raise ValueError("archive_id is required")
+        if archive_id is None and distroseries is None:
+            raise ValueError(
+                "Either archive_id or distroseries must be specified"
+            )
 
         if date_start and date_end and date_start > date_end:
             raise ValueError(
@@ -324,7 +326,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
     def _run_manual_mode(self, manual_mode_params: dict) -> None:
         """Run in manual mode for initial population or backfilling."""
-        archive_id = int(manual_mode_params["archive_id"])
+        archive_id = manual_mode_params.get("archive_id")
+        if archive_id is not None:
+            archive_id = int(archive_id)
+
         date_start = manual_mode_params.get("date_start")
         date_end = manual_mode_params.get("date_end")
         distroseries = manual_mode_params.get("distroseries")
@@ -343,24 +348,28 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         if date_end is not None:
             date_end = datetime.fromtimestamp(date_end, tz=timezone.utc)
 
-        # Fetch archive
-        archive = getUtility(IArchiveSet).get(archive_id)
-        if archive is None:
-            logger.warning(f"Archive {archive_id} not found; skipping job")
-            return
+        # Fetch archive if specified
+        archive = None
+        distribution_name = None
+        archive_reference = None
 
-        distribution_name = archive.distribution.name
-        archive_reference = (
-            "primary"
-            if archive.purpose == ArchivePurpose.PRIMARY
-            else archive.reference
-        )
+        if archive_id is not None:
+            archive = getUtility(IArchiveSet).get(archive_id)
+            if archive is None:
+                logger.warning(f"Archive {archive_id} not found; skipping job")
+                return
+            distribution_name = archive.distribution.name
+            archive_reference = (
+                "primary"
+                if archive.purpose == ArchivePurpose.PRIMARY
+                else archive.reference
+            )
 
         logger.info(
             f"CTDeliveryDebJob manual mode: archive={archive_id} "
             f"date_start={date_start} date_end={date_end} "
-            f"distroseries={distroseries} csv_output={csv_output} "
-            f"status={status}"
+            f"distroseries={distroseries} status={status} "
+            f"csv_output={csv_output}"
         )
 
         self._process_publishing_window(
@@ -393,14 +402,15 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         status: int = PackagePublishingStatus.PUBLISHED.value,
         csv_output: Optional[str] = None,
     ) -> None:
-        """Process publishing history within a time window.
+        """Common processing for manual and celery mode.
 
         1. Fetches publishing history (BPPH/SPPH)
         2. Builds payloads from the history
         3. Delivers payloads (via CSV or HTTP)
         """
+        archive_ref = archive.reference if archive else None
         logger.debug(
-            f"Processing publishing window: archive={archive.reference} "
+            f"CTDeliveryDebJob for archive={archive_ref} "
             f"datecreated_start={datecreated_start} "
             f"datecreated_end={datecreated_end} "
             f"datepublished_start={datepublished_start} "
@@ -410,7 +420,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
         store = IStore(ArchivePublisherRun)
 
-        logger.info(f"Querying BPPH rows for archive {archive.reference}")
+        logger.info(f"Querying BPPH rows for {archive_ref}")
         bpph_rows = self._query_bpph_rows(
             store=store,
             archive=archive,
@@ -422,7 +432,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             status=status,
         )
 
-        logger.info(f"Querying SPPH rows for archive {archive.reference}")
+        logger.info(f"Querying SPPH rows for {archive_ref}")
         spph_rows = self._query_spph_rows(
             store=store,
             archive=archive,
@@ -459,7 +469,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         self._deliver_payloads(payloads, csv_output)
 
         logger.info(
-            f"Completed processing window: archive={archive.id} "
+            f"Completed processing window: archive={archive_ref} "
             f"prev_run={prev_run_id}({datepublished_start}) "
             f"curr_run={current_run_id}({datepublished_end}) "
             f"binaries={len(bpph_rows)} sources={len(spph_rows)}"
@@ -639,9 +649,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
 
         bpph_where_clauses = [
-            Eq(Column("archive", bpph), archive.id),
             Eq(Column("status", bpph), status),
         ]
+        if archive is not None:
+            bpph_where_clauses.append(Eq(Column("archive", bpph), archive.id))
         if datecreated_start is not None:
             bpph_where_clauses.append(
                 Gt(Column("datecreated", bpph), datecreated_start)
@@ -769,9 +780,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
 
         spph_where_clauses = [
-            Eq(Column("archive", spph), archive.id),
             Eq(Column("status", spph), status),
         ]
+        if archive is not None:
+            spph_where_clauses.append(Eq(Column("archive", spph), archive.id))
         if datecreated_start is not None:
             spph_where_clauses.append(
                 Gt(Column("datecreated", spph), datecreated_start)

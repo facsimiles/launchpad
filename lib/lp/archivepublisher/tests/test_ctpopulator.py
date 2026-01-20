@@ -60,12 +60,13 @@ class TestCTPopulator(TestCaseWithFactory):
         script.txn = FakeTransaction()
         return script
 
-    def test_script_requires_archive(self):
-        """The script requires an archive reference."""
+    def test_script_requires_archive_or_distroseries(self):
+        """The script requires either an archive or distroseries."""
         script = self.makeScript([])
         self.assertRaisesWithContent(
             OptionValueError,
-            "Archive reference is required (use -A or --archive).",
+            "Either archive reference (-A/--archive) or distroseries "
+            "(-s/--series) is required.",
             script.main,
         )
 
