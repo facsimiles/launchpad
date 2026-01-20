@@ -55,9 +55,6 @@ from lp.soyuz.interfaces.archive import IArchiveSet
 logger = logging.getLogger(__name__)
 
 CT_DELIVERY_ENABLED = "commitment_tracker.delivery.enabled"
-CT_DELIVERY_MANUAL_TIMEOUT = (
-    "commitment_tracker.delivery.manual_timeout_minutes"
-)
 
 POCKET_TO_NAME = {
     item.value: (
@@ -85,23 +82,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
     def _is_delivery_enabled():
         """Return True if the CT delivery feature flag is enabled."""
         return bool(getFeatureFlag(CT_DELIVERY_ENABLED))
-
-    @staticmethod
-    def _get_manual_timeout_minutes():
-        """Return the timeout in minutes for manual mode jobs.
-
-        Defaults to 30 minutes if not configured via feature flag.
-        """
-        timeout_str = getFeatureFlag(CT_DELIVERY_MANUAL_TIMEOUT)
-        if timeout_str:
-            try:
-                return int(timeout_str)
-            except (ValueError, TypeError):
-                logger.warning(
-                    f"[CT] Invalid value for {CT_DELIVERY_MANUAL_TIMEOUT}: "
-                    f"{timeout_str}, using default 30"
-                )
-        return 30
 
     @property
     def publishing_history(self):
@@ -183,8 +163,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         :param date_end: End of the date range.
         :param distroseries: The id of the distroseries to filter.
         :param status: The publishing status to filter by.
-        :param csv_output: If provided, path to CSV file for output instead
-                          of HTTP calls.
+        :param csv_output: Path to CSV file for output instead of HTTP calls.
         """
         if not cls._is_delivery_enabled():
             logger.info(
@@ -228,15 +207,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         store = IPrimaryStore(CTDeliveryJob)
         store.add(ctdeliveryjob)
         derived_job = cls(ctdeliveryjob)
-
-        # Manual mode jobs can be slow if the archive is large.
-        derived_job.task_queue = "launchpad_job_slow"
-        # Configure time limits from feature flag
-        timeout_minutes = cls._get_manual_timeout_minutes()
-        derived_job.soft_time_limit = timedelta(minutes=timeout_minutes)
-        derived_job.lease_duration = timedelta(minutes=timeout_minutes)
-
-        derived_job.celeryRunOnCommit()
         IStore(CTDeliveryJob).flush()
         return derived_job
 
@@ -389,7 +359,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         logger.info(
             f"CTDeliveryDebJob manual mode: archive={archive_id} "
             f"date_start={date_start} date_end={date_end} "
-            f"distroseries={distroseries} csv_output={csv_output}"
+            f"distroseries={distroseries} csv_output={csv_output} "
+            f"status={status}"
         )
 
         self._process_publishing_window(

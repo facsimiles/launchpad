@@ -232,7 +232,7 @@ class CTPopulator(LaunchpadScript):
             return
 
         # Create the job
-        job = CTDeliveryDebJob.create_manual(
+        delivery_job = CTDeliveryDebJob.create_manual(
             archive_id=archive.id,
             date_start=date_start,
             date_end=date_end,
@@ -241,11 +241,22 @@ class CTPopulator(LaunchpadScript):
             csv_output=self.options.csv_output,
         )
 
-        if job is None:
+        if delivery_job is None:
             self.logger.warning(
                 "Job creation returned None. CT delivery may be disabled."
             )
-        else:
-            self.logger.info(f"Created CTDeliveryDebJob: {job.job_id}")
+            return
+
+        self.logger.info(f"Created CTDeliveryDebJob: {delivery_job.job_id}")
+        delivery_job.job.start()
+        self.txn.commit()
+        self.logger.info("Job committed successfully.")
+
+        try:
+            delivery_job.run()
+            delivery_job.job.complete()
+        except Exception:
+            delivery_job.job.fail()
+            raise
+        finally:
             self.txn.commit()
-            self.logger.info("Job committed successfully.")
