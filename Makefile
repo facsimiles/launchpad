@@ -198,17 +198,20 @@ css_combine: jsbuild_widget_css
 	${SHHH} bin/sprite-util create-image
 	${SHHH} bin/sprite-util create-css
 	ln -sfn ../../../../yarn/node_modules/yui $(ICING)/yui
+	ln -sfn ../../../../yarn/node_modules/vanilla-framework $(ICING)/vanilla-framework
 	# Compile the base.css file separately for tests
 	$(YARN) run sass --load-path $(WD)/$(ICING) $(WD)/$(ICING)/css/base.scss $(WD)/$(ICING)/base.css
 	# Compile the combo.css for the main site
 	# XXX 2020-06-12 twom This should have `--style=compressed`. Removed for debugging purposes
 	$(YARN) run sass --load-path $(WD)/$(ICING) $(WD)/$(ICING)/combo.scss $(WD)/$(ICING)/combo.css
+	$(YARN) run sass --load-path $(WD)/$(ICING) $(WD)/$(ICING)/vanilla/styles.scss $(WD)/$(ICING)/vanilla/styles.css --style=compressed
 
 .PHONY: css_watch
 css_watch: jsbuild_widget_css
 	${SHHH} bin/sprite-util create-image
 	${SHHH} bin/sprite-util create-css
 	ln -sfn ../../../../yarn/node_modules/yui $(ICING)/yui
+	ln -sfn ../../../../yarn/node_modules/vanilla-framework $(ICING)/vanilla-framework
 	$(YARN) run sass --load-path $(WD)/$(ICING) $(WD)/$(ICING)/:$(WD)/$(ICING)/ --watch
 
 .PHONY: jsbuild_widget_css

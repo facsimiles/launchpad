@@ -2816,6 +2816,13 @@ class LaunchpadLayerToMainTemplateAdapter:
         self.path = os.path.join(here, "../templates/base-layout.pt")
 
 
+@implementer(IMainTemplateFile)
+class VanillaBaseLayoutAdapter:
+    def __init__(self, context):
+        here = os.path.dirname(os.path.realpath(__file__))
+        self.path = os.path.join(here, "../templates/base-layout-vanilla.pt")
+
+
 @implementer(ITraversable)
 class PageMacroDispatcher:
     """Selects a macro, while storing information about page layout.
@@ -2842,6 +2849,10 @@ class PageMacroDispatcher:
 
     @property
     def base(self):
+        # Check if the view wants to use vanilla layout
+        if getattr(self.context, "use_vanilla_layout", False):
+            vanilla_adapter = VanillaBaseLayoutAdapter(self.context.request)
+            return ViewPageTemplateFile(vanilla_adapter.path)
         return ViewPageTemplateFile(
             IMainTemplateFile(self.context.request).path
         )

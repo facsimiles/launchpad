@@ -26,6 +26,13 @@
         />
     <browser:page
         for="*"
+        name="+base-layout-vanilla-macros"
+        template="../templates/base-layout-vanilla-macros.pt"
+        permission="zope.Public"
+        class="lp.app.browser.launchpad.Macro"
+        />
+    <browser:page
+        for="*"
         name="+main-template-macros"
         template="../templates/base-layout-macros.pt"
         permission="zope.Public"
@@ -259,13 +266,21 @@
           name="+logout"
           />
 
-      <browser:page
+        <browser:page
           for="*"
           name="login_status"
           template="../templates/launchpad-loginstatus.pt"
           class="lp.app.browser.launchpad.LoginStatus"
           permission="zope.Public"
           />
+        <browser:page
+          for="*"
+          name="login_status_vanilla"
+          template="../templates/launchpad-loginstatus-vanilla.pt"
+          class="lp.app.browser.launchpad.LoginStatus"
+          permission="zope.Public"
+          />
+
     </lp:facet>
 
   <!-- Error pages -->

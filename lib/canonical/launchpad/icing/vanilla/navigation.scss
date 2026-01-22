@@ -1,0 +1,6 @@
+@media (min-width: 1036px) {
+  .p-navigation__item--dropdown-toggle::after {
+    // mis aligned with the username
+    top: 1.5rem;
+  }
+}
