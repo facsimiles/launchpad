@@ -1103,6 +1103,87 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
             self.assertEqual(2, result["ct_success_count"])
             self.assertEqual(0, result["ct_failure_count"])
 
+    def test_manual_mode_distroseries_only_builds_archive_reference(self):
+        """Manual mode with only distroseries builds archive reference
+        correctly for each publication."""
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+        publish_date = datetime.datetime(2024, 1, 15, tzinfo=timezone.utc)
+
+        distroseries = self.factory.makeDistroSeries()
+        archive = self.factory.makeArchive(
+            distribution=distroseries.distribution
+        )
+
+        # Create publications in the primary archive
+        spph = self.factory.makeSourcePackagePublishingHistory(
+            distroseries=distroseries,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            archive=archive,
+        )
+        spph = removeSecurityProxy(spph)
+        spph.datecreated = publish_date
+        spph.datepublished = publish_date
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph).flush()
+
+        bpph = self.factory.makeBinaryPackagePublishingHistory(
+            distroarchseries=self.factory.makeDistroArchSeries(
+                distroseries=distroseries
+            ),
+            archive=spph.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        bpph = removeSecurityProxy(bpph)
+        bpph.datecreated = publish_date
+        bpph.datepublished = publish_date
+        dbinterfaces.IStore(bpph).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                captured["payloads"] = payloads
+                return len(payloads), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        # Run with distroseries only (no archive_id)
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=None,
+            distroseries=distroseries.id,
+            date_start=date_start,
+            date_end=date_end,
+        )
+        job.run()
+
+        # Verify payloads were sent with archive_reference
+        payloads = captured.get("payloads", [])
+        self.assertEqual(2, len(payloads))
+
+        for payload in payloads:
+            props = payload["release"]["properties"]
+            self.assertEqual(archive.reference, props["archive_reference"])
+            released_at = datetime.datetime.fromisoformat(
+                payload["release"]["released_at"]
+            )
+            self.assertEqual(timezone.utc, released_at.tzinfo)
+
+        # Verify metadata shows success
+        result = job.metadata["result"]
+        self.assertEqual(2, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
+
 
 class TestViaCelery(TestCaseWithFactory):
     layer = CeleryJobLayer

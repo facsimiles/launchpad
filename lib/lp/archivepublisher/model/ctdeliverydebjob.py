@@ -43,6 +43,7 @@ from lp.archivepublisher.model.ctdeliveryjob import (
     CTDeliveryJob,
     CTDeliveryJobDerived,
 )
+from lp.registry.interfaces.distroseries import IDistroSeriesSet
 from lp.registry.interfaces.pocket import PackagePublishingPocket, pocketsuffix
 from lp.services.commitmenttracker import get_commitment_tracker_client
 from lp.services.config import config
@@ -51,6 +52,7 @@ from lp.services.features import getFeatureFlag
 from lp.services.job.model.job import Job
 from lp.soyuz.enums import ArchivePurpose, PackagePublishingStatus
 from lp.soyuz.interfaces.archive import IArchiveSet
+from lp.soyuz.model.archive import ARCHIVE_REFERENCE_TEMPLATES
 
 logger = logging.getLogger(__name__)
 
@@ -281,11 +283,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         archive = self.publishing_history.archive
         distribution_name = archive.distribution.name
         current_run = self.publishing_history.publisher_run
-        archive_reference = (
-            "primary"
-            if archive.purpose == ArchivePurpose.PRIMARY
-            else archive.reference
-        )
 
         curr_finished = current_run.date_finished
         if curr_finished is None:
@@ -314,7 +311,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         self._process_publishing_window(
             archive=archive,
             distribution_name=distribution_name,
-            archive_reference=archive_reference,
             datecreated_start=lookback_start,
             datecreated_end=curr_finished,
             datepublished_start=prev_finished,
@@ -351,18 +347,18 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         # Fetch archive if specified
         archive = None
         distribution_name = None
-        archive_reference = None
-
         if archive_id is not None:
             archive = getUtility(IArchiveSet).get(archive_id)
             if archive is None:
                 logger.warning(f"Archive {archive_id} not found; skipping job")
                 return
             distribution_name = archive.distribution.name
-            archive_reference = (
-                "primary"
-                if archive.purpose == ArchivePurpose.PRIMARY
-                else archive.reference
+        else:
+            # Either archive or distroseries is specified
+            distribution_name = (
+                getUtility(IDistroSeriesSet)
+                .get(distroseries)
+                .distribution.name
             )
 
         logger.info(
@@ -375,7 +371,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         self._process_publishing_window(
             archive=archive,
             distribution_name=distribution_name,
-            archive_reference=archive_reference,
             datecreated_start=lookback_start,
             datecreated_end=date_end,
             datepublished_start=date_start,
@@ -391,7 +386,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         self,
         archive,
         distribution_name: str,
-        archive_reference: str,
         datecreated_start: Optional[datetime],
         datecreated_end: Optional[datetime],
         datepublished_start: Optional[datetime],
@@ -408,7 +402,15 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         2. Builds payloads from the history
         3. Delivers payloads (via CSV or HTTP)
         """
-        archive_ref = archive.reference if archive else None
+        archive_ref = (
+            (
+                "primary"
+                if archive.purpose == ArchivePurpose.PRIMARY
+                else str(archive.reference)
+            )
+            if archive
+            else None
+        )
         logger.debug(
             f"CTDeliveryDebJob for archive={archive_ref} "
             f"datecreated_start={datecreated_start} "
@@ -452,8 +454,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             bpph_rows=bpph_rows,
             spph_rows=spph_rows,
             distribution_name=distribution_name,
-            archive_reference=archive_reference,
-            curr_finished=datepublished_end,
+            archive_reference=archive_ref,
         )
 
         # Persist a light summary in metadata (keep payloads out).
@@ -560,6 +561,25 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         row = IStore(ArchivePublisherRun).execute(select).get_one()
         return None if row is None else row
 
+    def _build_archive_reference(
+        self,
+        purpose: int,
+        owner_name: str,
+        distribution_name: str,
+        archive_name: str,
+    ) -> str:
+        """Build archive reference from database values."""
+        if purpose == ArchivePurpose.PRIMARY.value:
+            return "primary"
+
+        purpose_enum = ArchivePurpose.items[purpose]
+        template = ARCHIVE_REFERENCE_TEMPLATES[purpose_enum]
+        return template % {
+            "archive": archive_name,
+            "owner": owner_name,
+            "distribution": distribution_name,
+        }
+
     def _query_bpph_rows(
         self,
         store,
@@ -586,6 +606,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         bpb = Alias(Table("binarypackagebuild"), "bpb")
         spr_src = Alias(Table("sourcepackagerelease"), "spr_src")
 
+        # BUILD table joins
         bpph_tables = Join(
             bpph,
             bpr,
@@ -648,11 +669,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             ),
         )
 
+        # BUILD WHERE clauses
         bpph_where_clauses = [
             Eq(Column("status", bpph), status),
         ]
-        if archive is not None:
-            bpph_where_clauses.append(Eq(Column("archive", bpph), archive.id))
         if datecreated_start is not None:
             bpph_where_clauses.append(
                 Gt(Column("datecreated", bpph), datecreated_start)
@@ -671,7 +691,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             )
         if distroseries:
             bpph_where_clauses.append(Eq(Column("id", ds), distroseries))
-        bpph_where = And(*bpph_where_clauses)
 
         arch_agg = SQL(
             "string_agg(DISTINCT das.architecturetag, ', ' "
@@ -682,34 +701,77 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
         datepublished = SQL("MAX(bpph.datepublished)")
 
+        # Build SELECT columns
+        select_columns = [
+            Column("name", bpn),  # package_name
+            Column("name", component_tbl),  # component
+            Column("pocket", bpph),  # pocket
+            arch_agg,  # architectures
+            Column("name", ds),  # distroseries
+            Column("version", bpr),  # version
+            Column("id", bpb),  # build id as artifact_id
+            Column("name", spn_src),  # sourcepackagename
+            Column("version", spr_src),  # sourcepackageversion
+            Column("sha256", lfc),  # sha256
+            bpph_id_agg,  # bpph ids
+            datepublished,  # datepublished (one per group)
+        ]
+
+        # Build GROUP BY clause
+        group_by_columns = [
+            Column("id", bpn),
+            Column("id", component_tbl),
+            Column("pocket", bpph),
+            Column("id", ds),
+            Column("id", bpr),
+            Column("id", bpb),
+            Column("id", spn_src),
+            Column("id", spr_src),
+            Column("id", lfc),
+        ]
+
+        # For manual runs that do not specify an archive, we need to include
+        # archive reference components
+        if archive is None:
+            person_tbl = Alias(Table("person"), "person_owner")
+            dist_tbl = Alias(Table("distribution"), "dist_archive")
+            bpph_tables = Join(
+                bpph_tables,
+                person_tbl,
+                on=Eq(Column("owner", archive_tbl), Column("id", person_tbl)),
+            )
+            bpph_tables = Join(
+                bpph_tables,
+                dist_tbl,
+                on=Eq(
+                    Column("distribution", archive_tbl), Column("id", dist_tbl)
+                ),
+            )
+            select_columns.extend(
+                [
+                    Column("purpose", archive_tbl),  # archive purpose
+                    Column("name", person_tbl),  # owner name
+                    Column("name", dist_tbl),  # distribution name
+                    Column("name", archive_tbl),  # archive name
+                ]
+            )
+            group_by_columns.extend(
+                [
+                    Column("id", archive_tbl),
+                    Column("id", person_tbl),
+                    Column("id", dist_tbl),
+                ]
+            )
+        else:
+            # Or just filter by archive.id if it's specified
+            bpph_where_clauses.append(Eq(Column("archive", bpph), archive.id))
+
+        bpph_where = And(*bpph_where_clauses)
         bpph_select = Select(
-            columns=[
-                Column("name", bpn),  # package_name
-                Column("name", component_tbl),  # component
-                Column("pocket", bpph),  # pocket
-                arch_agg,  # architectures
-                Column("name", ds),  # distroseries
-                Column("version", bpr),  # version
-                Column("id", bpb),  # build id as artifact_id
-                Column("name", spn_src),  # sourcepackagename
-                Column("version", spr_src),  # sourcepackageversion
-                Column("sha256", lfc),  # sha256
-                bpph_id_agg,  # bpph ids
-                datepublished,  # datepublished (one per group)
-            ],
+            columns=select_columns,
             tables=bpph_tables,
             where=bpph_where,
-            group_by=[
-                Column("id", bpn),
-                Column("id", component_tbl),
-                Column("pocket", bpph),
-                Column("id", ds),
-                Column("id", bpr),
-                Column("id", bpb),
-                Column("id", spn_src),
-                Column("id", spr_src),
-                Column("id", lfc),
-            ],
+            group_by=group_by_columns,
         )
         return store.execute(bpph_select).get_all()
 
@@ -782,8 +844,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         spph_where_clauses = [
             Eq(Column("status", spph), status),
         ]
-        if archive is not None:
-            spph_where_clauses.append(Eq(Column("archive", spph), archive.id))
         if datecreated_start is not None:
             spph_where_clauses.append(
                 Gt(Column("datecreated", spph), datecreated_start)
@@ -802,19 +862,54 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             )
         if distroseries is not None:
             spph_where_clauses.append(Eq(Column("id", ds_s), distroseries))
-        spph_where = And(*spph_where_clauses)
 
+        select_columns_s = [
+            Column("name", spn),  # package_name
+            Column("name", component_tbl_s),  # component
+            Column("pocket", spph),  # pocket
+            Column("name", ds_s),  # distroseries
+            Column("version", spr),  # version
+            Column("sha256", lfc_s),  # sha256
+            Column("id", spph),  # spph id
+            Column("datepublished", spph),  # datepublished
+        ]
+
+        # For manual runs that do not specify an archive, we need to include
+        # archive reference components
+        if archive is None:
+            person_tbl_s = Alias(Table("person"), "person_owner_s")
+            dist_tbl_s = Alias(Table("distribution"), "dist_archive_s")
+
+            spph_tables = Join(
+                spph_tables,
+                person_tbl_s,
+                on=Eq(
+                    Column("owner", archive_tbl_s), Column("id", person_tbl_s)
+                ),
+            )
+            spph_tables = Join(
+                spph_tables,
+                dist_tbl_s,
+                on=Eq(
+                    Column("distribution", archive_tbl_s),
+                    Column("id", dist_tbl_s),
+                ),
+            )
+            select_columns_s.extend(
+                [
+                    Column("purpose", archive_tbl_s),  # archive purpose
+                    Column("name", person_tbl_s),  # owner name
+                    Column("name", dist_tbl_s),  # distribution name
+                    Column("name", archive_tbl_s),  # archive name
+                ]
+            )
+        else:
+            # Or just filter by archive.id if it's specified
+            spph_where_clauses.append(Eq(Column("archive", spph), archive.id))
+
+        spph_where = And(*spph_where_clauses)
         spph_select = Select(
-            columns=[
-                Column("name", spn),  # package_name
-                Column("name", component_tbl_s),  # component
-                Column("pocket", spph),  # pocket
-                Column("name", ds_s),  # distroseries
-                Column("version", spr),  # version
-                Column("sha256", lfc_s),  # sha256
-                Column("id", spph),  # spph id
-                Column("datepublished", spph),  # datepublished
-            ],
+            columns=select_columns_s,
             tables=spph_tables,
             where=spph_where,
         )
@@ -825,12 +920,12 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         bpph_rows: List[Tuple],
         spph_rows: List[Tuple],
         distribution_name: str,
-        archive_reference: str,
-        curr_finished: Optional[datetime],
+        archive_reference: Optional[str],
     ) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
         binary_payloads = []
         bpph_ids = []
         for row in bpph_rows:
+            # bpph unpack
             (
                 package_name,
                 component,
@@ -844,7 +939,24 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 sha256,
                 bpph_ids_agg,
                 bpph_datepublished,
-            ) = row
+            ) = row[:12]
+            row_archive_ref = archive_reference
+
+            if archive_reference is None:
+                # archive components unpack
+                (
+                    archive_purpose,
+                    archive_owner_name,
+                    archive_dist_name,
+                    archive_name,
+                ) = row[12:]
+                row_archive_ref = self._build_archive_reference(
+                    archive_purpose,
+                    archive_owner_name,
+                    archive_dist_name,
+                    archive_name,
+                )
+
             bpph_ids.append(str(bpph_ids_agg))
             architectures = (
                 [a.strip() for a in architectures_csv.split(",")]
@@ -868,7 +980,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                         "version": version,
                         "sha256": sha256,
                         "archive_base": distribution_name,
-                        "archive_reference": archive_reference,
+                        "archive_reference": row_archive_ref,
                         "archive_series": distroseries_name,
                         "archive_pocket": POCKET_TO_NAME.get(pocket),
                         "archive_component": component,
@@ -888,6 +1000,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         source_payloads = []
         spph_ids = []
         for row in spph_rows:
+            # spph unpack
             (
                 package_name,
                 component,
@@ -897,7 +1010,24 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 sha256,
                 spph_id,
                 spph_datepublished,
-            ) = row
+            ) = row[:8]
+            row_archive_ref = archive_reference
+
+            if archive_reference is None:
+                # archive components unpack
+                (
+                    archive_purpose,
+                    archive_owner_name,
+                    archive_dist_name,
+                    archive_name,
+                ) = row[8:]
+                row_archive_ref = self._build_archive_reference(
+                    archive_purpose,
+                    archive_owner_name,
+                    archive_dist_name,
+                    archive_name,
+                )
+
             spph_ids.append(str(spph_id))
             spph_released_at = (
                 spph_datepublished.replace(tzinfo=timezone.utc).isoformat()
@@ -915,7 +1045,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                         "architectures": [],
                         "sha256": sha256,
                         "archive_base": distribution_name,
-                        "archive_reference": archive_reference,
+                        "archive_reference": row_archive_ref,
                         "archive_series": distroseries_name,
                         "archive_pocket": POCKET_TO_NAME.get(pocket),
                         "archive_component": component,
