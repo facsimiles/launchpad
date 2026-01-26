@@ -24,6 +24,26 @@ class FakeJob:
     def __init__(self, job_id):
         self.job_id = job_id
 
+    def start(self):
+        """Fake start method."""
+        pass
+
+    def complete(self):
+        """Fake complete method."""
+        pass
+
+
+class FakeCTDeliveryDebJob:
+    """Simple fake CTDeliveryDebJob object for testing."""
+
+    def __init__(self, job_id):
+        self.job = FakeJob(job_id)
+        self.job_id = job_id
+
+    def run(self):
+        """Fake start method."""
+        pass
+
 
 class TestCTPopulator(TestCaseWithFactory):
     layer = ZopelessDatabaseLayer
@@ -40,12 +60,13 @@ class TestCTPopulator(TestCaseWithFactory):
         script.txn = FakeTransaction()
         return script
 
-    def test_script_requires_archive(self):
-        """The script requires an archive reference."""
+    def test_script_requires_archive_or_distroseries(self):
+        """The script requires either an archive or distroseries."""
         script = self.makeScript([])
         self.assertRaisesWithContent(
             OptionValueError,
-            "Archive reference is required (use -A or --archive).",
+            "Either archive reference (-A/--archive) or distroseries "
+            "(-s/--series) is required.",
             script.main,
         )
 
@@ -66,7 +87,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -132,11 +153,36 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
         call_args, call_kwargs = CTDeliveryDebJob.create_manual.calls[0]
+        self.assertEqual(distroseries.id, call_kwargs["distroseries"])
+
+    def test_script_with_distroseries_only(self):
+        """The script accepts distroseries without archive (all archives)."""
+        distroseries = self.factory.makeDistroSeries()
+        script = self.makeScript(
+            [
+                "-d",
+                distroseries.distribution.name,
+                "-s",
+                distroseries.name,
+            ]
+        )
+
+        self.patch(
+            CTDeliveryDebJob,
+            "create_manual",
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
+        )
+        script.main()
+
+        # Should have been called with archive_id=None and distroseries set
+        self.assertEqual(1, CTDeliveryDebJob.create_manual.call_count)
+        call_args, call_kwargs = CTDeliveryDebJob.create_manual.calls[0]
+        self.assertIsNone(call_kwargs["archive_id"])
         self.assertEqual(distroseries.id, call_kwargs["distroseries"])
 
     def test_script_with_date_range(self):
@@ -156,7 +202,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -187,7 +233,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -257,7 +303,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -277,7 +323,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -297,7 +343,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -327,7 +373,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -345,7 +391,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -357,7 +403,6 @@ class TestCTPopulator(TestCaseWithFactory):
         archive = self.factory.makeArchive()
         script = self.makeScript(["-A", archive.reference])
 
-        CTDeliveryDebJob.create_manual = FakeMethod(result=None)
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
@@ -372,12 +417,13 @@ class TestCTPopulator(TestCaseWithFactory):
         )
 
     def test_script_commits_on_success(self):
-        """The script commits the transaction on successful job creation."""
+        """The script commits the transaction on successful job creation and
+        ending."""
         archive = self.factory.makeArchive()
         script = self.makeScript(["-A", archive.reference])
 
         # Create a fake job with a job_id attribute
-        fake_job = FakeJob(12345)
+        fake_job = FakeCTDeliveryDebJob(12345)
 
         self.patch(
             CTDeliveryDebJob,
@@ -391,7 +437,7 @@ class TestCTPopulator(TestCaseWithFactory):
         )
         script.main()
 
-        self.assertEqual(1, script.txn.commit.call_count)
+        self.assertEqual(2, script.txn.commit.call_count)
 
     def test_script_with_all_parameters(self):
         """The script accepts all parameters together."""
@@ -419,7 +465,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -448,7 +494,7 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
@@ -463,9 +509,26 @@ class TestCTPopulator(TestCaseWithFactory):
         self.patch(
             CTDeliveryDebJob,
             "create_manual",
-            FakeMethod(result=None),
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
         )
         script.main()
 
         call_args, call_kwargs = CTDeliveryDebJob.create_manual.calls[0]
         self.assertEqual(ppa.id, call_kwargs["archive_id"])
+
+    def test_script_with_csv_output(self):
+        """The script passes CSV output path to job creation."""
+        archive = self.factory.makeArchive()
+        csv_path = "/tmp/test_releases.csv"
+        script = self.makeScript(["-A", archive.reference, "--csv", csv_path])
+
+        self.patch(
+            CTDeliveryDebJob,
+            "create_manual",
+            FakeMethod(result=FakeCTDeliveryDebJob(1)),
+        )
+        script.main()
+
+        call_args, call_kwargs = CTDeliveryDebJob.create_manual.calls[0]
+        self.assertEqual(archive.id, call_kwargs["archive_id"])
+        self.assertEqual(csv_path, call_kwargs["csv_output"])

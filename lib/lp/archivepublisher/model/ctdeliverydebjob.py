@@ -3,6 +3,8 @@
 
 __all__ = ["CTDeliveryDebJob"]
 
+import csv
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -41,6 +43,7 @@ from lp.archivepublisher.model.ctdeliveryjob import (
     CTDeliveryJob,
     CTDeliveryJobDerived,
 )
+from lp.registry.interfaces.distroseries import IDistroSeriesSet
 from lp.registry.interfaces.pocket import PackagePublishingPocket, pocketsuffix
 from lp.services.commitmenttracker import get_commitment_tracker_client
 from lp.services.config import config
@@ -49,13 +52,11 @@ from lp.services.features import getFeatureFlag
 from lp.services.job.model.job import Job
 from lp.soyuz.enums import ArchivePurpose, PackagePublishingStatus
 from lp.soyuz.interfaces.archive import IArchiveSet
+from lp.soyuz.model.archive import ARCHIVE_REFERENCE_TEMPLATES
 
 logger = logging.getLogger(__name__)
 
 CT_DELIVERY_ENABLED = "commitment_tracker.delivery.enabled"
-CT_DELIVERY_MANUAL_TIMEOUT = (
-    "commitment_tracker.delivery.manual_timeout_minutes"
-)
 
 POCKET_TO_NAME = {
     item.value: (
@@ -83,23 +84,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
     def _is_delivery_enabled():
         """Return True if the CT delivery feature flag is enabled."""
         return bool(getFeatureFlag(CT_DELIVERY_ENABLED))
-
-    @staticmethod
-    def _get_manual_timeout_minutes():
-        """Return the timeout in minutes for manual mode jobs.
-
-        Defaults to 30 minutes if not configured via feature flag.
-        """
-        timeout_str = getFeatureFlag(CT_DELIVERY_MANUAL_TIMEOUT)
-        if timeout_str:
-            try:
-                return int(timeout_str)
-            except (ValueError, TypeError):
-                logger.warning(
-                    f"[CT] Invalid value for {CT_DELIVERY_MANUAL_TIMEOUT}: "
-                    f"{timeout_str}, using default 30"
-                )
-        return 30
 
     @property
     def publishing_history(self):
@@ -167,11 +151,12 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
     @classmethod
     def create_manual(
         cls,
-        archive_id: int,
+        archive_id: Optional[int] = None,
         date_start: Optional[datetime] = None,
         date_end: Optional[datetime] = None,
         distroseries: Optional[int] = None,
         status: int = PackagePublishingStatus.PUBLISHED.value,
+        csv_output: Optional[str] = None,
     ) -> Optional["CTDeliveryDebJob"]:
         """Create a new `CTDeliveryDebJob` manually.
 
@@ -180,6 +165,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         :param date_end: End of the date range.
         :param distroseries: The id of the distroseries to filter.
         :param status: The publishing status to filter by.
+        :param csv_output: Path to CSV file for output instead of HTTP calls.
         """
         if not cls._is_delivery_enabled():
             logger.info(
@@ -188,8 +174,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             )
             return None
 
-        if archive_id is None:
-            raise ValueError("archive_id is required")
+        if archive_id is None and distroseries is None:
+            raise ValueError(
+                "Either archive_id or distroseries must be specified"
+            )
 
         if date_start and date_end and date_start > date_end:
             raise ValueError(
@@ -202,6 +190,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             "date_start": date_start.timestamp() if date_start else None,
             "date_end": date_end.timestamp() if date_end else None,
             "distroseries": distroseries,
+            "csv_output": csv_output,
         }
 
         metadata = {
@@ -222,15 +211,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         store = IPrimaryStore(CTDeliveryJob)
         store.add(ctdeliveryjob)
         derived_job = cls(ctdeliveryjob)
-
-        # Manual mode jobs can be slow if the archive is large.
-        derived_job.task_queue = "launchpad_job_slow"
-        # Configure time limits from feature flag
-        timeout_minutes = cls._get_manual_timeout_minutes()
-        derived_job.soft_time_limit = timedelta(minutes=timeout_minutes)
-        derived_job.lease_duration = timedelta(minutes=timeout_minutes)
-
-        derived_job.celeryRunOnCommit()
         IStore(CTDeliveryJob).flush()
         return derived_job
 
@@ -303,11 +283,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         archive = self.publishing_history.archive
         distribution_name = archive.distribution.name
         current_run = self.publishing_history.publisher_run
-        archive_reference = (
-            "primary"
-            if archive.purpose == ArchivePurpose.PRIMARY
-            else archive.reference
-        )
 
         curr_finished = current_run.date_finished
         if curr_finished is None:
@@ -333,10 +308,9 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         else:
             prev_run_id, prev_finished = prev_row
 
-        self._deliver_to_ct(
+        self._process_publishing_window(
             archive=archive,
             distribution_name=distribution_name,
-            archive_reference=archive_reference,
             datecreated_start=lookback_start,
             datecreated_end=curr_finished,
             datepublished_start=prev_finished,
@@ -348,7 +322,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
     def _run_manual_mode(self, manual_mode_params: dict) -> None:
         """Run in manual mode for initial population or backfilling."""
-        archive_id = int(manual_mode_params["archive_id"])
+        archive_id = manual_mode_params.get("archive_id")
+        if archive_id is not None:
+            archive_id = int(archive_id)
+
         date_start = manual_mode_params.get("date_start")
         date_end = manual_mode_params.get("date_end")
         distroseries = manual_mode_params.get("distroseries")
@@ -358,6 +335,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             if status_raw is not None
             else PackagePublishingStatus.PUBLISHED.value
         )
+        csv_output = manual_mode_params.get("csv_output")
 
         lookback_start = None
         if date_start is not None:
@@ -366,29 +344,33 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         if date_end is not None:
             date_end = datetime.fromtimestamp(date_end, tz=timezone.utc)
 
-        # Fetch archive
-        archive = getUtility(IArchiveSet).get(archive_id)
-        if archive is None:
-            logger.warning(f"Archive {archive_id} not found; skipping job")
-            return
-
-        distribution_name = archive.distribution.name
-        archive_reference = (
-            "primary"
-            if archive.purpose == ArchivePurpose.PRIMARY
-            else archive.reference
-        )
+        # Fetch archive if specified
+        archive = None
+        distribution_name = None
+        if archive_id is not None:
+            archive = getUtility(IArchiveSet).get(archive_id)
+            if archive is None:
+                logger.warning(f"Archive {archive_id} not found; skipping job")
+                return
+            distribution_name = archive.distribution.name
+        else:
+            # Either archive or distroseries is specified
+            distribution_name = (
+                getUtility(IDistroSeriesSet)
+                .get(distroseries)
+                .distribution.name
+            )
 
         logger.info(
             f"CTDeliveryDebJob manual mode: archive={archive_id} "
             f"date_start={date_start} date_end={date_end} "
-            f"distroseries={distroseries}"
+            f"distroseries={distroseries} status={status} "
+            f"csv_output={csv_output}"
         )
 
-        self._deliver_to_ct(
+        self._process_publishing_window(
             archive=archive,
             distribution_name=distribution_name,
-            archive_reference=archive_reference,
             datecreated_start=lookback_start,
             datecreated_end=date_end,
             datepublished_start=date_start,
@@ -397,13 +379,13 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             current_run_id=None,
             distroseries=distroseries,
             status=status,
+            csv_output=csv_output,
         )
 
-    def _deliver_to_ct(
+    def _process_publishing_window(
         self,
         archive,
         distribution_name: str,
-        archive_reference: str,
         datecreated_start: Optional[datetime],
         datecreated_end: Optional[datetime],
         datepublished_start: Optional[datetime],
@@ -412,10 +394,25 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         current_run_id: Optional[int],
         distroseries: Optional[int],
         status: int = PackagePublishingStatus.PUBLISHED.value,
+        csv_output: Optional[str] = None,
     ) -> None:
-        """Common processing and delivery logic for both modes."""
+        """Common processing for manual and celery mode.
+
+        1. Fetches publishing history (BPPH/SPPH)
+        2. Builds payloads from the history
+        3. Delivers payloads (via CSV or HTTP)
+        """
+        archive_ref = (
+            (
+                "primary"
+                if archive.purpose == ArchivePurpose.PRIMARY
+                else str(archive.reference)
+            )
+            if archive
+            else None
+        )
         logger.debug(
-            f"CTDeliveryDebJob for archive={archive.reference} "
+            f"CTDeliveryDebJob for archive={archive_ref} "
             f"datecreated_start={datecreated_start} "
             f"datecreated_end={datecreated_end} "
             f"datepublished_start={datepublished_start} "
@@ -425,8 +422,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
         store = IStore(ArchivePublisherRun)
 
-        # Fetch BPPH/SPPH rows in the window.
-        logger.info(f"Querying BPPH rows for archive {archive.reference}")
+        logger.info(f"Querying BPPH rows for {archive_ref}")
         bpph_rows = self._query_bpph_rows(
             store=store,
             archive=archive,
@@ -438,7 +434,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             status=status,
         )
 
-        logger.info(f"Querying SPPH rows for archive {archive.reference}")
+        logger.info(f"Querying SPPH rows for {archive_ref}")
         spph_rows = self._query_spph_rows(
             store=store,
             archive=archive,
@@ -458,8 +454,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             bpph_rows=bpph_rows,
             spph_rows=spph_rows,
             distribution_name=distribution_name,
-            archive_reference=archive_reference,
-            curr_finished=datepublished_end,
+            archive_reference=archive_ref,
         )
 
         # Persist a light summary in metadata (keep payloads out).
@@ -468,28 +463,48 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         metadata["result"]["bpph"] = bpph_ids
         metadata["result"]["spph"] = spph_ids
 
-        # Deliver to Commitment Tracker if configured/enabled.
         if not payloads:
             logger.info("[CT] no payloads to deliver for this window.")
             return
 
-        logger.info(f"Sending {len(payloads)} payloads to CT")
-        client = get_commitment_tracker_client()
-        success_count, failure_errors = client.send_payloads_with_results(
-            payloads
-        )
-        metadata["result"]["ct_success_count"] = success_count
-        metadata["result"]["ct_failure_count"] = len(failure_errors)
-        metadata["result"].setdefault("error_description", []).extend(
-            failure_errors
-        )
+        self._deliver_payloads(payloads, csv_output)
 
         logger.info(
-            f"CTDeliveryDebJob window: archive={archive.id} "
+            f"Completed processing window: archive={archive_ref} "
             f"prev_run={prev_run_id}({datepublished_start}) "
             f"curr_run={current_run_id}({datepublished_end}) "
             f"binaries={len(bpph_rows)} sources={len(spph_rows)}"
         )
+
+    def _deliver_payloads(
+        self, payloads: List[Dict[str, Any]], csv_output: Optional[str] = None
+    ) -> None:
+        """Deliver payloads either to CSV file or via HTTP.
+
+        :param payloads: List of payload dictionaries to deliver.
+        :param csv_output: If provided, path to CSV file for output.
+                          Otherwise, sends via HTTP to Commitment Tracker.
+        """
+        metadata = self.metadata.setdefault("result", {})
+
+        if csv_output:
+            logger.info(
+                f"Writing {len(payloads)} payloads to CSV: {csv_output}"
+            )
+            self._write_to_csv(payloads, csv_output)
+            metadata["ct_success_count"] = len(payloads)
+            metadata["ct_failure_count"] = 0
+            metadata["csv_filename"] = csv_output
+        else:
+            # Send via HTTP to Commitment Tracker
+            logger.info(f"Sending {len(payloads)} payloads to CT")
+            client = get_commitment_tracker_client()
+            success_count, failure_errors = client.send_payloads_with_results(
+                payloads
+            )
+            metadata["ct_success_count"] = success_count
+            metadata["ct_failure_count"] = len(failure_errors)
+            metadata.setdefault("error_description", []).extend(failure_errors)
 
     def notifyUserError(self, error) -> None:
         """Calls up and also saves the error text in this job's metadata.
@@ -546,6 +561,25 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         row = IStore(ArchivePublisherRun).execute(select).get_one()
         return None if row is None else row
 
+    def _build_archive_reference(
+        self,
+        purpose: int,
+        owner_name: str,
+        distribution_name: str,
+        archive_name: str,
+    ) -> str:
+        """Build archive reference from database values."""
+        if purpose == ArchivePurpose.PRIMARY.value:
+            return "primary"
+
+        purpose_enum = ArchivePurpose.items[purpose]
+        template = ARCHIVE_REFERENCE_TEMPLATES[purpose_enum]
+        return template % {
+            "archive": archive_name,
+            "owner": owner_name,
+            "distribution": distribution_name,
+        }
+
     def _query_bpph_rows(
         self,
         store,
@@ -572,6 +606,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         bpb = Alias(Table("binarypackagebuild"), "bpb")
         spr_src = Alias(Table("sourcepackagerelease"), "spr_src")
 
+        # BUILD table joins
         bpph_tables = Join(
             bpph,
             bpr,
@@ -634,8 +669,8 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             ),
         )
 
+        # BUILD WHERE clauses
         bpph_where_clauses = [
-            Eq(Column("archive", bpph), archive.id),
             Eq(Column("status", bpph), status),
         ]
         if datecreated_start is not None:
@@ -656,7 +691,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             )
         if distroseries:
             bpph_where_clauses.append(Eq(Column("id", ds), distroseries))
-        bpph_where = And(*bpph_where_clauses)
 
         arch_agg = SQL(
             "string_agg(DISTINCT das.architecturetag, ', ' "
@@ -665,34 +699,79 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         bpph_id_agg = SQL(
             "string_agg(DISTINCT bpph.id::text, ', ' ORDER BY bpph.id::text)"
         )
+        datepublished = SQL("MAX(bpph.datepublished)")
 
+        # Build SELECT columns
+        select_columns = [
+            Column("name", bpn),  # package_name
+            Column("name", component_tbl),  # component
+            Column("pocket", bpph),  # pocket
+            arch_agg,  # architectures
+            Column("name", ds),  # distroseries
+            Column("version", bpr),  # version
+            Column("id", bpb),  # build id as artifact_id
+            Column("name", spn_src),  # sourcepackagename
+            Column("version", spr_src),  # sourcepackageversion
+            Column("sha256", lfc),  # sha256
+            bpph_id_agg,  # bpph ids
+            datepublished,  # datepublished (one per group)
+        ]
+
+        # Build GROUP BY clause
+        group_by_columns = [
+            Column("id", bpn),
+            Column("id", component_tbl),
+            Column("pocket", bpph),
+            Column("id", ds),
+            Column("id", bpr),
+            Column("id", bpb),
+            Column("id", spn_src),
+            Column("id", spr_src),
+            Column("id", lfc),
+        ]
+
+        # For manual runs that do not specify an archive, we need to include
+        # archive reference components
+        if archive is None:
+            person_tbl = Alias(Table("person"), "person_owner")
+            dist_tbl = Alias(Table("distribution"), "dist_archive")
+            bpph_tables = Join(
+                bpph_tables,
+                person_tbl,
+                on=Eq(Column("owner", archive_tbl), Column("id", person_tbl)),
+            )
+            bpph_tables = Join(
+                bpph_tables,
+                dist_tbl,
+                on=Eq(
+                    Column("distribution", archive_tbl), Column("id", dist_tbl)
+                ),
+            )
+            select_columns.extend(
+                [
+                    Column("purpose", archive_tbl),  # archive purpose
+                    Column("name", person_tbl),  # owner name
+                    Column("name", dist_tbl),  # distribution name
+                    Column("name", archive_tbl),  # archive name
+                ]
+            )
+            group_by_columns.extend(
+                [
+                    Column("id", archive_tbl),
+                    Column("id", person_tbl),
+                    Column("id", dist_tbl),
+                ]
+            )
+        else:
+            # Or just filter by archive.id if it's specified
+            bpph_where_clauses.append(Eq(Column("archive", bpph), archive.id))
+
+        bpph_where = And(*bpph_where_clauses)
         bpph_select = Select(
-            columns=[
-                Column("name", bpn),  # package_name
-                Column("name", component_tbl),  # component
-                Column("pocket", bpph),  # pocket
-                arch_agg,  # architectures
-                Column("name", ds),  # distroseries
-                Column("version", bpr),  # version
-                Column("id", bpb),  # build id as artifact_id
-                Column("name", spn_src),  # sourcepackagename
-                Column("version", spr_src),  # sourcepackageversion
-                Column("sha256", lfc),  # sha256
-                bpph_id_agg,  # bpph ids
-            ],
+            columns=select_columns,
             tables=bpph_tables,
             where=bpph_where,
-            group_by=[
-                Column("id", bpn),
-                Column("id", component_tbl),
-                Column("pocket", bpph),
-                Column("id", ds),
-                Column("id", bpr),
-                Column("id", bpb),
-                Column("id", spn_src),
-                Column("id", spr_src),
-                Column("id", lfc),
-            ],
+            group_by=group_by_columns,
         )
         return store.execute(bpph_select).get_all()
 
@@ -763,7 +842,6 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
 
         spph_where_clauses = [
-            Eq(Column("archive", spph), archive.id),
             Eq(Column("status", spph), status),
         ]
         if datecreated_start is not None:
@@ -784,18 +862,54 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             )
         if distroseries is not None:
             spph_where_clauses.append(Eq(Column("id", ds_s), distroseries))
-        spph_where = And(*spph_where_clauses)
 
+        select_columns_s = [
+            Column("name", spn),  # package_name
+            Column("name", component_tbl_s),  # component
+            Column("pocket", spph),  # pocket
+            Column("name", ds_s),  # distroseries
+            Column("version", spr),  # version
+            Column("sha256", lfc_s),  # sha256
+            Column("id", spph),  # spph id
+            Column("datepublished", spph),  # datepublished
+        ]
+
+        # For manual runs that do not specify an archive, we need to include
+        # archive reference components
+        if archive is None:
+            person_tbl_s = Alias(Table("person"), "person_owner_s")
+            dist_tbl_s = Alias(Table("distribution"), "dist_archive_s")
+
+            spph_tables = Join(
+                spph_tables,
+                person_tbl_s,
+                on=Eq(
+                    Column("owner", archive_tbl_s), Column("id", person_tbl_s)
+                ),
+            )
+            spph_tables = Join(
+                spph_tables,
+                dist_tbl_s,
+                on=Eq(
+                    Column("distribution", archive_tbl_s),
+                    Column("id", dist_tbl_s),
+                ),
+            )
+            select_columns_s.extend(
+                [
+                    Column("purpose", archive_tbl_s),  # archive purpose
+                    Column("name", person_tbl_s),  # owner name
+                    Column("name", dist_tbl_s),  # distribution name
+                    Column("name", archive_tbl_s),  # archive name
+                ]
+            )
+        else:
+            # Or just filter by archive.id if it's specified
+            spph_where_clauses.append(Eq(Column("archive", spph), archive.id))
+
+        spph_where = And(*spph_where_clauses)
         spph_select = Select(
-            columns=[
-                Column("name", spn),  # package_name
-                Column("name", component_tbl_s),  # component
-                Column("pocket", spph),  # pocket
-                Column("name", ds_s),  # distroseries
-                Column("version", spr),  # version
-                Column("sha256", lfc_s),  # sha256
-                Column("id", spph),  # spph id
-            ],
+            columns=select_columns_s,
             tables=spph_tables,
             where=spph_where,
         )
@@ -806,14 +920,12 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         bpph_rows: List[Tuple],
         spph_rows: List[Tuple],
         distribution_name: str,
-        archive_reference: str,
-        curr_finished: Optional[datetime],
+        archive_reference: Optional[str],
     ) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
-        released_at = curr_finished.isoformat() if curr_finished else None
-
         binary_payloads = []
         bpph_ids = []
         for row in bpph_rows:
+            # bpph unpack
             (
                 package_name,
                 component,
@@ -826,16 +938,39 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 sourcepackageversion,
                 sha256,
                 bpph_ids_agg,
-            ) = row
+                bpph_datepublished,
+            ) = row[:12]
+            row_archive_ref = archive_reference
+
+            if archive_reference is None:
+                # archive components unpack
+                (
+                    archive_purpose,
+                    archive_owner_name,
+                    archive_dist_name,
+                    archive_name,
+                ) = row[12:]
+                row_archive_ref = self._build_archive_reference(
+                    archive_purpose,
+                    archive_owner_name,
+                    archive_dist_name,
+                    archive_name,
+                )
+
             bpph_ids.append(str(bpph_ids_agg))
             architectures = (
                 [a.strip() for a in architectures_csv.split(",")]
                 if architectures_csv
                 else []
             )
+            bpph_released_at = (
+                bpph_datepublished.replace(tzinfo=timezone.utc).isoformat()
+                if bpph_datepublished
+                else None
+            )
             binary_payload: Dict[str, Any] = {
                 "release": {
-                    "released_at": released_at,
+                    "released_at": bpph_released_at,
                     "external_link": None,
                     "properties": {
                         "type": "deb",
@@ -845,7 +980,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                         "version": version,
                         "sha256": sha256,
                         "archive_base": distribution_name,
-                        "archive_reference": archive_reference,
+                        "archive_reference": row_archive_ref,
                         "archive_series": distroseries_name,
                         "archive_pocket": POCKET_TO_NAME.get(pocket),
                         "archive_component": component,
@@ -865,6 +1000,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         source_payloads = []
         spph_ids = []
         for row in spph_rows:
+            # spph unpack
             (
                 package_name,
                 component,
@@ -873,19 +1009,43 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                 version,
                 sha256,
                 spph_id,
-            ) = row
+                spph_datepublished,
+            ) = row[:8]
+            row_archive_ref = archive_reference
+
+            if archive_reference is None:
+                # archive components unpack
+                (
+                    archive_purpose,
+                    archive_owner_name,
+                    archive_dist_name,
+                    archive_name,
+                ) = row[8:]
+                row_archive_ref = self._build_archive_reference(
+                    archive_purpose,
+                    archive_owner_name,
+                    archive_dist_name,
+                    archive_name,
+                )
+
             spph_ids.append(str(spph_id))
+            spph_released_at = (
+                spph_datepublished.replace(tzinfo=timezone.utc).isoformat()
+                if spph_datepublished
+                else None
+            )
             source_payload: Dict[str, Any] = {
                 "release": {
-                    "released_at": released_at,
+                    "released_at": spph_released_at,
                     "external_link": None,
                     "properties": {
                         "type": "deb-source",
                         "name": package_name,
+                        "version": version,
                         "architectures": [],
                         "sha256": sha256,
                         "archive_base": distribution_name,
-                        "archive_reference": archive_reference,
+                        "archive_reference": row_archive_ref,
                         "archive_series": distroseries_name,
                         "archive_pocket": POCKET_TO_NAME.get(pocket),
                         "archive_component": component,
@@ -897,3 +1057,38 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         payloads = binary_payloads + source_payloads
 
         return payloads, bpph_ids, spph_ids
+
+    def _write_to_csv(
+        self, payloads: List[Dict[str, Any]], csv_filename: str
+    ) -> None:
+        """Write payloads to a CSV file formatted for PostgreSQL import."""
+        with open(csv_filename, "w", newline="", encoding="utf-8") as csvfile:
+            fieldnames = [
+                "properties",
+                "external_link",
+                "released_at",
+                "publisher",
+            ]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for payload in payloads:
+                release = payload.get("release", {})
+
+                # Convert properties to JSON string for JSONB column
+                properties_json = json.dumps(release.get("properties", {}))
+
+                # Extract other fields
+                external_link = release.get("external_link") or ""
+                released_at = release.get("released_at", "")
+
+                writer.writerow(
+                    {
+                        "properties": properties_json,
+                        "external_link": external_link,
+                        "released_at": released_at,
+                        "publisher": "launchpad",
+                    }
+                )
+
+        logger.info(f"Wrote {len(payloads)} records to CSV: {csv_filename}")
