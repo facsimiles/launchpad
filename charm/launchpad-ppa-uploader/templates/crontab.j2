@@ -4,9 +4,9 @@ MAILFROM={{ bounce_address }}
 MAILTO={{ cron_mailto }}
 LPCONFIG=launchpad-ppa-uploader
 {% if http_proxy -%}
-http_proxy={{ http_proxy }}
-https_proxy={{ https_proxy }}
-no_proxy={{ no_proxy }}
+http_proxy="{{ http_proxy }}"
+https_proxy="{{ https_proxy }}"
+no_proxy="{{ no_proxy }}"
 {% endif %}
 
 {% if active -%}
