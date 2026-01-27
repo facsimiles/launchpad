@@ -47,7 +47,7 @@ from lp.bugs.interfaces.bugattachment import IBugAttachment
 from lp.buildmaster.enums import BuildStatus
 from lp.code.enums import RevisionStatusResult
 from lp.code.interfaces.branch import IBranch
-from lp.layers import LaunchpadLayer
+from lp.layers import LaunchpadLayer, VanillaLayer
 from lp.registry.interfaces.distribution import IDistribution
 from lp.registry.interfaces.distributionsourcepackage import (
     IDistributionSourcePackage,
@@ -2816,6 +2816,7 @@ class LaunchpadLayerToMainTemplateAdapter:
         self.path = os.path.join(here, "../templates/base-layout.pt")
 
 
+@adapter(VanillaLayer)
 @implementer(IMainTemplateFile)
 class VanillaBaseLayoutAdapter:
     def __init__(self, context):
@@ -2849,10 +2850,6 @@ class PageMacroDispatcher:
 
     @property
     def base(self):
-        # Check if the view wants to use vanilla layout
-        if getattr(self.context, "use_vanilla_layout", False):
-            vanilla_adapter = VanillaBaseLayoutAdapter(self.context.request)
-            return ViewPageTemplateFile(vanilla_adapter.path)
         return ViewPageTemplateFile(
             IMainTemplateFile(self.context.request).path
         )

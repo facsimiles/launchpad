@@ -3,6 +3,7 @@
 
 """Vanilla layout test view."""
 
+from lp.layers import VanillaLayer, setAdditionalLayer
 from lp.services.webapp.publisher import LaunchpadView
 
 
@@ -12,10 +13,10 @@ class VanillaTestView(LaunchpadView):
     This view is used for testing the vanilla base layout template.
     """
 
-    use_vanilla_layout = True
     page_title = "Vanilla Test"
 
     def initialize(self):
+        setAdditionalLayer(self.request, VanillaLayer)
         notification_type = self.request.form.get("notification_type")
         message = self.request.form.get(
             "notification_message", "This is a test notification."

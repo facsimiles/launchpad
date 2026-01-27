@@ -1164,6 +1164,9 @@
   <adapter
       factory="lp.app.browser.tales.LaunchpadLayerToMainTemplateAdapter"
       />
+  <adapter
+      factory="lp.app.browser.tales.VanillaBaseLayoutAdapter"
+      />
 
   <adapter
       factory="lp.app.browser.webservice.reference_xhtml_representation"/>

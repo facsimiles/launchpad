@@ -71,3 +71,7 @@ class FeedsLayer(LaunchpadLayer):
 
 class WebServiceLayer(IWebServiceLayer, LaunchpadLayer):
     """The layer for web service requests."""
+
+
+class VanillaLayer(LaunchpadLayer):
+    """The layer for vanilla layout views."""
