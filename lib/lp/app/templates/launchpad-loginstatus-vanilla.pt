@@ -4,9 +4,6 @@
   <li tal:condition="view/login_shown" class="p-navigation__item">
     <a class="p-navigation__link" tal:attributes="href view/login_url">Log in / Register</a>
   </li>
-
-
-
   <li class="p-navigation__item--dropdown-toggle" tal:condition="view/logged_in">
     <a class="p-navigation__link" aria-controls="account-menu">
       <span tal:replace="structure request/lp:person/fmt:icon" />
