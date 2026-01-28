@@ -45,12 +45,17 @@ from lp.archivepublisher.model.ctdeliveryjob import (
 )
 from lp.registry.interfaces.distroseries import IDistroSeriesSet
 from lp.registry.interfaces.pocket import PackagePublishingPocket, pocketsuffix
+from lp.registry.interfaces.sourcepackage import SourcePackageFileType
 from lp.services.commitmenttracker import get_commitment_tracker_client
 from lp.services.config import config
 from lp.services.database.interfaces import IPrimaryStore, IStore
 from lp.services.features import getFeatureFlag
 from lp.services.job.model.job import Job
-from lp.soyuz.enums import ArchivePurpose, PackagePublishingStatus
+from lp.soyuz.enums import (
+    ArchivePurpose,
+    BinaryPackageFormat,
+    PackagePublishingStatus,
+)
 from lp.soyuz.interfaces.archive import IArchiveSet
 from lp.soyuz.model.archive import ARCHIVE_REFERENCE_TEMPLATES
 
@@ -672,6 +677,9 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         # BUILD WHERE clauses
         bpph_where_clauses = [
             Eq(Column("status", bpph), status),
+            # Filter to DEB packages only. We don't want to get
+            # debug symbols (DDEB) or other package formats.
+            Eq(Column("filetype", bpf), BinaryPackageFormat.DEB.value),
         ]
         if datecreated_start is not None:
             bpph_where_clauses.append(
@@ -843,6 +851,10 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
 
         spph_where_clauses = [
             Eq(Column("status", spph), status),
+            # Filter to DSC files only.
+            # DSC files are always present for DEBs and contain the information
+            # that we need (source package metadata and hashes).
+            Eq(Column("filetype", sprf), SourcePackageFileType.DSC.value),
         ]
         if datecreated_start is not None:
             spph_where_clauses.append(

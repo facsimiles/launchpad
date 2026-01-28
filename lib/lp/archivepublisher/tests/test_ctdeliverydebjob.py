@@ -24,11 +24,12 @@ from lp.archivepublisher.model.ctdeliverydebjob import (
     CTDeliveryDebJob,
 )
 from lp.registry.interfaces.pocket import PackagePublishingPocket
+from lp.registry.interfaces.sourcepackage import SourcePackageFileType
 from lp.services.commitmenttracker.client import CommitmentTrackerClient
 from lp.services.database import interfaces as dbinterfaces
 from lp.services.features.testing import FeatureFixture
 from lp.services.job.tests import block_on_job
-from lp.soyuz.enums import PackagePublishingStatus
+from lp.soyuz.enums import BinaryPackageFormat, PackagePublishingStatus
 from lp.testing import TestCaseWithFactory
 from lp.testing.layers import CeleryJobLayer, LaunchpadScriptLayer
 
@@ -192,6 +193,12 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
             sourcepackagerelease=spph.sourcepackagerelease,
             library_file=self.factory.makeLibraryFileAlias(db_only=True),
         )
+        # Create a SPPH with filetype != DSC. This one should not be sent.
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            filetype=SourcePackageFileType.ORIG_TARBALL,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
         dbinterfaces.IStore(spph).flush()
 
         # Binary publish (with file so sha256 is present).
@@ -208,6 +215,13 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         bpph.datepublished = datetime.datetime.now(
             timezone.utc
         ) - datetime.timedelta(minutes=80)
+        # Create a BPPH with filetype != DEB. This one should not be sent.
+        self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            binpackageformat=BinaryPackageFormat.DDEB,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
         dbinterfaces.IStore(bpph).flush()
 
         ah = removeSecurityProxy(self.archive_history)
