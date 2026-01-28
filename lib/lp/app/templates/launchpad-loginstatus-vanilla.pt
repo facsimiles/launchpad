@@ -1,0 +1,22 @@
+<tal:root xmlns:tal="http://xml.zope.org/namespaces/tal"
+  xmlns:metal="http://xml.zope.org/namespaces/metal"
+  xmlns:i18n="http://xml.zope.org/namespaces/i18n" omit-tag="">
+  <li tal:condition="view/login_shown" class="p-navigation__item">
+    <a class="p-navigation__link" tal:attributes="href view/login_url">Log in / Register</a>
+  </li>
+  <li class="p-navigation__item--dropdown-toggle" tal:condition="view/logged_in">
+    <a class="p-navigation__link" aria-controls="account-menu">
+      <span tal:replace="structure request/lp:person/fmt:icon" />
+      <span tal:content="request/lp:person/title" />
+      (<span tal:content="request/lp:person/name" />)
+    </a>
+    <ul class="p-navigation__dropdown--right" id="account-menu" aria-hidden="true">
+      <li>
+        <a class="p-navigation__dropdown-item" tal:attributes="href request/lp:person/fmt:url">View Profile</a>
+      </li>
+      <li>
+        <a class="p-navigation__dropdown-item" href="/+logout">Log Out</a>
+      </li>
+
+    </li>
+  </tal:root>

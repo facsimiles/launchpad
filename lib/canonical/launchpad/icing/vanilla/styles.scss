@@ -1,0 +1,15 @@
+@import "vanilla-framework";
+@include vanilla;
+
+@import "icons";
+
+:root {
+  font-size: 14px;
+  --paper-bg: #f3f3f3;
+
+  body {
+    &:has(*.is-paper) {
+      background-color: var(--paper-bg);
+    }
+  }
+}
