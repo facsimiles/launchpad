@@ -151,7 +151,9 @@ class LaunchpadRootIndexView(HasAnnouncementsView, LaunchpadView):
             return cached_data
         try:
             # Use urlfetch which supports timeout
-            response = urlfetch(config.launchpad.homepage_recent_posts_feed)
+            response = urlfetch(
+                config.launchpad.homepage_recent_posts_feed, use_proxy=True
+            )
         except requests.RequestException:
             return []
         feed = feedparser.parse(response.content)
