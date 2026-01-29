@@ -54,8 +54,8 @@
       </div>
 
       <script>
-        (function () {
-          const sqlTokenPattern = /('[^']*')|(\b(?:\d+\.?\d*)\b)|(\b(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|ORDER BY|GROUP BY|LIMIT|OFFSET|JOIN|LEFT|RIGHT|INNER|OUTER|HAVING|AS|ON|SET|VALUES)\b)|(\b(?:AND|OR|NOT|IN|LIKE|IS|BETWEEN|NULL)\b|!=|<>|>=|        <=|=|<|>)/gim;
+        function highlightAndFormatTimeline() {
+          const sqlTokenPattern = /('[^']*')|(\b(?:\d+\.?\d*)\b)|(\b(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|ORDER BY|GROUP BY|LIMIT|OFFSET|JOIN|LEFT|RIGHT|INNER|OUTER|HAVING|AS|ON|SET|VALUES)\b)|(\b(?:AND|OR|NOT|IN|LIKE|IS|BETWEEN|NULL)\b|!=|<>|>=|<=|=|<|>)/gim;
 
           function escapeHtml(text) {
             if (!text) return text;
@@ -92,15 +92,15 @@
           }
 
           document.querySelectorAll('.action-details').forEach(formatAndHighlight);
-        })();
+        }
+        document.addEventListener('DOMContentLoaded', highlightAndFormatTimeline);
       </script>
       <style>
-        /* --- New Div-based Structure Styles --- */
         .timeline-container {
           border: 1px solid #e2e2e2;
           border-radius: 4px;
           background: #fff;
-          padding: 10px;
+          padding: 0 10px;
         }
 
         .timeline-entry {
@@ -116,7 +116,6 @@
         .timeline-header {
           display: flex;
           justify-content: space-between;
-          /* Pushes duration to the right */
           align-items: center;
           margin-bottom: 6px;
         }
@@ -128,7 +127,7 @@
         }
 
         .timeline-duration {
-          font-family: monospace;
+          font-family: var(--font-monospace);
           color: #666;
           background: #f4f4f4;
           padding: 2px 6px;
@@ -140,13 +139,11 @@
         pre.action-details {
           white-space: pre-wrap;
           margin: 0;
-          font-family: monospace;
+          font-family: var(--font-monospace);
           font-size: 0.95em;
           color: #333;
           padding-left: 10px;
-          /* Slight indent for hierarchy */
           border-left: 3px solid #eee;
-          /* Visual guide for the code block */
         }
 
         /* Syntax Highlighting */
