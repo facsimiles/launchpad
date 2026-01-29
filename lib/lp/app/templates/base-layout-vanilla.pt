@@ -97,14 +97,14 @@
         <tal:view condition="not: view/macro:is-page-contentless">
           <metal:main define-slot="main" />
         </tal:view>
-       
+
         <tal:limitedview condition="view/macro:is-page-contentless">
           <div class="row">
             The information in this page is not shared with you.
           </div>
         </tal:limitedview>
       </div>
-      <metal:debug-timeline use-macro="context/@@+base-layout-macros/debug-timeline" />
+      <metal:timeline use-macro="context/@@+launchpad-debug-timeline-vanilla-macros/timeline" />
     </body>
 
     <tal:template>

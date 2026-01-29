@@ -31,6 +31,14 @@
         permission="zope.Public"
         class="lp.app.browser.launchpad.Macro"
         />
+     <browser:page
+        for="*"
+        name="+launchpad-debug-timeline-vanilla-macros"
+        template="../templates/launchpad-debug-timeline-vanilla-macros.pt"
+        permission="zope.Public"
+        class="lp.app.browser.launchpad.Macro"
+        />
+    
     <browser:page
         for="*"
         name="+main-template-macros"
