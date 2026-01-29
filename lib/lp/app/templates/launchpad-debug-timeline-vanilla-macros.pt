@@ -1,0 +1,171 @@
+<macros xmlns="http://www.w3.org/1999/xhtml" xmlns:tal="http://xml.zope.org/namespaces/tal"
+  xmlns:metal="http://xml.zope.org/namespaces/metal" xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+  i18n:domain="launchpad" tal:omit-tag="">
+  <metal:switch define-macro="switch">
+    <div class="timeline-switch p-navigation__link" tal:condition="request/features/visible_render_time">
+      <label class="p-switch">
+        <input type="checkbox" class="p-switch__input" role="switch" id="debug-timeline-toggle">
+        <span class="p-switch__slider"></span>
+        <span class="p-switch__label">Show SQL Timeline</span>
+      </label>
+      <script>
+        function toggleTimeline() {
+          const toggle = document.getElementById('debug-timeline-toggle');
+          const container = document.getElementById('debug-timeline');
+          if (toggle && container) {
+            toggle.addEventListener('change', function () {
+              if (this.checked) {
+                container.classList.remove('hidden');
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              } else {
+                container.classList.add('hidden');
+              }
+            });
+          } else {
+            console.error('[Launchpad Debug Timeline] Toggle or container not found');
+          }
+        }
+        document.addEventListener('DOMContentLoaded', toggleTimeline);
+      </script>
+      <style>
+        .timeline-switch label {
+          margin: 0;
+          padding: 0;
+        }
+      </style>
+    </div>
+  </metal:switch>
+
+  <metal:timeline define-macro="timeline">
+    <div class="row" tal:condition="request/features/visible_render_time">
+      <div id="debug-timeline" class="timeline-container hidden"
+        tal:define="timeline_actions modules/lp.services.webapp.adapter/get_timeline_actions">
+
+        <div class="timeline-entry" tal:repeat="action timeline_actions">
+
+          <div class="timeline-header">
+            <span class="timeline-category" tal:content="action/category">Query Type</span>
+            <span class="timeline-duration" tal:content="action/duration/fmt:millisecondduration">0.05ms</span>
+          </div>
+
+          <pre class="action-details" tal:content="action/detail">SELECT * FROM ...</pre>
+        </div>
+
+      </div>
+
+      <script>
+        function highlightAndFormatTimeline() {
+          const sqlTokenPattern = /('[^']*')|(\b(?:\d+\.?\d*)\b)|(\b(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|ORDER BY|GROUP BY|LIMIT|OFFSET|JOIN|LEFT|RIGHT|INNER|OUTER|HAVING|AS|ON|SET|VALUES)\b)|(\b(?:AND|OR|NOT|IN|LIKE|IS|BETWEEN|NULL)\b|!=|<>|>=|<=|=|<|>)/gim;
+
+          function escapeHtml(text) {
+            if (!text) return text;
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+          }
+
+          function stripCommonIndent(text) {
+            const lines = text.split('\n');
+            const firstContentLine = lines.find(line => line.trim().length > 0);
+            if (!firstContentLine) return text;
+            const indentMatch = firstContentLine.match(/^(\s*)/);
+            const indentSize = indentMatch ? indentMatch[1].length : 0;
+            if (indentSize === 0) return text;
+            return lines.map(line => {
+              return line.length >= indentSize ? line.substring(indentSize) : line.trim();
+            }).join('\n').trim();
+          }
+
+          function formatAndHighlight(preElement) {
+            let rawText = preElement.textContent || preElement.innerText;
+            if (!rawText || !rawText.trim()) return;
+
+            rawText = stripCommonIndent(rawText);
+
+            const highlightedHtml = rawText.replace(sqlTokenPattern, function (match, str, num, kw, op) {
+              if (str) return `<span class="highlight sql-string">${escapeHtml(str)}</span>`;
+              if (num) return `<span class="highlight sql-number">${match}</span>`;
+              if (kw) return `<span class="highlight sql-keyword">${match.toUpperCase()}</span>`;
+              if (op) return `<span class="highlight sql-operator">${escapeHtml(match)}</span>`;
+              return escapeHtml(match);
+            });
+
+            preElement.innerHTML = highlightedHtml;
+          }
+
+          document.querySelectorAll('.action-details').forEach(formatAndHighlight);
+        }
+        document.addEventListener('DOMContentLoaded', highlightAndFormatTimeline);
+      </script>
+      <style>
+        .timeline-container {
+          border: 1px solid #e2e2e2;
+          border-radius: 4px;
+          background: #fff;
+          padding: 0 10px;
+        }
+
+        .timeline-entry {
+          border-bottom: 1px solid #eee;
+          padding: 12px 0;
+        }
+
+        .timeline-entry:last-child {
+          border-bottom: none;
+        }
+
+        /* Row 1: Header (Category + Duration) */
+        .timeline-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 6px;
+        }
+
+        .timeline-category {
+          font-weight: bold;
+          font-size: 1.1em;
+          color: #333;
+        }
+
+        .timeline-duration {
+          font-family: var(--font-monospace);
+          color: #666;
+          background: #f4f4f4;
+          padding: 2px 6px;
+          border-radius: 3px;
+          font-size: 0.9em;
+        }
+
+        /* Row 2: SQL Detail */
+        pre.action-details {
+          white-space: pre-wrap;
+          margin: 0;
+          font-family: var(--font-monospace);
+          font-size: 0.95em;
+          color: #333;
+          padding-left: 10px;
+          border-left: 3px solid #eee;
+        }
+
+        /* Syntax Highlighting */
+        .highlight {
+          &.sql-string {
+            color: #06C;
+          }
+
+          &.sql-keyword {
+            color: #77216F;
+            font-weight: bold;
+          }
+
+          &.sql-operator {
+            color: #0E811F;
+          }
+
+          &.sql-number {
+            color: rgb(13, 11, 11);
+          }
+        }
+      </style>
+    </div>
+  </metal:timeline>
+</macros>

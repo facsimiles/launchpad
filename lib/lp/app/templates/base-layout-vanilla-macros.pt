@@ -23,6 +23,9 @@
           </ul>
 
           <ul class="p-navigation__items">
+            <li class="p-navigation__item--title">
+              <metal:switch use-macro="context/@@+launchpad-debug-timeline-vanilla-macros/switch" />
+            </li>
             <tal:login replace="structure context/@@login_status_vanilla" />
           </ul>
         </nav>
@@ -140,5 +143,4 @@
       </script>
     </section>
   </metal:notifications>
-
 </macros>

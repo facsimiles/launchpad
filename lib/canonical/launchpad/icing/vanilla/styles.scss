@@ -4,6 +4,8 @@
 @import "icons";
 
 :root {
+  --font-monospace: "Ubuntu Mono variable", "Ubuntu Mono", Consolas, Monaco, Courier, monospace;
+  --font-family: "Ubuntu variable", Ubuntu, 'Bitstream Vera Sans', 'DejaVu Sans', Tahoma, sans-serif;
   font-size: 14px;
   --paper-bg: #f3f3f3;
 
@@ -12,4 +14,8 @@
       background-color: var(--paper-bg);
     }
   }
+}
+
+.hidden {
+  display: none !important;
 }
