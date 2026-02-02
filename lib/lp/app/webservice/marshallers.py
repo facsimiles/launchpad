@@ -30,7 +30,7 @@ class TextFieldMarshaller(LazrTextFieldMarshaller):
         Return the value as is.
         """
 
-        if value is not None and getUtility(ILaunchBag).user is None:
+        if isinstance(value, str) and getUtility(ILaunchBag).user is None:
             return obfuscate_email(value)
         return value
 

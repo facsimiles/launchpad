@@ -207,7 +207,6 @@ class ICve(Interface):
             title=_("metadata"),
             description=_("CVE metadata."),
             key_type=Text(),
-            value_type=Text(),
             required=False,
             readonly=True,
         ),
