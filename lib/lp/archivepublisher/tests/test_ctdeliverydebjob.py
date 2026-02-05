@@ -353,8 +353,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -438,8 +439,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -472,8 +474,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -546,8 +549,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -684,8 +688,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -780,8 +785,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -854,8 +860,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -924,8 +931,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -1016,8 +1024,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -1163,8 +1172,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,

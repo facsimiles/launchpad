@@ -7,7 +7,8 @@ import csv
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from itertools import chain
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from storm.expr import (
     SQL,
@@ -455,7 +456,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             f"Building payloads for CT delivery: binaries={len(bpph_rows)} "
             f"sources={len(spph_rows)}"
         )
-        payloads, bpph_ids, spph_ids = self._build_payloads(
+        payloads_gen, bpph_ids, spph_ids = self._build_payloads(
             bpph_rows=bpph_rows,
             spph_rows=spph_rows,
             distribution_name=distribution_name,
@@ -468,11 +469,12 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         metadata["result"]["bpph"] = bpph_ids
         metadata["result"]["spph"] = spph_ids
 
-        if not payloads:
+        # Check if we have any rows to process
+        if not bpph_rows and not spph_rows:
             logger.info("[CT] no payloads to deliver for this window.")
             return
 
-        self._deliver_payloads(payloads, csv_output)
+        self._deliver_payloads(payloads_gen, csv_output)
 
         logger.info(
             f"Completed processing window: archive={archive_ref} "
@@ -482,27 +484,27 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         )
 
     def _deliver_payloads(
-        self, payloads: List[Dict[str, Any]], csv_output: Optional[str] = None
+        self,
+        payloads: Iterable[Dict[str, Any]],
+        csv_output: Optional[str] = None,
     ) -> None:
         """Deliver payloads either to CSV file or via HTTP.
 
-        :param payloads: List of payload dictionaries to deliver.
+        :param payloads: Iterable of payload dictionaries to deliver.
         :param csv_output: If provided, path to CSV file for output.
                           Otherwise, sends via HTTP to Commitment Tracker.
         """
         metadata = self.metadata.setdefault("result", {})
 
         if csv_output:
-            logger.info(
-                f"Writing {len(payloads)} payloads to CSV: {csv_output}"
-            )
-            self._write_to_csv(payloads, csv_output)
-            metadata["ct_success_count"] = len(payloads)
+            logger.info(f"Writing payloads to CSV: {csv_output}")
+            count = self._write_to_csv(payloads, csv_output)
+            metadata["ct_success_count"] = count
             metadata["ct_failure_count"] = 0
             metadata["csv_filename"] = csv_output
         else:
             # Send via HTTP to Commitment Tracker
-            logger.info(f"Sending {len(payloads)} payloads to CT")
+            logger.info("Sending payloads to CT")
             client = get_commitment_tracker_client()
             success_count, failure_errors = client.send_payloads_with_results(
                 payloads
@@ -933,147 +935,162 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
         spph_rows: List[Tuple],
         distribution_name: str,
         archive_reference: Optional[str],
-    ) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
-        binary_payloads = []
+    ) -> Tuple[Iterator[Dict[str, Any]], List[str], List[str]]:
+        """Build payloads from BPPH and SPPH rows as a generator.
+
+        Returns a tuple of (payload_generator, bpph_ids, spph_ids).
+        The generator yields payloads one at a time to avoid loading all
+        payloads into memory at once.
+        """
         bpph_ids = []
-        for row in bpph_rows:
-            # bpph unpack
-            (
-                package_name,
-                component,
-                pocket,
-                architectures_csv,
-                distroseries_name,
-                version,
-                build_id,
-                sourcepackagename,
-                sourcepackageversion,
-                sha256,
-                bpph_ids_agg,
-                bpph_datepublished,
-            ) = row[:12]
-            row_archive_ref = archive_reference
-
-            if archive_reference is None:
-                # archive components unpack
-                (
-                    archive_purpose,
-                    archive_owner_name,
-                    archive_dist_name,
-                    archive_name,
-                ) = row[12:]
-                row_archive_ref = self._build_archive_reference(
-                    archive_purpose,
-                    archive_owner_name,
-                    archive_dist_name,
-                    archive_name,
-                )
-
-            bpph_ids.append(str(bpph_ids_agg))
-            architectures = (
-                [a.strip() for a in architectures_csv.split(",")]
-                if architectures_csv
-                else []
-            )
-            bpph_released_at = (
-                bpph_datepublished.replace(tzinfo=timezone.utc).isoformat()
-                if bpph_datepublished
-                else None
-            )
-            binary_payload: Dict[str, Any] = {
-                "release": {
-                    "released_at": bpph_released_at,
-                    "external_link": None,
-                    "properties": {
-                        "type": "deb",
-                        "id": str(build_id),
-                        "name": package_name,
-                        "architectures": architectures,
-                        "version": version,
-                        "sha256": sha256,
-                        "archive_base": distribution_name,
-                        "archive_reference": row_archive_ref,
-                        "archive_series": distroseries_name,
-                        "archive_pocket": POCKET_TO_NAME.get(pocket),
-                        "archive_component": component,
-                    },
-                },
-            }
-            if sourcepackagename:
-                binary_payload["release"]["properties"][
-                    "source_package_name"
-                ] = sourcepackagename
-            if sourcepackageversion:
-                binary_payload["release"]["properties"][
-                    "source_package_version"
-                ] = sourcepackageversion
-            binary_payloads.append(binary_payload)
-
-        source_payloads = []
         spph_ids = []
-        for row in spph_rows:
-            # spph unpack
-            (
-                package_name,
-                component,
-                pocket,
-                distroseries_name,
-                version,
-                sha256,
-                spph_id,
-                spph_datepublished,
-            ) = row[:8]
-            row_archive_ref = archive_reference
 
-            if archive_reference is None:
-                # archive components unpack
+        def binary_payload_generator():
+            """Generate binary payloads from BPPH rows."""
+            for row in bpph_rows:
+                # bpph unpack
                 (
-                    archive_purpose,
-                    archive_owner_name,
-                    archive_dist_name,
-                    archive_name,
-                ) = row[8:]
-                row_archive_ref = self._build_archive_reference(
-                    archive_purpose,
-                    archive_owner_name,
-                    archive_dist_name,
-                    archive_name,
+                    package_name,
+                    component,
+                    pocket,
+                    architectures_csv,
+                    distroseries_name,
+                    version,
+                    build_id,
+                    sourcepackagename,
+                    sourcepackageversion,
+                    sha256,
+                    bpph_ids_agg,
+                    bpph_datepublished,
+                ) = row[:12]
+                row_archive_ref = archive_reference
+
+                if archive_reference is None:
+                    # archive components unpack
+                    (
+                        archive_purpose,
+                        archive_owner_name,
+                        archive_dist_name,
+                        archive_name,
+                    ) = row[12:]
+                    row_archive_ref = self._build_archive_reference(
+                        archive_purpose,
+                        archive_owner_name,
+                        archive_dist_name,
+                        archive_name,
+                    )
+
+                bpph_ids.append(str(bpph_ids_agg))
+                architectures = (
+                    [a.strip() for a in architectures_csv.split(",")]
+                    if architectures_csv
+                    else []
                 )
-
-            spph_ids.append(str(spph_id))
-            spph_released_at = (
-                spph_datepublished.replace(tzinfo=timezone.utc).isoformat()
-                if spph_datepublished
-                else None
-            )
-            source_payload: Dict[str, Any] = {
-                "release": {
-                    "released_at": spph_released_at,
-                    "external_link": None,
-                    "properties": {
-                        "type": "deb-source",
-                        "name": package_name,
-                        "version": version,
-                        "architectures": [],
-                        "sha256": sha256,
-                        "archive_base": distribution_name,
-                        "archive_reference": row_archive_ref,
-                        "archive_series": distroseries_name,
-                        "archive_pocket": POCKET_TO_NAME.get(pocket),
-                        "archive_component": component,
+                bpph_released_at = (
+                    bpph_datepublished.replace(tzinfo=timezone.utc).isoformat()
+                    if bpph_datepublished
+                    else None
+                )
+                binary_payload: Dict[str, Any] = {
+                    "release": {
+                        "released_at": bpph_released_at,
+                        "external_link": None,
+                        "properties": {
+                            "type": "deb",
+                            "id": str(build_id),
+                            "name": package_name,
+                            "architectures": architectures,
+                            "version": version,
+                            "sha256": sha256,
+                            "archive_base": distribution_name,
+                            "archive_reference": row_archive_ref,
+                            "archive_series": distroseries_name,
+                            "archive_pocket": POCKET_TO_NAME.get(pocket),
+                            "archive_component": component,
+                        },
                     },
-                },
-            }
-            source_payloads.append(source_payload)
+                }
+                if sourcepackagename:
+                    binary_payload["release"]["properties"][
+                        "source_package_name"
+                    ] = sourcepackagename
+                if sourcepackageversion:
+                    binary_payload["release"]["properties"][
+                        "source_package_version"
+                    ] = sourcepackageversion
+                yield binary_payload
 
-        payloads = binary_payloads + source_payloads
+        def source_payload_generator():
+            """Generate source payloads from SPPH rows."""
+            for row in spph_rows:
+                # spph unpack
+                (
+                    package_name,
+                    component,
+                    pocket,
+                    distroseries_name,
+                    version,
+                    sha256,
+                    spph_id,
+                    spph_datepublished,
+                ) = row[:8]
+                row_archive_ref = archive_reference
+
+                if archive_reference is None:
+                    # archive components unpack
+                    (
+                        archive_purpose,
+                        archive_owner_name,
+                        archive_dist_name,
+                        archive_name,
+                    ) = row[8:]
+                    row_archive_ref = self._build_archive_reference(
+                        archive_purpose,
+                        archive_owner_name,
+                        archive_dist_name,
+                        archive_name,
+                    )
+
+                spph_ids.append(str(spph_id))
+                spph_released_at = (
+                    spph_datepublished.replace(tzinfo=timezone.utc).isoformat()
+                    if spph_datepublished
+                    else None
+                )
+                source_payload: Dict[str, Any] = {
+                    "release": {
+                        "released_at": spph_released_at,
+                        "external_link": None,
+                        "properties": {
+                            "type": "deb-source",
+                            "name": package_name,
+                            "version": version,
+                            "architectures": [],
+                            "sha256": sha256,
+                            "archive_base": distribution_name,
+                            "archive_reference": row_archive_ref,
+                            "archive_series": distroseries_name,
+                            "archive_pocket": POCKET_TO_NAME.get(pocket),
+                            "archive_component": component,
+                        },
+                    },
+                }
+                yield source_payload
+
+        # Chain both generators together
+        payloads = chain(
+            binary_payload_generator(), source_payload_generator()
+        )
 
         return payloads, bpph_ids, spph_ids
 
     def _write_to_csv(
-        self, payloads: List[Dict[str, Any]], csv_filename: str
-    ) -> None:
-        """Write payloads to a CSV file formatted for PostgreSQL import."""
+        self, payloads: Iterable[Dict[str, Any]], csv_filename: str
+    ) -> int:
+        """Write payloads to a CSV file formatted for PostgreSQL import.
+
+        Returns the number of records written.
+        """
         with open(csv_filename, "w", newline="", encoding="utf-8") as csvfile:
             fieldnames = [
                 "properties",
@@ -1084,6 +1101,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
 
+            record_count = 0
             for payload in payloads:
                 release = payload.get("release", {})
 
@@ -1102,5 +1120,7 @@ class CTDeliveryDebJob(CTDeliveryJobDerived):
                         "publisher": "launchpad",
                     }
                 )
+                record_count += 1
 
-        logger.info(f"Wrote {len(payloads)} records to CSV: {csv_filename}")
+        logger.info(f"Wrote {record_count} records to CSV: {csv_filename}")
+        return record_count
