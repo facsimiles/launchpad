@@ -1,0 +1,42 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:tal="http://xml.zope.org/namespaces/tal"
+  xmlns:metal="http://xml.zope.org/namespaces/metal"
+  xmlns:i18n="http://xml.zope.org/namespaces/i18n" metal:use-macro="view/macro:page/main_only" i18n:domain="launchpad">
+  <body>
+    <tal:breadcrumbs metal:fill-slot="breadcrumbs">
+      <div class="row">
+        <nav class="p-breadcrumbs" aria-label="Breadcrumbs">
+          <ol class="p-breadcrumbs__items p-text--small-caps">
+            <li class="p-breadcrumbs__item">
+              <a href="/">Home</a>
+            </li>
+            <li class="p-breadcrumbs__item">
+              <a href="/projects">Projects</a>
+            </li>
+            <li class="p-breadcrumbs__item">
+              <span>Vanilla Layout Test</span>
+            </li>
+          </ol>
+        </nav>
+      </div>
+    </tal:breadcrumbs>
+    <section class="is-paper p-section" metal:fill-slot="main">
+      <div class="p-suru"></div>
+      <div class="row">
+        <h1>Vanilla Layout Test</h1>
+        <p>This page tests the vanilla base layout template.</p>
+      </div>
+
+      <div class="row">
+        <h2>Notifications</h2>
+        <p>Trigger notifications to test their appearance.</p>
+        <form method="get">
+          <button type="submit" name="notification_type" value="info" class="p-button--positive">Info</button>
+          <button type="submit" name="notification_type" value="warning" class="p-button--neutral">Warning</button>
+          <button type="submit" name="notification_type" value="error" class="p-button--negative">Error</button>
+        </form>
+      </div>
+    </section>
+
+  </body>
+</html>

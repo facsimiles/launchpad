@@ -47,7 +47,7 @@ from lp.bugs.interfaces.bugattachment import IBugAttachment
 from lp.buildmaster.enums import BuildStatus
 from lp.code.enums import RevisionStatusResult
 from lp.code.interfaces.branch import IBranch
-from lp.layers import LaunchpadLayer
+from lp.layers import LaunchpadLayer, VanillaLayer
 from lp.registry.interfaces.distribution import IDistribution
 from lp.registry.interfaces.distributionsourcepackage import (
     IDistributionSourcePackage,
@@ -2814,6 +2814,14 @@ class LaunchpadLayerToMainTemplateAdapter:
     def __init__(self, context):
         here = os.path.dirname(os.path.realpath(__file__))
         self.path = os.path.join(here, "../templates/base-layout.pt")
+
+
+@adapter(VanillaLayer)
+@implementer(IMainTemplateFile)
+class VanillaBaseLayoutAdapter:
+    def __init__(self, context):
+        here = os.path.dirname(os.path.realpath(__file__))
+        self.path = os.path.join(here, "../templates/base-layout-vanilla.pt")
 
 
 @implementer(ITraversable)

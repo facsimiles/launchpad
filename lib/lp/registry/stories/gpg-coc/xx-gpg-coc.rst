@@ -75,9 +75,9 @@ the clear text instructions contain the expected URLs pointing to more help.
     does not support automatic decryption of "ASCII armored" encrypted text.
     <BLANKLINE>
     Exact instructions for enabling this depends on the specific mail reader you
-    are using.  Please see this support page for more information:
+    are using.  Please visit the OpenPGP website for more information:
     <BLANKLINE>
-        https://help.launchpad.net/ReadingOpenPgpMail
+        https://www.openpgp.org/software/
     <BLANKLINE>
     For more general information on OpenPGP and related tools such as Gnu Privacy
     Guard (GPG), please see:
