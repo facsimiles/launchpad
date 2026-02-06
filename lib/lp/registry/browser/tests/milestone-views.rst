@@ -104,6 +104,34 @@ milestone has any bugs or specifications.
     ...
     dodo
 
+For distroseries milestones, the bug task listing includes the source package.
+
+    >>> from lp.testing.pages import extract_text, find_tag_by_id
+
+    >>> distroseries = factory.makeDistroSeries(name="pkgseries")
+    >>> distro_milestone = factory.makeMilestone(
+    ...     distroseries=distroseries, name="pkg-milestone"
+    ... )
+    >>> dsp = factory.makeDistributionSourcePackage(
+    ...     distribution=distroseries.distribution, sourcepackagename="hello"
+    ... )
+    >>> bugtask = factory.makeBugTask(target=dsp, owner=person)
+    >>> bugtask.milestone = distro_milestone
+
+    >>> distro_view = create_initialized_view(
+    ...     distro_milestone, "+index", principal=person
+    ... )
+    >>> bug_table = find_tag_by_id(distro_view.render(), "milestone_bugtasks")
+    >>> table_text = extract_text(bug_table)
+    >>> "Package" in table_text
+    True
+    >>> "Project" in table_text
+    False
+    >>> "hello" in table_text
+    True
+    >>> "+source/hello" in distro_view.render()
+    True
+
 On a IDistroSeries/IProductSeries main page, we use this view to list detailed
 information about the context's milestones. However, generating the summary of
 bugs/blueprints for a milestone is rather expensive, so we only do that for
