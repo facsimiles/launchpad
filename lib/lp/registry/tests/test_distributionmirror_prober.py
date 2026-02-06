@@ -64,6 +64,7 @@ from lp.registry.scripts.distributionmirror_prober import (
     RedirectAwareProberProtocol,
     RedirectToDifferentFile,
     RequestManager,
+    ResponseFailure,
     UnknownURLSchemeAfterRedirect,
     _get_cdimage_file_list,
     _parse,
@@ -1081,6 +1082,15 @@ class TestArchiveMirrorProberCallbacks(TestCaseWithFactory):
             self.fail(
                 "A ConnectionSkipped exception shouldn't be "
                 "propagated. Got %s" % e
+            )
+        try:
+            callbacks.deleteMirrorSeries(
+                Failure(ResponseFailure("http://localhost/", "reason"))
+            )
+        except Exception as e:
+            self.fail(
+                "A ResponseFailure exception shouldn't be propagated. Got %s"
+                % e
             )
 
         # Make sure that deleteMirrorSeries() propagate any failure that is
