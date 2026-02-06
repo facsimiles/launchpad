@@ -209,6 +209,9 @@ class HTTPSProbeFailureHandler:
             )
         if self.isTimeout(error):
             raise ProberTimeout(self.factory.url, self.factory.timeout)
+        # These can occur on main archive mirrors when probing for ports URLs
+        if isinstance(error.value, (ResponseNeverReceived, CancelledError)):
+            raise ResponseFailure(self.factory.url, str(error.value))
         raise error
 
     def isTimeout(self, error):
@@ -611,6 +614,27 @@ class UnknownURLSchemeAfterRedirect(UnknownURLScheme):
         )
 
 
+class ResponseFailure(ProberError):
+    """The HTTP response was never received or was cancelled.
+
+    These usually occur when testing ports specific URLs
+    on main archive mirrors.
+    """
+
+    def __init__(self, url, reason=None, *args):
+        ProberError.__init__(self, *args)
+        self.url = url
+        self.reason = reason
+
+    def __str__(self):
+        if self.reason:
+            return "Response never received or cancelled for %s: %s" % (
+                self.url,
+                self.reason,
+            )
+        return "Response never received or cancelled for %s" % self.url
+
+
 class CallScheduler:
     """Keep track of the calls done as callback of deferred or directly,
     so we can postpone them to after the reactor is done.
@@ -662,6 +686,7 @@ class ArchiveMirrorProberCallbacks(LoggingMixin):
         InvalidHTTPSCertificate,
         InvalidHTTPSCertificateSkipped,
         TunnelError,
+        ResponseFailure,
     )
 
     def __init__(
