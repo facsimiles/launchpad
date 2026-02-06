@@ -4,6 +4,17 @@
 
 This script creates `CTDeliveryDebJob` for the given archive, status,
 distroseries and date range.
+
+When using the --csv option, the script outputs data to a CSV file instead of
+making HTTP calls to the Commitment Tracker. The CSV format is designed for
+PostgreSQL import and matches the release table schema:
+
+    Column        | Type                     | Description
+    --------------+--------------------------+----------------------------------
+    properties    | jsonb                    | Package metadata as JSON
+    external_link | text                     | External link (nullable)
+    released_at   | timestamp with time zone | Release timestamp
+    publisher     | publisher_identity       | Always 'launchpad'
 """
 
 __all__ = [
@@ -97,6 +108,16 @@ class CTPopulator(LaunchpadScript):
             help="Pretend; don't commit changes.",
         )
         self.parser.add_option(
+            "--csv",
+            dest="csv_output",
+            metavar="PATH",
+            default=None,
+            help=(
+                "Output results to CSV file at the specified path instead of "
+                "sending to Commitment Tracker."
+            ),
+        )
+        self.parser.add_option(
             "--profile",
             dest="profile",
             metavar="FILE",
@@ -108,9 +129,11 @@ class CTPopulator(LaunchpadScript):
 
     def getOptions(self):
         """Verify command-line options and return the corresponding objects."""
-        if not self.options.archive:
+        # Require either archive or distroseries
+        if not self.options.archive and not self.options.distroseries:
             raise OptionValueError(
-                "Archive reference is required (use -A or --archive)."
+                "Either archive reference (-A/--archive) or distroseries "
+                "(-s/--series) is required."
             )
 
         # Validate date range if both dates are provided
@@ -130,19 +153,6 @@ class CTPopulator(LaunchpadScript):
                 f"Invalid status '{self.options.status}'. "
                 f"Must be one of: {', '.join(valid_statuses)}"
             )
-
-        # Resolve the archive
-        archive = getUtility(IArchiveSet).getByReference(self.options.archive)
-        if archive is None:
-            raise OptionValueError(
-                f"Archive '{self.options.archive}' not found."
-            )
-
-        self.logger.info(
-            "Processing archive: %s (%s)",
-            archive.reference,
-            archive.displayname,
-        )
 
         # Resolve distroseries ID if provided
         distroseries_id = None
@@ -176,6 +186,22 @@ class CTPopulator(LaunchpadScript):
                 distroseries.name,
             )
 
+        # Resolve the archive
+        archive = None
+        if self.options.archive:
+            archive = getUtility(IArchiveSet).getByReference(
+                self.options.archive
+            )
+            if archive is None:
+                raise OptionValueError(
+                    f"Archive '{self.options.archive}' not found."
+                )
+            self.logger.info(
+                "Processing archive: %s (%s)",
+                archive.reference,
+                archive.displayname,
+            )
+
         # Convert dates to UTC if provided
         date_start = None
         date_end = None
@@ -199,8 +225,9 @@ class CTPopulator(LaunchpadScript):
             self.getOptions()
         )
 
+        archive_id = archive.id if archive else None
         self.logger.info(
-            f"CTDeliveryDebJob: archive_id={archive.id}, "
+            f"CTDeliveryDebJob: archive_id={archive_id}, "
             f"date_start={date_start}, date_end={date_end}, "
             f"distroseries={distroseries_id}, status={status.name}"
         )
@@ -211,19 +238,31 @@ class CTPopulator(LaunchpadScript):
             return
 
         # Create the job
-        job = CTDeliveryDebJob.create_manual(
-            archive_id=archive.id,
+        delivery_job = CTDeliveryDebJob.create_manual(
+            archive_id=archive_id,
             date_start=date_start,
             date_end=date_end,
             distroseries=distroseries_id,
             status=status.value,
+            csv_output=self.options.csv_output,
         )
 
-        if job is None:
+        if delivery_job is None:
             self.logger.warning(
                 "Job creation returned None. CT delivery may be disabled."
             )
-        else:
-            self.logger.info(f"Created CTDeliveryDebJob: {job.job_id}")
+            return
+
+        self.logger.info(f"Created CTDeliveryDebJob: {delivery_job.job_id}")
+        delivery_job.job.start()
+        self.txn.commit()
+        self.logger.info("Job committed successfully.")
+
+        try:
+            delivery_job.run()
+            delivery_job.job.complete()
+        except Exception:
+            delivery_job.job.fail()
+            raise
+        finally:
             self.txn.commit()
-            self.logger.info("Job committed successfully.")

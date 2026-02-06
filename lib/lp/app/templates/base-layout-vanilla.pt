@@ -1,0 +1,127 @@
+<metal:page xmlns:metal="http://xml.zope.org/namespaces/metal"
+  xmlns:tal="http://xml.zope.org/namespaces/tal" define-macro="master" tal:define="
+    revision modules/lp.app.versioninfo/revision | string:unknown;
+    display_revision modules/lp.app.versioninfo/display_revision | string:unknown;
+    devmode modules/lp.services.config/config/launchpad/devmode;
+    rooturl modules/lp.services.webapp.vhosts/allvhosts/configs/mainsite/rooturl;
+    is_demo modules/lp.services.config/config/launchpad/is_demo;
+    site_message modules/lp.services.config/config/launchpad/site_message;
+    icingroot string:${rooturl}+icing/rev${revision};
+    features request/features;
+    feature_scopes request/features/scopes;
+    CONTEXTS python:{'template':template, 'context': context, 'view':view};
+  ">
+  <metal:doctype define-slot="doctype">
+    <tal:doctype tal:replace="structure string:&lt;!DOCTYPE html&gt;" />
+  </metal:doctype>
+  <html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:tal="http://xml.zope.org/namespaces/tal"
+    xmlns:metal="http://xml.zope.org/namespaces/metal"
+    xmlns:i18n="http://xml.zope.org/namespaces/i18n" xml:lang="en" lang="en" dir="ltr">
+    <head>
+      <meta charset="UTF-8" />
+      <title tal:content="view/fmt:pagetitle">Page Title</title>
+      <link rel="apple-touch-icon" sizes="180x180" href="/@@/apple-touch-icon.png?v=2022" />
+      <link rel="icon" type="image/png" sizes="32x32" href="/@@/favicon-32x32.png?v=2022" />
+      <link rel="icon" type="image/png" sizes="16x16" href="/@@/favicon-16x16.png?v=2022" />
+      <link rel="manifest" href="/@@/site.webmanifest?v=2022" />
+      <link rel="mask-icon" href="/@@/safari-pinned-tab.svg?v=2022" color="#e9531f" />
+      <link rel="shortcut icon" href="/@@/favicon.ico?v=2022" />
+      <meta name="msapplication-TileColor" content="#da532c" />
+      <meta name="msapplication-config" content="/@@/browserconfig.xml?v=2022" />
+      <meta name="theme-color" content="#ffffff" />
+      <link rel="canonical" tal:define="url view/recommended_canonical_url | nothing" tal:condition="url" tal:attributes="href url"/>
+      <tal:atomfeeds define="feed_links view/feed_links | nothing">
+        <link rel="alternate" type="application/atom+xml" tal:repeat="link feed_links" tal:attributes="title link/title;
+                        href link/href"/>
+      </tal:atomfeeds>
+
+      <link type="text/css" rel="stylesheet" media="screen, print" tal:attributes="href string:${icingroot}/vanilla/styles.css" />
+
+      <style tal:condition="is_demo" type="text/css">
+      html, body {background-image: url(/@@/demo) !important; background-repeat: repeat !important}
+      </style>
+
+      <tal:view condition="not: view/macro:is-page-contentless">
+        <meta name="description" tal:condition="view/page_description | nothing" tal:attributes="content view/page_description/fmt:strip-email/fmt:shorten/500" />
+        <meta property="og:description" tal:condition="view/opengraph_description | nothing" tal:attributes="content view/opengraph_description/fmt:strip-email/fmt:shorten/500" />
+      </tal:view>
+      <tal:opengraph condition="python: getattr(view, 'show_opengraph_meta', True)">
+        <meta property="og:title" tal:attributes="content view/fmt:pagetitle" />
+        <meta property="og:type" content="website" />
+        <meta property="og:image" content="/@@/launchpad-og-image.png" />
+        <meta property="og:url" tal:attributes="content python: view.recommended_canonical_url or request.URL" />
+        <meta property="og:site_name" content="Launchpad" />
+      </tal:opengraph>
+
+      <tal:view condition="view/private">
+        <meta name="referrer" content="origin-when-cross-origin"/>
+      </tal:view>
+      <tal:view condition="not: view/macro:is-page-contentless">
+        <metal:block define-slot="head_epilogue"></metal:block>
+      </tal:view>
+    </head>
+
+    <body>
+      <a href="#main-content" class="p-link--skip">Jump to main content</a>
+
+      <metal:navigation use-macro="context/@@+base-layout-vanilla-macros/vf-navigation" />
+
+      <metal:breadcrumbs define-slot="breadcrumbs">
+        <div class="row">
+          <nav class="p-breadcrumbs" aria-label="Breadcrumbs">
+            <ol class="breadcrumbs__items">
+              <li class="p-breadcrumbs__item">
+                <a href="/">Home</a>
+              </li>
+              <li class="p-breadcrumbs__item">
+                <a href="/projects">Projects</a>
+              </li>
+              <li class="p-breadcrumbs__item">
+            Project 1
+              </li>
+            </ol>
+          </nav>
+        </div>
+      </metal:breadcrumbs>
+
+      <div id="main-content">
+        <tal:maintenance replace="structure context/@@+maintenancemessage" />
+
+        <div id="request-notifications">
+          <tal:notifications define="notifications request/notifications" condition="notifications">
+            <metal:notifications use-macro="context/@@+base-layout-vanilla-macros/notifications"/>
+          </tal:notifications>
+        </div>
+
+        <tal:view condition="not: view/macro:is-page-contentless">
+          <metal:main define-slot="main" />
+        </tal:view>
+
+        <tal:limitedview condition="view/macro:is-page-contentless">
+          <div class="row">
+            The information in this page is not shared with you.
+          </div>
+        </tal:limitedview>
+      </div>
+      <metal:timeline use-macro="context/@@+launchpad-debug-timeline-vanilla-macros/timeline" />
+    </body>
+
+    <tal:template>
+      <tal:comment define="log modules/lp.services.webapp.adapter/summarize_requests;" replace="structure string:&lt;!--
+    Facet name: ${view/menu:selectedfacetname}
+    Page type: ${view/macro:pagetype}
+    Has global search: ${view/macro:pagehas/globalsearch}
+    Has application tabs: ${view/macro:pagehas/applicationtabs}
+    Has side portlets: ${view/macro:pagehas/portlets}
+
+    At least ${log}
+
+    Features: ${request/features/usedFlags}
+
+    r${display_revision}
+
+    --&gt;" />
+    </tal:template>
+  </html>
+</metal:page>

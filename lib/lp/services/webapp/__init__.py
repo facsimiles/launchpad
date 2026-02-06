@@ -34,6 +34,7 @@ __all__ = [
     "urlparse",
     "urlsplit",
     "Utf8PreferredCharsets",
+    "VanillaTestView",
 ]
 
 from lp.services.features import getFeatureFlag
@@ -64,6 +65,7 @@ from lp.services.webapp.sorting import (
     sorted_version_numbers,
 )
 from lp.services.webapp.url import urlappend, urlparse, urlsplit
+from lp.services.webapp.vanilla import VanillaTestView
 
 
 class GetitemNavigation(Navigation):

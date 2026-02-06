@@ -8,8 +8,8 @@ __all__ = [
 ]
 
 import os.path
-from functools import partial
-from urllib.request import urlopen
+import ssl
+from urllib.request import HTTPSHandler, ProxyHandler, build_opener
 
 from openid.fetchers import Urllib2Fetcher, setDefaultFetcher
 
@@ -31,6 +31,18 @@ def set_default_openid_fetcher():
     # Make sure we're using the same fetcher that we use in production, even
     # if pycurl is installed.
     fetcher = WSGIFriendlyUrllib2Fetcher()
+
+    handlers = []
+
+    if config.launchpad.openid_http_proxy:
+        proxy_handler = ProxyHandler(
+            {
+                "http": config.launchpad.openid_http_proxy,
+                "https": config.launchpad.openid_http_proxy,
+            }
+        )
+        handlers.append(proxy_handler)
+
     if config.launchpad.enable_test_openid_provider:
         # Tests have an instance name that looks like 'testrunner-appserver'
         # or similar. We're in 'development' there, so just use that config.
@@ -40,5 +52,15 @@ def set_default_openid_fetcher():
             instance_name = config.instance_name
         cert_path = f"configs/{instance_name}/launchpad.crt"
         cafile = os.path.join(config.root, cert_path)
-        fetcher.urlopen = partial(urlopen, cafile=cafile)
+
+        # Create SSL context with certificate and add HTTPS handler
+        if os.path.exists(cafile):
+            ssl_context = ssl.create_default_context(cafile=cafile)
+            https_handler = HTTPSHandler(context=ssl_context)
+            handlers.append(https_handler)
+
+    if handlers:
+        opener = build_opener(*handlers)
+        fetcher.urlopen = opener.open
+
     setDefaultFetcher(fetcher)

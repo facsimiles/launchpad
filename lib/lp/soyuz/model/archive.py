@@ -9,6 +9,7 @@ __all__ = [
     "get_archive_privacy_filter",
     "get_enabled_archive_filter",
     "validate_ppa",
+    "ARCHIVE_REFERENCE_TEMPLATES",
 ]
 
 import http.client

@@ -32,7 +32,7 @@ class TestTextFieldMarshaller(TestCaseWithFactory):
     layer = DatabaseFunctionalLayer
 
     def test_unmarshall_obfuscated(self):
-        # Data is obfuscated if the user is anonynous.
+        # Data is obfuscated if the user is anonymous.
         marshaller = TextFieldMarshaller(None, WebServiceTestRequest())
         result = marshaller.unmarshall(None, "foo@example.com")
         self.assertEqual("<email address hidden>", result)
@@ -43,6 +43,22 @@ class TestTextFieldMarshaller(TestCaseWithFactory):
         with person_logged_in(self.factory.makePerson()):
             result = marshaller.unmarshall(None, "foo@example.com")
         self.assertEqual("foo@example.com", result)
+
+    def test_unmarshall_non_string(self):
+        # Non-string data is not obfuscated and does not cause an error.
+        marshaller = TextFieldMarshaller(None, WebServiceTestRequest())
+        result = marshaller.unmarshall(None, 123)
+        self.assertEqual(123, result)
+
+    def test_unmarshall_complex_structure(self):
+        # Complex data structures are obfuscated recursively.
+        marshaller = TextFieldMarshaller(None, WebServiceTestRequest())
+        data = ["foo@example.com", {"deep": "foo@example.com", "other": 1}]
+        expected = [
+            "<email address hidden>",
+            {"deep": "<email address hidden>", "other": 1},
+        ]
+        self.assertEqual(expected, marshaller.unmarshall(None, data))
 
 
 class TestWebServiceObfuscation(TestCaseWithFactory):

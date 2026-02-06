@@ -1,7 +1,10 @@
 # Copyright 2025 Canonical Ltd.  This software is licensed under the
 # GNU Affero General Public License version 3 (see the file LICENSE).
 
+import csv
 import datetime
+import json
+import tempfile
 from datetime import timezone
 
 import requests
@@ -18,15 +21,15 @@ from lp.archivepublisher.model.archivepublisherrun import (
 )
 from lp.archivepublisher.model.ctdeliverydebjob import (
     CT_DELIVERY_ENABLED,
-    CT_DELIVERY_MANUAL_TIMEOUT,
     CTDeliveryDebJob,
 )
 from lp.registry.interfaces.pocket import PackagePublishingPocket
+from lp.registry.interfaces.sourcepackage import SourcePackageFileType
 from lp.services.commitmenttracker.client import CommitmentTrackerClient
 from lp.services.database import interfaces as dbinterfaces
 from lp.services.features.testing import FeatureFixture
 from lp.services.job.tests import block_on_job
-from lp.soyuz.enums import PackagePublishingStatus
+from lp.soyuz.enums import BinaryPackageFormat, PackagePublishingStatus
 from lp.testing import TestCaseWithFactory
 from lp.testing.layers import CeleryJobLayer, LaunchpadScriptLayer
 
@@ -190,6 +193,12 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
             sourcepackagerelease=spph.sourcepackagerelease,
             library_file=self.factory.makeLibraryFileAlias(db_only=True),
         )
+        # Create a SPPH with filetype != DSC. This one should not be sent.
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            filetype=SourcePackageFileType.ORIG_TARBALL,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
         dbinterfaces.IStore(spph).flush()
 
         # Binary publish (with file so sha256 is present).
@@ -206,6 +215,13 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         bpph.datepublished = datetime.datetime.now(
             timezone.utc
         ) - datetime.timedelta(minutes=80)
+        # Create a BPPH with filetype != DEB. This one should not be sent.
+        self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            binpackageformat=BinaryPackageFormat.DDEB,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
         dbinterfaces.IStore(bpph).flush()
 
         ah = removeSecurityProxy(self.archive_history)
@@ -337,8 +353,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -422,8 +439,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -456,8 +474,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -530,8 +549,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -549,12 +569,13 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         self.assertEqual(0, result["ct_failure_count"])
 
     def test_manual_mode_create_requires_parameters(self):
-        """Manual mode requires archive_id."""
+        """Manual mode requires either archive_id or distroseries."""
         self.assertRaisesWithContent(
             ValueError,
-            "archive_id is required",
+            "Either archive_id or distroseries must be specified",
             CTDeliveryDebJob.create_manual,
             archive_id=None,
+            distroseries=None,
             date_start=datetime.datetime.now(timezone.utc),
             date_end=datetime.datetime.now(timezone.utc),
         )
@@ -609,6 +630,26 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         # Should have no publishing_history
         self.assertIsNone(job.context.publishing_history_id)
 
+    def test_manual_mode_create_with_distroseries_only(self):
+        """Manual mode can be created with only distroseries (no archive)."""
+        distroseries = self.factory.makeDistroSeries()
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=None,
+            distroseries=distroseries.id,
+            date_start=date_start,
+            date_end=date_end,
+        )
+
+        self.assertIsNotNone(job)
+        manual_mode = job.metadata.get("manual_mode")
+        self.assertIsNone(manual_mode["archive_id"])
+        self.assertEqual(distroseries.id, manual_mode["distroseries"])
+        self.assertEqual(date_start.timestamp(), manual_mode["date_start"])
+        self.assertEqual(date_end.timestamp(), manual_mode["date_end"])
+
     def test_manual_mode_run_with_published_data(self):
         """Manual mode processes publications within date range."""
         # Create publications within a specific date range
@@ -647,8 +688,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -743,8 +785,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -817,8 +860,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -887,8 +931,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -979,8 +1024,9 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
 
         class _FakeClient:
             def send_payloads_with_results(self, payloads):
-                captured["payloads"] = payloads
-                return len(payloads), []
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
 
         self.patch(
             jobmod,
@@ -1006,31 +1052,161 @@ class CTDeliveryDebJobTests(TestCaseWithFactory):
         payloads = captured.get("payloads", [])
         self.assertEqual(2, len(payloads))
 
-    def test_get_manual_timeout_minutes_method(self):
-        """Test _get_manual_timeout_minutes static method."""
-        # Default value when not set
-        self.useFixture(FeatureFixture({CT_DELIVERY_ENABLED: True}))
-        self.assertEqual(30, CTDeliveryDebJob._get_manual_timeout_minutes())
+    def test_csv_output_writes_file(self):
+        """Test that CSV output creates a properly formatted file."""
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+        publish_date = datetime.datetime(2024, 1, 15, tzinfo=timezone.utc)
 
-        # Configured value
-        self.useFixture(
-            FeatureFixture(
-                {
-                    CT_DELIVERY_MANUAL_TIMEOUT: "60",
-                }
-            )
+        # Create test publications
+        spph = self.factory.makeSourcePackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
         )
-        self.assertEqual(60, CTDeliveryDebJob._get_manual_timeout_minutes())
+        spph = removeSecurityProxy(spph)
+        spph.datecreated = publish_date
+        spph.datepublished = publish_date
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph).flush()
 
-        # Invalid value falls back to default
-        self.useFixture(
-            FeatureFixture(
-                {
-                    CT_DELIVERY_MANUAL_TIMEOUT: "invalid",
-                }
-            )
+        bpph = self.factory.makeBinaryPackagePublishingHistory(
+            archive=self.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
         )
-        self.assertEqual(30, CTDeliveryDebJob._get_manual_timeout_minutes())
+        bpph = removeSecurityProxy(bpph)
+        bpph.datecreated = publish_date
+        bpph.datepublished = publish_date
+        dbinterfaces.IStore(bpph).flush()
+
+        # Create temporary CSV file
+        with tempfile.NamedTemporaryFile() as tmpfile:
+            csv_path = tmpfile.name
+
+            # Create and run job with CSV output path
+            job = CTDeliveryDebJob.create_manual(
+                archive_id=self.archive.id,
+                date_start=date_start,
+                date_end=date_end,
+                csv_output=csv_path,
+            )
+            job.run()
+
+            # Get the CSV filename from metadata
+            result = job.metadata["result"]
+            self.assertIn("csv_filename", result)
+            csv_filename = result["csv_filename"]
+
+            with open(csv_filename, encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile)
+                rows = list(reader)
+
+                # Should have 2 rows (1 binary + 1 source)
+                self.assertEqual(2, len(rows))
+
+                for row in rows:
+                    self.assertIn("properties", row)
+                    self.assertIn("external_link", row)
+                    self.assertIn("released_at", row)
+                    self.assertIn("publisher", row)
+
+                    # Verify properties is valid JSON
+                    props = json.loads(row["properties"])
+                    self.assertIn("type", props)
+                    self.assertIn("name", props)
+                    self.assertIn("version", props)
+                    self.assertIn("sha256", props)
+
+            # Verify metadata shows success
+            self.assertEqual(2, result["ct_success_count"])
+            self.assertEqual(0, result["ct_failure_count"])
+
+    def test_manual_mode_distroseries_only_builds_archive_reference(self):
+        """Manual mode with only distroseries builds archive reference
+        correctly for each publication."""
+        date_start = datetime.datetime(2024, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime.datetime(2024, 1, 31, tzinfo=timezone.utc)
+        publish_date = datetime.datetime(2024, 1, 15, tzinfo=timezone.utc)
+
+        distroseries = self.factory.makeDistroSeries()
+        archive = self.factory.makeArchive(
+            distribution=distroseries.distribution
+        )
+
+        # Create publications in the primary archive
+        spph = self.factory.makeSourcePackagePublishingHistory(
+            distroseries=distroseries,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            archive=archive,
+        )
+        spph = removeSecurityProxy(spph)
+        spph.datecreated = publish_date
+        spph.datepublished = publish_date
+        self.factory.makeSourcePackageReleaseFile(
+            sourcepackagerelease=spph.sourcepackagerelease,
+            library_file=self.factory.makeLibraryFileAlias(db_only=True),
+        )
+        dbinterfaces.IStore(spph).flush()
+
+        bpph = self.factory.makeBinaryPackagePublishingHistory(
+            distroarchseries=self.factory.makeDistroArchSeries(
+                distroseries=distroseries
+            ),
+            archive=spph.archive,
+            status=PackagePublishingStatus.PUBLISHED,
+            pocket=PackagePublishingPocket.RELEASE,
+            with_file=True,
+        )
+        bpph = removeSecurityProxy(bpph)
+        bpph.datecreated = publish_date
+        bpph.datepublished = publish_date
+        dbinterfaces.IStore(bpph).flush()
+
+        captured = {}
+
+        class _FakeClient:
+            def send_payloads_with_results(self, payloads):
+                payloads_list = list(payloads)
+                captured["payloads"] = payloads_list
+                return len(payloads_list), []
+
+        self.patch(
+            jobmod,
+            "get_commitment_tracker_client",
+            lambda: _FakeClient(),
+        )
+
+        # Run with distroseries only (no archive_id)
+        job = CTDeliveryDebJob.create_manual(
+            archive_id=None,
+            distroseries=distroseries.id,
+            date_start=date_start,
+            date_end=date_end,
+        )
+        job.run()
+
+        # Verify payloads were sent with archive_reference
+        payloads = captured.get("payloads", [])
+        self.assertEqual(2, len(payloads))
+
+        for payload in payloads:
+            props = payload["release"]["properties"]
+            self.assertEqual(archive.reference, props["archive_reference"])
+            released_at = datetime.datetime.fromisoformat(
+                payload["release"]["released_at"]
+            )
+            self.assertEqual(timezone.utc, released_at.tzinfo)
+
+        # Verify metadata shows success
+        result = job.metadata["result"]
+        self.assertEqual(2, result["ct_success_count"])
+        self.assertEqual(0, result["ct_failure_count"])
 
 
 class TestViaCelery(TestCaseWithFactory):

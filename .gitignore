@@ -65,6 +65,26 @@ lib/canonical/launchpad/icing/combo.css.map
 lib/canonical/launchpad/icing/*-sprites-*.png
 lib/canonical/launchpad/icing/*.positioning
 lib/canonical/launchpad/icing/yui
+lib/canonical/launchpad/icing/css/base.css
+lib/canonical/launchpad/icing/css/base.css.map
+lib/canonical/launchpad/icing/css/colours.css
+lib/canonical/launchpad/icing/css/colours.css.map
+lib/canonical/launchpad/icing/css/components/homepage.css
+lib/canonical/launchpad/icing/css/components/homepage.css.map
+lib/canonical/launchpad/icing/css/components/social_accounts.css
+lib/canonical/launchpad/icing/css/components/social_accounts.css.map
+lib/canonical/launchpad/icing/css/forms.css
+lib/canonical/launchpad/icing/css/forms.css.map
+lib/canonical/launchpad/icing/css/layout.css
+lib/canonical/launchpad/icing/css/layout.css.map
+lib/canonical/launchpad/icing/css/modifiers.css
+lib/canonical/launchpad/icing/css/typography.css
+lib/canonical/launchpad/icing/css/typography.css.map
+lib/canonical/launchpad/icing/vanilla-framework
+lib/canonical/launchpad/icing/vanilla/*.css
+lib/canonical/launchpad/icing/vanilla/*.css.map
+lib/canonical/launchpad/icing/vanilla.css.map
+lib/canonical/launchpad/icing/vanilla.css
 
 # database schemas and sample data
 database/schema/diagrams/*.ps

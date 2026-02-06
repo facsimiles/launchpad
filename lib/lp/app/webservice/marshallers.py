@@ -17,7 +17,7 @@ from zope.component import getMultiAdapter, getUtility
 from zope.interface.interfaces import ComponentLookupError
 from zope.schema.interfaces import IField, RequiredMissing
 
-from lp.services.utils import obfuscate_email
+from lp.services.utils import obfuscate_structure
 from lp.services.webapp.interfaces import ILaunchBag
 
 
@@ -31,7 +31,7 @@ class TextFieldMarshaller(LazrTextFieldMarshaller):
         """
 
         if value is not None and getUtility(ILaunchBag).user is None:
-            return obfuscate_email(value)
+            return obfuscate_structure(value)
         return value
 
 
