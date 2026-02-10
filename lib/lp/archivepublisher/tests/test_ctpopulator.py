@@ -357,11 +357,12 @@ class TestCTPopulator(TestCaseWithFactory):
         """The script rejects invalid status values."""
         archive = self.factory.makeArchive()
         script = self.makeScript(
-            ["-A", archive.reference, "--status", "PENDING"]
+            ["-A", archive.reference, "--status", "nonexistent"]
         )
         self.assertRaisesWithContent(
             OptionValueError,
-            "Invalid status 'PENDING'. Must be one of: PUBLISHED, SUPERSEDED",
+            "Invalid status 'nonexistent'. Must be one of: PENDING, PUBLISHED,"
+            " SUPERSEDED, DELETED, OBSOLETE.",
             script.main,
         )
 
