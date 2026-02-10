@@ -92,6 +92,10 @@ options:
     type: int
     description: Minimum karma value that indicates a legitimate user.
     default:
+  openid_http_proxy:
+    type: string
+    description: The HTTP proxy server to use for OpenID requests.
+    default:
   port_main:
     type: int
     description: Port for the main application server.
