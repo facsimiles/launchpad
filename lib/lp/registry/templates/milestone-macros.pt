@@ -14,6 +14,10 @@
             tal:condition="view/is_project_milestone">
             Project
           </th>
+          <th style="width: 14em"
+            tal:condition="view/is_distroseries_milestone">
+            Package
+          </th>
           <th style="width: 9em;">Importance</th>
           <th style="width: 14em;">Assignee</th>
           <th style="width: 10em;">Status</th>
@@ -34,6 +38,13 @@
           </td>
           <td style="padding-right: 5px; text-align:right">
             <img src="/@@/info" tal:replace="structure bugtask/image:badges" />
+          </td>
+          <td tal:condition="view/is_distroseries_milestone">
+            <span class="sortkey" tal:content="bugtask/sourcepackagename/name|nothing" />
+            <a tal:condition="bugtask/sourcepackagename|nothing"
+               tal:attributes="href string:${view/milestone/series_target/fmt:url}/+source/${bugtask/sourcepackagename/name}"
+               tal:content="bugtask/sourcepackagename/name" />
+            <tal:no-package tal:condition="not: bugtask/sourcepackagename|nothing">&mdash;</tal:no-package>
           </td>
           <td tal:condition="view/is_project_milestone">
             <span class="sortkey" tal:content="bugtask/target/displayname" />
