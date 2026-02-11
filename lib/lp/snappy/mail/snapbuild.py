@@ -6,9 +6,20 @@ __all__ = [
 ]
 
 from lp.app.browser.tales import DurationFormatterAPI
+from lp.registry.model.person import get_recipients
 from lp.services.config import config
 from lp.services.mail.basemailer import BaseMailer, RecipientReason
 from lp.services.webapp import canonical_url
+
+
+class SnapBuildRecipientReason(RecipientReason):
+    @classmethod
+    def forSnapSubscriber(cls, subscriber, recipient):
+        header = cls.makeRationale("Subscriber", subscriber)
+        reason = (
+            "%(entity_is)s subscribed to the snap package."
+        )
+        return cls(subscriber, recipient, header, reason)
 
 
 class SnapBuildMailer(BaseMailer):
@@ -22,6 +33,17 @@ class SnapBuildMailer(BaseMailer):
         """
         requester = build.requester
         recipients = {requester: RecipientReason.forBuildRequester(requester)}
+        
+        # Add all snap subscribers to the recipient list
+        for subscriber in build.snap.subscribers:
+            for recipient in get_recipients(subscriber):
+                if recipient not in recipients:
+                    recipients[recipient] = (
+                        SnapBuildRecipientReason.forSnapSubscriber(
+                            subscriber, recipient
+                        )
+                    )
+        
         return cls(
             "[Snap build #%(build_id)d] %(build_title)s",
             "snapbuild-notification.txt",
