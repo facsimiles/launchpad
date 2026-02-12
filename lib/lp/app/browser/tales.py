@@ -672,16 +672,22 @@ class ObjectFormatterAPI:
         """
         ROOT_TITLE = "Launchpad"
         view = self._context
+        # If the view provides its own page title, we can use it when the
+        # hierarchy cannot be built (e.g. vanilla views).
+        page_title = getattr(view, "page_title", None)
         request = get_current_browser_request()
         hierarchy_view = getMultiAdapter((view, request), name="+hierarchy")
+        try:
+            hierarchy_has_breadcrumbs = len(hierarchy_view.items) >= 2
+        except AttributeError:
+            hierarchy_has_breadcrumbs = False
         if (
             isinstance(view, SystemErrorView)
             or hierarchy_view is None
-            or len(hierarchy_view.items) < 2
+            or not hierarchy_has_breadcrumbs
         ):
             # The breadcrumbs are either not available or are overridden.  If
             # the view has a .page_title attribute use that.
-            page_title = getattr(view, "page_title", None)
             if page_title is not None:
                 return page_title
             # If there is no template for the view, just use the default
@@ -691,6 +697,9 @@ class ObjectFormatterAPI:
                 template = getattr(view, "index", None)
                 if template is None:
                     return ROOT_TITLE
+            # Hierarchy failed to build (e.g. AttributeError); avoid using it.
+            if not hierarchy_has_breadcrumbs:
+                return ROOT_TITLE
         # Use the reverse breadcrumbs.
         breadcrumbs = list(reversed(hierarchy_view.items))
         if len(breadcrumbs) == 0:
