@@ -75,8 +75,8 @@ class CTPopulator(LaunchpadScript):
             dest="status",
             default="PUBLISHED",
             help=(
-                "Filter by this publishing status (PUBLISHED, SUPERSEDED). "
-                "Default: PUBLISHED"
+                "Filter by this publishing status (PENDING, PUBLISHED, "
+                "SUPERSEDED, DELETED, OBSOLETE). Default: PUBLISHED."
             ),
         )
         self.parser.add_option(
@@ -145,13 +145,16 @@ class CTPopulator(LaunchpadScript):
 
         # Validate status parameter
         valid_statuses = [
+            PackagePublishingStatus.PENDING.name,
             PackagePublishingStatus.PUBLISHED.name,
             PackagePublishingStatus.SUPERSEDED.name,
+            PackagePublishingStatus.DELETED.name,
+            PackagePublishingStatus.OBSOLETE.name,
         ]
         if self.options.status.upper() not in valid_statuses:
             raise OptionValueError(
                 f"Invalid status '{self.options.status}'. "
-                f"Must be one of: {', '.join(valid_statuses)}"
+                f"Must be one of: {', '.join(valid_statuses)}."
             )
 
         # Resolve distroseries ID if provided

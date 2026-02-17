@@ -537,6 +537,37 @@ class TestSnapBuild(TestCaseWithFactory):
             footer,
         )
 
+    def test_notify_subscribers(self):
+        # notify also sends mail to snap subscribers.
+        person = self.factory.makePerson(name="person")
+        subscriber = self.factory.makePerson(name="subscriber")
+        build = self.factory.makeSnapBuild(
+            name="snap-1",
+            requester=person,
+            owner=person,
+            status=BuildStatus.FAILEDTOBUILD,
+        )
+        build.snap.subscribe(subscriber, subscriber)
+        build.setLog(self.factory.makeLibraryFileAlias())
+        build.notify()
+        notifications = pop_notifications()
+        self.assertEqual(2, len(notifications))
+        recipients = [n["To"] for n in notifications]
+        self.assertIn("Person <%s>" % person.preferredemail.email, recipients)
+        self.assertIn(
+            "Subscriber <%s>" % subscriber.preferredemail.email, recipients
+        )
+        for notification in notifications:
+            if notification["To"] == "Subscriber <%s>" % (
+                subscriber.preferredemail.email
+            ):
+                self.assertEqual(
+                    "Subscriber", notification["X-Launchpad-Message-Rationale"]
+                )
+                self.assertEqual(
+                    subscriber.name, notification["X-Launchpad-Message-For"]
+                )
+
     def addFakeBuildLog(self, build):
         build.setLog(self.factory.makeLibraryFileAlias("mybuildlog.txt"))
 
