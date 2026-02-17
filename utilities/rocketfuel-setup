@@ -20,7 +20,7 @@ while :; do
     --lpusername)
         lpusername=$2
         echo "Using username $lpusername for Launchpad"
-        shift
+        shift 2
         ;;
     --assume-yes)
         echo "Installing packages without prompting"
