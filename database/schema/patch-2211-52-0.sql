@@ -6,6 +6,10 @@ SET client_min_messages=ERROR;
 ALTER TABLE bugtask
     ADD COLUMN archive integer REFERENCES archive;
 
+-- We need to add an index since Foreign Key references need to be indexed.
+CREATE INDEX bugtask__archive__idx ON bugtask
+    USING btree (archive);
+
 -- Add archive, packagetype and channel to the assignment checks.
 -- Since archive already has relations to distribution, we can hold each of
 -- them in mutual-exclusivity within bugtasks similar to the ditribution and
@@ -87,10 +91,18 @@ ALTER INDEX bugtask_distinct_sourcepackage_assignment
     RENAME TO old__bugtask_distinct_sourcepackage_assignment;
 
 ALTER TABLE bugtaskflat
-    ADD COLUMN archive integer;
+    ADD COLUMN archive integer REFERENCES archive;
+
+-- We need to add an index since Foreign Key references need to be indexed.
+CREATE INDEX bugtaskflat__archive__idx ON bugtaskflat
+    USING btree (archive);
 
 ALTER TABLE BugSummary
-    ADD COLUMN archive integer;
+    ADD COLUMN archive integer REFERENCES archive;
+
+-- We need to add an index since Foreign Key references need to be indexed.
+CREATE INDEX bugsummary__archive__idx ON BugSummary
+    USING btree (archive);
 
 ALTER TABLE BugSummary
     DROP CONSTRAINT bugtask_assignment_checks;
@@ -171,7 +183,11 @@ COMMENT ON COLUMN bugsummary.archive IS
     'The archive for the aggregate, for archive-specific source package summaries.';
 
 ALTER TABLE BugSummaryJournal
-    ADD COLUMN archive integer;
+    ADD COLUMN archive integer REFERENCES archive;
+
+-- We need to add an index since Foreign Key references need to be indexed.
+CREATE INDEX bugsummaryjournal__archive__idx ON BugSummaryJournal
+    USING btree (archive);
 
 -- Rename the existing index in the cold patch so the hot-patch that will
 -- come after this can create the new index under the original name without
