@@ -213,6 +213,7 @@ via `dget`.
 The 'Downloads' section also lists and link to package diffs when they
 are available.
 
+    >>> from lp.soyuz.enums import PackageDiffStatus
     >>> login("foo.bar@canonical.com")
     >>> ancestry = stp.getPubSource("testing-dspr", version="0.9")
     >>> package_diff = ancestry.sourcepackagerelease.requestDiffTo(
@@ -222,6 +223,7 @@ are available.
     ...     "testing-dspr_0.9_1.0.diff.gz"
     ... )
     >>> package_diff.date_fulfilled = package_diff.date_requested
+    >>> package_diff.status = PackageDiffStatus.COMPLETED
     >>> logout()
 
     >>> anon_browser.reload()
