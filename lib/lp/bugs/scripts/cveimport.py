@@ -641,9 +641,16 @@ class CVEUpdater(LaunchpadCronScript):
                 # command-line options are trusted, so allow file://
                 # URLs to ease testing
                 response = urlfetch(url, use_proxy=True, allow_file=True)
+
+        except requests.HTTPError as e:
+            raise LaunchpadScriptFailure(
+                f"{e.response} at '{url}'. CVE database probably has not "
+                "been published yet, cves will be imported in the next "
+                "delta."
+            )
         except requests.RequestException:
             raise LaunchpadScriptFailure(
-                "Unable to connect for CVE database %s" % url
+                f"Unable to connect for CVE database {url}"
             )
 
         cve_db = response.content
