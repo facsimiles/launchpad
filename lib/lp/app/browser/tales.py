@@ -75,7 +75,7 @@ from lp.services.webapp.publisher import LaunchpadView, canonical_url, nearest
 from lp.services.webapp.session import get_cookie_domain
 from lp.services.webapp.url import urlappend
 from lp.snappy.interfaces.snap import SnapBuildRequestStatus
-from lp.soyuz.enums import ArchivePurpose
+from lp.soyuz.enums import ArchivePurpose, PackageDiffStatus
 from lp.soyuz.interfaces.archive import IPPA, IArchive
 from lp.soyuz.interfaces.binarypackagename import IBinaryAndSourcePackageName
 
@@ -3042,14 +3042,16 @@ def download_link(url, description, file_size):
 class PackageDiffFormatterAPI(ObjectFormatterAPI):
     def link(self, view_name, rootsite=None):
         diff = self._context
-        if not diff.date_fulfilled:
-            return structured("%s (pending)", diff.title).escapedtext
-        else:
+        if diff.status == PackageDiffStatus.COMPLETED:
             return download_link(
                 diff.diff_content.http_url,
                 diff.title,
                 diff.diff_content.content.filesize,
             )
+        elif diff.status == PackageDiffStatus.FAILED:
+            return structured("%s (failed)", diff.title).escapedtext
+        else:  # PackageDiffStatus.PENDING
+            return structured("%s (pending)", diff.title).escapedtext
 
 
 @implementer(ITraversable)
