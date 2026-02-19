@@ -21,7 +21,7 @@ class TestVanillaBaseLayout(TestCaseWithFactory):
         self.context = rootObject
 
     def _makeView(self):
-        user = self.factory.makePerson()
+        user = self.factory.makeAdministrator()
         login_person(user)
         return create_initialized_view(
             self.context, "+vanilla-test", principal=user
@@ -107,23 +107,27 @@ class TestVanillaBaseLayoutBrowser(BrowserTestCase):
 
     layer = DatabaseFunctionalLayer
 
+    def setUp(self):
+        super().setUp()
+        self.admin_user = self.factory.makeAdministrator()
+
     def test_vanilla_test_page_accessible(self):
         # Verify that the vanilla test page is accessible.
         url = canonical_url(rootObject, view_name="+vanilla-test")
-        browser = self.getUserBrowser(url)
+        browser = self.getUserBrowser(url, user=self.admin_user)
         self.assertEqual(200, browser.responseStatusCode)
         self.assertIn("Vanilla Layout Test", browser.contents)
 
     def test_vanilla_test_page_uses_vanilla_css(self):
         # Verify that the vanilla CSS is loaded.
         url = canonical_url(rootObject, view_name="+vanilla-test")
-        browser = self.getUserBrowser(url)
+        browser = self.getUserBrowser(url, user=self.admin_user)
         self.assertIn("vanilla/styles.css", browser.contents)
 
     def test_vanilla_test_page_has_main_content(self):
         # Verify that the main content area is present.
         url = canonical_url(rootObject, view_name="+vanilla-test")
-        browser = self.getUserBrowser(url)
+        browser = self.getUserBrowser(url, user=self.admin_user)
         self.assertIn('id="main-content"', browser.contents)
         self.assertIn("Vanilla Layout Test", browser.contents)
 
@@ -133,6 +137,6 @@ class TestVanillaBaseLayoutBrowser(BrowserTestCase):
             canonical_url(rootObject, view_name="+vanilla-test")
             + "?notification_type=info&notification_message=Hello"
         )
-        browser = self.getUserBrowser(url)
+        browser = self.getUserBrowser(url, user=self.admin_user)
         self.assertIn("Hello", browser.contents)
         self.assertIn("p-notification--information", browser.contents)
