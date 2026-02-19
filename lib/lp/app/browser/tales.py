@@ -672,9 +672,6 @@ class ObjectFormatterAPI:
         """
         ROOT_TITLE = "Launchpad"
         view = self._context
-        # If the view provides its own page title, we can use it when the
-        # hierarchy cannot be built (e.g. vanilla views).
-        page_title = getattr(view, "page_title", None)
         request = get_current_browser_request()
         hierarchy_view = getMultiAdapter((view, request), name="+hierarchy")
         try:
@@ -686,6 +683,9 @@ class ObjectFormatterAPI:
             or hierarchy_view is None
             or not hierarchy_has_breadcrumbs
         ):
+            # If the view provides its own page title, we can use it when the
+            # hierarchy cannot be built (e.g. vanilla views).
+            page_title = getattr(view, "page_title", None)
             # The breadcrumbs are either not available or are overridden.  If
             # the view has a .page_title attribute use that.
             if page_title is not None:
