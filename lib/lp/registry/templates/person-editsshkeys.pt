@@ -50,7 +50,7 @@
           <code>~/.ssh/id_rsa.pub</code>, <code>~/.ssh/id_dsa.pub</code>,
           <code>~/.ssh/id_ecdsa.pub</code>, or
           <code>~/.ssh/id_ed25519.pub</code>).
-          Only SSH v2 keys are supported.
+          Public keys must be in the OpenSSH format.
           <a href="https://help.launchpad.net/YourAccount/CreatingAnSSHKeyPair">
             How do I create a public key?
           </a>
