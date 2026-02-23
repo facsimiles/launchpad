@@ -4334,6 +4334,9 @@ class PersonSet:
         store = IStore(Person)
         store.add(person)
         store.flush()
+
+        notify(ObjectCreatedEvent(person))
+
         return person
 
     def ensurePerson(
