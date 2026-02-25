@@ -1739,8 +1739,12 @@ class ProtocolErrorPublication(LaunchpadBrowserPublication):
         """Raise an appropriate exception for this protocol error."""
         if self.status == 404:
             raise NotFound(self, "", request)
-        else:
-            raise ProtocolErrorException(self.status, self.headers)
+        if self.status == 405 and request.method == "OPTIONS":
+            request.response.setStatus(self.status)
+            for header, value in self.headers.items():
+                request.response.setHeader(header, value)
+            return ""
+        raise ProtocolErrorException(self.status, self.headers)
 
 
 @implementer(ILaunchpadProtocolError)
