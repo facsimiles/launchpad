@@ -40,6 +40,7 @@ from lp.services.webapp.servers import (
     LaunchpadBrowserResponse,
     LaunchpadTestRequest,
     PrivateXMLRPCRequest,
+    ProtocolErrorPublication,
     VHostWebServiceRequestPublicationFactory,
     VirtualHostRequestPublicationFactory,
     WebServiceClientRequest,
@@ -375,6 +376,21 @@ class TestWebServiceRequest(WebServiceTestCase):
     def test_response_should_vary_based_on_content_type(self):
         request = WebServiceClientRequest(io.BytesIO(b""), {})
         self.assertEqual(request.response.getHeader("Vary"), "Accept")
+
+
+class TestProtocolErrorPublication(TestCase):
+    def test_405_options_does_not_raise(self):
+        """OPTIONS 405 errors should not raise."""
+        publication = ProtocolErrorPublication(405, {"Allow": "GET, POST"})
+
+        env = {"REQUEST_METHOD": "OPTIONS"}
+        request = LaunchpadBrowserRequest(io.BytesIO(b""), env)
+
+        result = publication.callObject(request, None)
+
+        self.assertEqual(result, "")
+        self.assertEqual(request.response.getStatus(), 405)
+        self.assertEqual(request.response.getHeader("Allow"), "GET, POST")
 
 
 class TestBasicLaunchpadRequest(TestCase):
