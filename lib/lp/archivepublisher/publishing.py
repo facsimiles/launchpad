@@ -688,7 +688,7 @@ class Publisher:
             1,
             tables=[OtherSPPH],
             where=And(
-                OtherSPPH.archive == self.archive,
+                OtherSPPH.archive_id == self.archive.id,
                 OtherSPPH.sourcepackagerelease_id
                 == SourcePackagePublishingHistory.sourcepackagerelease_id,
                 OtherSPPH.status.is_in(active_publishing_status),
@@ -750,7 +750,7 @@ class Publisher:
             1,
             tables=[OtherBPPH],
             where=And(
-                OtherBPPH.archive == self.archive,
+                OtherBPPH.archive_id == self.archive.id,
                 OtherBPPH.binarypackagerelease_id
                 == BinaryPackagePublishingHistory.binarypackagerelease_id,
                 OtherBPPH.status.is_in(active_publishing_status),
