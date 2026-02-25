@@ -2586,21 +2586,29 @@ class TestPersonStats(TestCaseWithFactory, StatsMixin):
         self.factory.makePerson()
 
         self.assertEqual(1, self.stats_client.incr.call_count)
-        self.assertEqual(
-            self.stats_client.incr.call_args_list[0][0],
-            ("person.count,creation_rationale=1,env=test,is_team=False",),
+        self.stats_client.incr.assert_called_with(
+            "person.count,creation_rationale=UNKNOWN,env=test,is_team=False"
         )
 
     def test_person_count_metric_team(self):
         # When a team is created, a metric should be sent to statsd, and
         # the label "is_team" should be True.
-        self.factory.makeTeam()
 
-        # Both team and owner of the team are created
-        self.assertEqual(2, self.stats_client.incr.call_count)
-        self.assertEqual(
-            self.stats_client.incr.call_args_list[1][0],
-            ("person.count,creation_rationale=None,env=test,is_team=True",),
+        owner = self.factory.makePerson()
+
+        # Metric was created when creating the owner person
+        self.assertEqual(1, self.stats_client.incr.call_count)
+        self.stats_client.incr.assert_called_with(
+            "person.count,creation_rationale=UNKNOWN,env=test,is_team=False"
+        )
+        self.stats_client.incr.reset_mock()
+
+        self.factory.makeTeam(owner=owner)
+
+        # Metric was created when creating the team
+        self.assertEqual(1, self.stats_client.incr.call_count)
+        self.stats_client.incr.assert_called_with(
+            "person.count,creation_rationale=None,env=test,is_team=True"
         )
 
     def test_person_count_metric_rationale(self):
@@ -2610,11 +2618,7 @@ class TestPersonStats(TestCaseWithFactory, StatsMixin):
             creation_rationale=PersonCreationRationale.BUGIMPORT
         )
 
-        stats_params = (
-            "person.count,creation_rationale=2,env=test,is_team=False"
-        )
         self.assertEqual(1, self.stats_client.incr.call_count)
-        self.assertEqual(
-            self.stats_client.incr.call_args_list[0][0],
-            (stats_params,),
+        self.stats_client.incr.assert_called_with(
+            "person.count,creation_rationale=BUGIMPORT,env=test,is_team=False"
         )
