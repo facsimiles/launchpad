@@ -66,6 +66,26 @@ CREATE INDEX bugsummaryjournal__full__idx
     );
 DROP INDEX IF EXISTS old__bugsummaryjournal__full__idx;
 
+-- We need to add an index since Foreign Key references need to be indexed.
+-- To be done CONCURRENTLY
+CREATE INDEX bugtask__archive__idx ON bugtask
+    USING btree (archive);
+
+-- We need to add an index since Foreign Key references need to be indexed.
+-- To be done CONCURRENTLY
+CREATE INDEX bugtaskflat__archive__idx ON bugtaskflat
+    USING btree (archive);
+
+-- We need to add an index since Foreign Key references need to be indexed.
+-- To be done CONCURRENTLY
+CREATE INDEX bugsummary__archive__idx ON BugSummary
+    USING btree (archive);
+
+-- We need to add an index since Foreign Key references need to be indexed.
+-- To be done CONCURRENTLY
+CREATE INDEX bugsummaryjournal__archive__idx ON BugSummaryJournal
+    USING btree (archive);
+
 -- Adding a new index to an already estabilished relation.
 -- To be done CONCURRENTLY
 CREATE INDEX bugtask__packagetype__idx
