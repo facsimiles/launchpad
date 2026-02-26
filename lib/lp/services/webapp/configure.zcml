@@ -281,12 +281,11 @@
         permission="launchpad.Admin"
         class="lp.services.webapp.notifications.NotificationTestView4"
         />
-    <!-- XXX goulinkh: Make this view private once deployed and tested -->
     <browser:page
         for="lp.services.webapp.interfaces.ILaunchpadRoot"
         name="+vanilla-test"
         template="templates/vanilla-test.pt"
-        permission="zope.Public"
+        permission="launchpad.Admin"
         class="lp.services.webapp.VanillaTestView"
         />
     <!-- Set the default timeout function. -->

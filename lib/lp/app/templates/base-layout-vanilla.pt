@@ -37,6 +37,7 @@
       </tal:atomfeeds>
 
       <link type="text/css" rel="stylesheet" media="screen, print" tal:attributes="href string:${icingroot}/vanilla/styles.css" />
+      <link type="text/css" rel="stylesheet" media="screen, print" tal:attributes="href string:${icingroot}/vanilla/vanilla_framework_version_4_44_0_min.css" />
 
       <style tal:condition="is_demo" type="text/css">
       html, body {background-image: url(/@@/demo) !important; background-repeat: repeat !important}

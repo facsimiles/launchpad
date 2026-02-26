@@ -198,7 +198,6 @@ css_combine: jsbuild_widget_css
 	${SHHH} bin/sprite-util create-image
 	${SHHH} bin/sprite-util create-css
 	ln -sfn ../../../../yarn/node_modules/yui $(ICING)/yui
-	ln -sfn ../../../../yarn/node_modules/vanilla-framework $(ICING)/vanilla-framework
 	# Compile the base.css file separately for tests
 	$(YARN) run sass --load-path $(WD)/$(ICING) $(WD)/$(ICING)/css/base.scss $(WD)/$(ICING)/base.css
 	# Compile the combo.css for the main site
@@ -211,7 +210,6 @@ css_watch: jsbuild_widget_css
 	${SHHH} bin/sprite-util create-image
 	${SHHH} bin/sprite-util create-css
 	ln -sfn ../../../../yarn/node_modules/yui $(ICING)/yui
-	ln -sfn ../../../../yarn/node_modules/vanilla-framework $(ICING)/vanilla-framework
 	$(YARN) run sass --load-path $(WD)/$(ICING) $(WD)/$(ICING)/:$(WD)/$(ICING)/ --watch
 
 .PHONY: jsbuild_widget_css

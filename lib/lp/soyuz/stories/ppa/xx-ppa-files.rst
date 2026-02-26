@@ -16,6 +16,7 @@ PPA.
 
     >>> from lp.soyuz.tests.test_publishing import SoyuzTestPublisher
     >>> from lp.registry.interfaces.person import IPersonSet
+    >>> from lp.soyuz.enums import PackageDiffStatus
 
 Create a private PPA for no-priv.
 
@@ -95,6 +96,7 @@ Create a subsequent source publication so a package diff can be provided.
     ...     restricted=True,
     ... )
     >>> package_diff.date_fulfilled = package_diff.date_requested
+    >>> package_diff.status = PackageDiffStatus.COMPLETED
 
 Commit everything.
 

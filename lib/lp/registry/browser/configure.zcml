@@ -150,6 +150,13 @@
           />
     </browser:pages>
     <browser:page
+        name="+vanilla"
+        for="lp.registry.interfaces.distroseries.IDistroSeries"
+        class="lp.registry.browser.vanilla_distroseries.VanillaDistroSeriesView"
+        permission="zope.Public"
+        template="../templates/vanilla-distroseries-index.pt"
+        />
+    <browser:page
         name="+packaging"
         for="lp.registry.interfaces.distroseries.IDistroSeries"
         class="lp.registry.browser.distroseries.DistroSeriesPackagesView"

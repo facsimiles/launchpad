@@ -13,6 +13,7 @@ from zope.traversing.interfaces import IPathAdapter, TraversalError
 from lp.app.browser.tales import (
     DateTimeFormatterAPI,
     ObjectImageDisplayAPI,
+    PackageDiffFormatterAPI,
     PersonFormatterAPI,
     format_link,
 )
@@ -28,6 +29,7 @@ from lp.services.webapp.authorization import (
     precache_permission_for_objects,
 )
 from lp.services.webapp.servers import LaunchpadTestRequest
+from lp.soyuz.enums import PackageDiffStatus
 from lp.testing import TestCase, TestCaseWithFactory, login_person, test_tales
 from lp.testing.layers import (
     DatabaseFunctionalLayer,
@@ -553,3 +555,35 @@ class TestPackageBuildFormatterAPI(TestCaseWithFactory):
             "[~%s/%s/%s]" % (p3a.owner.name, p3a.distribution.name, p3a.name),
             format_link(build),
         )
+
+
+class TestPackageDiffFormatterAPI(TestCaseWithFactory):
+    """Tests for PackageDiffFormatterAPI."""
+
+    layer = LaunchpadFunctionalLayer
+
+    def test_pending_package_diff(self):
+        # A PackageDiff with PENDING status shows "(pending)".
+        diff = self.factory.makePackageDiff(status=PackageDiffStatus.PENDING)
+        formatter = PackageDiffFormatterAPI(diff)
+        link = formatter.link(None)
+        self.assertIn("(pending)", link)
+        self.assertIn(diff.title, link)
+
+    def test_completed_package_diff(self):
+        # A PackageDiff with COMPLETED status shows a download link.
+        diff = self.factory.makePackageDiff(status=PackageDiffStatus.COMPLETED)
+        formatter = PackageDiffFormatterAPI(diff)
+        link = formatter.link(None)
+        self.assertIn("href=", link)
+        self.assertIn(diff.title, link)
+        # Should contain the file size in the link
+        self.assertIn("bytes", link)
+
+    def test_failed_package_diff(self):
+        # A PackageDiff with FAILED status shows "(failed)".
+        diff = self.factory.makePackageDiff(status=PackageDiffStatus.FAILED)
+        formatter = PackageDiffFormatterAPI(diff)
+        link = formatter.link(None)
+        self.assertIn("(failed)", link)
+        self.assertIn(diff.title, link)
