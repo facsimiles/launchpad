@@ -720,6 +720,7 @@ class TestWorker(TestCase):
         log_output = test_logger.getLogBuffer()
         self.assertIn("Failed to ensure", log_output)
         self.assertIn("blahblah", log_output)
+        self.assertIn("Test connection error", log_output)
 
     @defer.inlineCallbacks
     def test_resumeHost_success(self):

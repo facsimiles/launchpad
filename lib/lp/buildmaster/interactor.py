@@ -343,11 +343,12 @@ class BuilderWorker:
         except Exception as e:
             if logger is not None:
                 logger.exception(
-                    "Failed to ensure %s has %s (%s%s)",
+                    "Failed to ensure %s has %s (%s%s): %s",
                     self.url,
                     sha1,
                     url,
                     " with auth" if username or password else "",
+                    str(e),
                 )
             raise CannotFetchFile(url, str(e)) from e
         if not present:
