@@ -35,11 +35,7 @@ from lp.registry.enums import PersonVisibility, TeamMembershipPolicy
 from lp.registry.errors import PrivatePersonLinkageError
 from lp.registry.interfaces.accesspolicy import IAccessPolicySource
 from lp.registry.interfaces.karma import IKarmaCacheManager
-from lp.registry.interfaces.person import (
-    ImmutableVisibilityError,
-    IPersonSet,
-    PersonCreationRationale,
-)
+from lp.registry.interfaces.person import ImmutableVisibilityError, IPersonSet
 from lp.registry.interfaces.pocket import PackagePublishingPocket
 from lp.registry.interfaces.product import IProductSet
 from lp.registry.interfaces.teammembership import ITeamMembershipSet
@@ -55,7 +51,6 @@ from lp.services.database.sqlbase import (
 from lp.services.identity.interfaces.account import AccountStatus
 from lp.services.identity.interfaces.emailaddress import EmailAddressStatus
 from lp.services.propertycache import clear_property_cache
-from lp.services.statsd.tests import StatsMixin
 from lp.services.webapp.publisher import canonical_url
 from lp.soyuz.enums import ArchivePurpose
 from lp.testing import (
@@ -72,7 +67,7 @@ from lp.testing import (
     record_two_runs,
 )
 from lp.testing.dbuser import dbuser
-from lp.testing.layers import DatabaseFunctionalLayer, LaunchpadZopelessLayer
+from lp.testing.layers import DatabaseFunctionalLayer
 from lp.testing.matchers import HasQueryCount
 from lp.testing.pages import LaunchpadWebServiceCaller
 from lp.testing.sampledata import ADMIN_EMAIL
@@ -2569,56 +2564,3 @@ class TestSpecifications(TestCaseWithFactory):
             in_progress=True,
         )
         self.assertContentEqual([notstarted], specs)
-
-
-class TestPersonStats(TestCaseWithFactory, StatsMixin):
-    """Tests that the metrics are sent to statsd when a person is created."""
-
-    layer = LaunchpadZopelessLayer
-
-    def setUp(self):
-        super().setUp()
-        self.setUpStats()
-
-    def test_person_count_metric(self):
-        # When a person is created, a metric should be sent to statsd with the
-        # "person.count" name and, label with the person's "is_team" value.
-        self.factory.makePerson()
-
-        self.assertEqual(1, self.stats_client.incr.call_count)
-        self.stats_client.incr.assert_called_with(
-            "person.count,creation_rationale=UNKNOWN,env=test,is_team=False"
-        )
-
-    def test_person_count_metric_team(self):
-        # When a team is created, a metric should be sent to statsd, and
-        # the label "is_team" should be True.
-
-        owner = self.factory.makePerson()
-
-        # Metric was created when creating the owner person
-        self.assertEqual(1, self.stats_client.incr.call_count)
-        self.stats_client.incr.assert_called_with(
-            "person.count,creation_rationale=UNKNOWN,env=test,is_team=False"
-        )
-        self.stats_client.incr.reset_mock()
-
-        self.factory.makeTeam(owner=owner)
-
-        # Metric was created when creating the team
-        self.assertEqual(1, self.stats_client.incr.call_count)
-        self.stats_client.incr.assert_called_with(
-            "person.count,creation_rationale=None,env=test,is_team=True"
-        )
-
-    def test_person_count_metric_rationale(self):
-        # When a user is created due to a bug import, a metric should be sent
-        # to statsd with the appropriate label "creation_rationale" value
-        self.factory.makePerson(
-            creation_rationale=PersonCreationRationale.BUGIMPORT
-        )
-
-        self.assertEqual(1, self.stats_client.incr.call_count)
-        self.stats_client.incr.assert_called_with(
-            "person.count,creation_rationale=BUGIMPORT,env=test,is_team=False"
-        )

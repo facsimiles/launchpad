@@ -1735,7 +1735,7 @@
     <!-- Send metrics -->
     <subscriber
         for="lp.registry.interfaces.person.IPerson
-        zope.lifecycleevent.interfaces.IObjectCreatedEvent"
+        lazr.lifecycle.interfaces.IObjectCreatedEvent"
         handler="lp.registry.metrics.send_metrics_person_created"/>
 
     <!-- This is class ProductSeries -->
