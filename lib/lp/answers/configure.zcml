@@ -20,7 +20,7 @@
   <subscriber
       for="lp.answers.interfaces.question.IQuestion
       lazr.lifecycle.interfaces.IObjectCreatedEvent"
-      handler="lp.answers.metrics.question.send_metrics_question_created"
+      handler="lp.services.metrics.send_metrics_question_created"
     />
 
   <utility
