@@ -121,7 +121,6 @@ class IBinaryPackageBuildView(IPackageBuildView):
         )
     )
 
-    distro_series = Attribute("Direct parent needed by CanonicalURL")
     arch_tag = exported(Text(title=_("Architecture tag"), required=False))
     distributionsourcepackagerelease = Attribute(
         "The page showing the "
