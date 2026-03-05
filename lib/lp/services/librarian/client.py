@@ -210,8 +210,8 @@ class FileUploadClient:
             self._sendLine(b"", check_for_error_responses=(size > 0))
 
             # Prepare to the upload the file
-            md5_digester = hashlib.md5()
-            sha1_digester = hashlib.sha1()
+            md5_digester = hashlib.md5()  # nosec B324
+            sha1_digester = hashlib.sha1()  # nosec B324
             sha256_digester = hashlib.sha256()
             bytesWritten = 0
 

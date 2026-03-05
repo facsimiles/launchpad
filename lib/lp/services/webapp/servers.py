@@ -5,7 +5,7 @@
 
 import tempfile
 import threading
-import xmlrpc.client
+import xmlrpc.client  # nosec B411
 from io import BytesIO
 from urllib.parse import parse_qs
 
