@@ -22,7 +22,7 @@ def send_metrics_person_created(person: IPerson, event: IObjectCreatedEvent):
     )
 
 
-def send_metrics(event_name, labels):
+def send_metrics(event_name: str, labels: dict):
     """Helper function to send metrics to statsd."""
     statsd_client = getUtility(IStatsdClient)
     statsd_client.incr(
