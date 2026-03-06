@@ -24,7 +24,7 @@ class StatsMixin:
             MockPatchObject(statsd_client, "_client", self.stats_client)
         )
 
-    def countCall(self, call_name):
+    def filterCallsByName(self, call_name: str):
         """
         Filter for a specific type of call when testing.
         """

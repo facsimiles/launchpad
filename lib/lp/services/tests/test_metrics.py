@@ -70,8 +70,8 @@ class TestQuestionStats(TestCaseWithFactory, StatsMixin):
         self.setUpStats()
 
     def test_question_count_metric_owner_legitimate(self):
-        # When a new question is asked, a metric should be sent to statsd with
-        # the "question.count" name and label with the is_legitimate boolean
+        # When a legitimate user asks a question, a metric should be sent to
+        # statsd with a True is_legitimate value.
         self.pushConfig(
             "launchpad", min_legitimate_karma=5, min_legitimate_account_age=5
         )
@@ -79,31 +79,29 @@ class TestQuestionStats(TestCaseWithFactory, StatsMixin):
         legitimate_user = self.factory.makePerson(karma=1000)
         self.factory.makeQuestion(owner=legitimate_user)
         # Check that question.count metric was called
-        question_calls = self.countCall("question.count")
+        question_calls = self.filterCallsByName("question.count")
         # Assert that question.count was called once and that the user was
         # legitimate
         self.assertEqual(1, len(question_calls))
-        self.assertEqual(
-            (("question.count,env=test,is_legitimate=True",)),
-            question_calls[0][0],
+        self.stats_client.incr.assert_called_with(
+            "question.count,env=test,is_legitimate=True"
         )
 
-    def test_question_count_metric_owner_illegitimate(self):
-        # When a new question is asked, a metric should be sent to statsd with
-        # the "question.count" name and label with the is_legitimate boolean
+    def test_question_count_metric_owner_non_legitimate(self):
+        # When a non-legitimate user asks a question, a metric should be sent
+        # to statsd with a False is_legitimate value.
         self.pushConfig(
             "launchpad", min_legitimate_karma=5, min_legitimate_account_age=5
         )
-        # Karma set to 0 to make them illegitimate
-        illegitimate_user = self.factory.makePerson(karma=0)
-        self.factory.makeQuestion(owner=illegitimate_user)
+        # Karma set to 0 to make them non-legitimate
+        non_legitimate_user = self.factory.makePerson(karma=0)
+        self.factory.makeQuestion(owner=non_legitimate_user)
         # Check that question.count metric was called
-        question_calls = self.countCall("question.count")
+        question_calls = self.filterCallsByName("question.count")
 
         # Assert that question.count was called once and that the user was
-        # illegitimate
+        # non_legitimate
         self.assertEqual(1, len(question_calls))
-        self.assertEqual(
-            (("question.count,env=test,is_legitimate=False",)),
-            question_calls[0][0],
+        self.stats_client.incr.assert_called_with(
+            "question.count,env=test,is_legitimate=False"
         )
