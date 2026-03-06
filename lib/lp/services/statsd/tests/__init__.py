@@ -23,3 +23,13 @@ class StatsMixin:
         self.useFixture(
             MockPatchObject(statsd_client, "_client", self.stats_client)
         )
+
+    def countCall(self, call_name):
+        """
+        Filter for a specific type of call when testing.
+        """
+        return [
+            call
+            for call in self.stats_client.incr.call_args_list
+            if call_name in str(call)
+        ]
