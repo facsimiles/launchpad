@@ -106,11 +106,7 @@ from lp.registry.interfaces.gpg import IGPGKey
 from lp.registry.interfaces.person import IPerson
 from lp.registry.interfaces.pocket import PackagePublishingPocket
 from lp.registry.interfaces.role import IHasOwner
-from lp.services.fields import (
-    PersonChoice,
-    PublicPersonChoice,
-    StrippedTextLine,
-)
+from lp.services.fields import PersonChoice, StrippedTextLine
 from lp.services.webhooks.interfaces import IWebhookTarget
 from lp.soyuz.enums import (
     ArchivePublishingMethod,
@@ -2208,7 +2204,7 @@ class IArchiveAppend(Interface):
 
     @call_with(registrant=REQUEST_USER)
     @operation_parameters(
-        subscriber=PublicPersonChoice(
+        subscriber=PersonChoice(
             title=_("Subscriber"),
             required=True,
             vocabulary="ValidPersonOrTeam",

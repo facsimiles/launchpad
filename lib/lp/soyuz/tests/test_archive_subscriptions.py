@@ -236,3 +236,49 @@ class PersonArchiveSubscriptions(TestCaseWithFactory):
         with person_logged_in(person):
             subscriptions = person.getArchiveSubscriptions(person)
             self.assertEqual(1, subscriptions.count())
+
+    def test_private_team_can_be_subscribed_via_model(self):
+        """Test that a private team can be subscribed to a PPA at the
+        model level.
+
+        This test verifies that the underlying model method
+        (newSubscription) works correctly when subscribing a private team
+        to a PPA.
+        """
+
+        # Create team A which will own the PPA
+        team_a_owner = self.factory.makePerson()
+        team_a = self.factory.makeTeam(
+            name="test-team-a",
+            displayname="Team-A",
+            owner=team_a_owner,
+        )
+
+        # Create team B which will be the subscriber (private team)
+        team_b_owner = self.factory.makePerson()
+        team_b = self.factory.makeTeam(
+            name="test-team-b",
+            displayname="Team-B",
+            owner=team_b_owner,
+            visibility=PersonVisibility.PRIVATE,
+        )
+
+        # Create a private PPA owned by team A
+        with person_logged_in(team_a_owner):
+            ppa = self.factory.makeArchive(
+                name="ppa-test",
+                displayname="ppa-test",
+                private=True,
+                owner=team_a,
+            )
+
+        # Team A's owner subscribes team B to the PPA using the model API
+        # This works correctly at the model level
+        with person_logged_in(team_a_owner):
+            subscription = ppa.newSubscription(
+                subscriber=team_b,
+                registrant=team_a_owner,
+            )
+            self.assertIsNotNone(subscription)
+            self.assertEqual(team_b, subscription.subscriber)
+            self.assertEqual(ppa, subscription.archive)

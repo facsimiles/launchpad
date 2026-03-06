@@ -5,7 +5,7 @@
 
 import tempfile
 import threading
-import xmlrpc.client
+import xmlrpc.client  # nosec B411
 from io import BytesIO
 from urllib.parse import parse_qs
 
@@ -1739,8 +1739,13 @@ class ProtocolErrorPublication(LaunchpadBrowserPublication):
         """Raise an appropriate exception for this protocol error."""
         if self.status == 404:
             raise NotFound(self, "", request)
-        else:
-            raise ProtocolErrorException(self.status, self.headers)
+        if self.status == 405 and request.method == "OPTIONS":
+            self.startPublicationTiming(request, include_thread_time=False)
+            request.response.setStatus(self.status)
+            for header, value in self.headers.items():
+                request.response.setHeader(header, value)
+            return ""
+        raise ProtocolErrorException(self.status, self.headers)
 
 
 @implementer(ILaunchpadProtocolError)

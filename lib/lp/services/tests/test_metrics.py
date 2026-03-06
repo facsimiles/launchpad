@@ -79,7 +79,7 @@ class TestQuestionStats(TestCaseWithFactory, StatsMixin):
         legitimate_user = self.factory.makePerson(karma=1000)
         self.factory.makeQuestion(owner=legitimate_user)
         # Check that question.count metric was called
-        question_calls = self.filterCallsByName("question.count")
+        question_calls = self.filterStatsdCallsByName("question.count")
         # Assert that question.count was called once and that the user was
         # legitimate
         self.assertEqual(1, len(question_calls))
@@ -97,7 +97,7 @@ class TestQuestionStats(TestCaseWithFactory, StatsMixin):
         non_legitimate_user = self.factory.makePerson(karma=0)
         self.factory.makeQuestion(owner=non_legitimate_user)
         # Check that question.count metric was called
-        question_calls = self.filterCallsByName("question.count")
+        question_calls = self.filterStatsdCallsByName("question.count")
 
         # Assert that question.count was called once and that the user was
         # non_legitimate

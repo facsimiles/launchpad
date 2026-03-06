@@ -19,8 +19,10 @@ from zope.component import getUtility
 from zope.security.proxy import removeSecurityProxy
 
 from lp.app.interfaces.launchpad import ILaunchpadCelebrities
+from lp.registry.interfaces.person import PersonVisibility
 from lp.registry.interfaces.pocket import PackagePublishingPocket
 from lp.services.gpg.interfaces import IGPGHandler
+from lp.services.webapp.authorization import check_permission
 from lp.services.webapp.interfaces import OAuthPermission
 from lp.soyuz.enums import (
     ArchivePermissionType,
@@ -1574,3 +1576,158 @@ class TestArchiveMetadataOverridesWebService(TestCaseWithFactory):
             401,
             b"(<Archive object>, 'setMetadataOverrides', 'launchpad.Edit')",
         )
+
+
+class TestArchiveSubscriptionWebservice(TestCaseWithFactory):
+    """Tests for archive subscription operations via the webservice."""
+
+    layer = DatabaseFunctionalLayer
+
+    def test_newSubscription_allows_private_team(self):
+        """Subscribing a private team to a PPA via webservice succeeds.
+
+        This tests the basic functionality that private teams can be
+        subscribed to PPAs via the webservice API.
+        """
+
+        owner = self.factory.makePerson()
+
+        with person_logged_in(owner):
+            # Create PPA owner team
+            ppa_owner_team = self.factory.makeTeam(owner=owner)
+
+            # Create private team to subscribe
+            private_team = self.factory.makeTeam(
+                owner=owner,
+                visibility=PersonVisibility.PRIVATE,
+            )
+            private_team_url = api_url(private_team)
+
+            # Create private PPA
+            ppa = self.factory.makeArchive(
+                private=True,
+                owner=ppa_owner_team,
+            )
+            ppa_url = api_url(ppa)
+
+        # Subscribe private team via webservice
+        ws = webservice_for_person(
+            owner,
+            permission=OAuthPermission.WRITE_PRIVATE,
+            default_api_version="beta",
+        )
+
+        response = ws.named_post(
+            ppa_url,
+            "newSubscription",
+            subscriber=private_team_url,
+        )
+
+        self.assertEqual(201, response.status)
+        subscription = ws.get(response.getHeader("Location")).jsonBody()
+        self.assertIn(private_team_url, subscription["subscriber_link"])
+        self.assertIn(ppa_url, subscription["archive_link"])
+
+    def test_newSubscription_private_team_grants_member_access(self):
+        """Subscribing a private team grants PPA access to all team members.
+
+        This tests the real-world use case: a PPA owner subscribes a private
+        team to give all team members access to the PPA.
+        """
+
+        # PPA owner
+        ppa_owner = self.factory.makePerson()
+
+        # Team member who will gain access through subscription
+        team_member = self.factory.makePerson()
+
+        with person_logged_in(ppa_owner):
+            # Create team that owns the PPA
+            ppa_owner_team = self.factory.makeTeam(owner=ppa_owner)
+
+            # Create private team with a member
+            private_team = self.factory.makeTeam(
+                owner=ppa_owner,
+                visibility=PersonVisibility.PRIVATE,
+            )
+            private_team.addMember(team_member, ppa_owner)
+            private_team_url = api_url(private_team)
+
+            # Create private PPA
+            ppa = self.factory.makeArchive(
+                private=True,
+                owner=ppa_owner_team,
+            )
+            ppa_url = api_url(ppa)
+
+        # Subscribe the private team via webservice
+        ws = webservice_for_person(
+            ppa_owner,
+            permission=OAuthPermission.WRITE_PRIVATE,
+            default_api_version="beta",
+        )
+
+        response = ws.named_post(
+            ppa_url,
+            "newSubscription",
+            subscriber=private_team_url,
+        )
+
+        # Subscription succeeds
+        self.assertEqual(201, response.status)
+        subscription = ws.get(response.getHeader("Location")).jsonBody()
+        self.assertIn(private_team_url, subscription["subscriber_link"])
+
+        # Verify the team member can now view the private archive
+        with person_logged_in(team_member):
+            self.assertTrue(check_permission("launchpad.SubscriberView", ppa))
+
+    def test_newSubscription_private_team_requires_access(self):
+        """Cannot subscribe a private team without access to that team.
+
+        This verifies the security constraint: you must have permission to
+        view/use a private team in order to subscribe it to a PPA.
+        """
+
+        # PPA owner
+        ppa_owner = self.factory.makePerson()
+
+        # Private team owner (different person)
+        private_team_owner = self.factory.makePerson()
+
+        with person_logged_in(ppa_owner):
+            # Create team that owns the PPA
+            ppa_owner_team = self.factory.makeTeam(owner=ppa_owner)
+
+            # Create private PPA
+            ppa = self.factory.makeArchive(
+                private=True,
+                owner=ppa_owner_team,
+            )
+            ppa_url = api_url(ppa)
+
+        # Create private team owned by someone else
+        with person_logged_in(private_team_owner):
+            private_team = self.factory.makeTeam(
+                owner=private_team_owner,
+                visibility=PersonVisibility.PRIVATE,
+            )
+            private_team_url = api_url(private_team)
+
+        # PPA owner tries to subscribe the private team via webservice
+        # This should fail because ppa_owner cannot access private_team
+        ws = webservice_for_person(
+            ppa_owner,
+            permission=OAuthPermission.WRITE_PRIVATE,
+            default_api_version="beta",
+        )
+
+        response = ws.named_post(
+            ppa_url,
+            "newSubscription",
+            subscriber=private_team_url,
+        )
+
+        # Should fail with 400 Bad Request due to security constraint
+        self.assertEqual(400, response.status)
+        self.assertIn(b"subscriber", response.body)
