@@ -13,18 +13,18 @@ from enum import Enum
 
 from zope.component import getUtility
 
-from lp.bugs.browser.bugtask import BugTaskImportance, BugTaskStatus
-from lp.bugs.interfaces.bugtask import IBugTaskSet
+from lp.bugs.interfaces.bugtask import (
+    BugTaskImportance,
+    BugTaskStatus,
+    IBugTaskSet,
+)
 from lp.bugs.interfaces.bugtasksearch import BugTaskSearchParams
 from lp.buildmaster.enums import BuildStatus
 from lp.layers import VanillaLayer, setAdditionalLayer
 from lp.registry.browser import MilestoneOverlayMixin
-from lp.registry.browser.distroseries import DerivedDistroSeriesMixin
 from lp.registry.interfaces.series import SeriesStatus
-from lp.registry.model.milestone import milestone_sort_key
-from lp.services.database.interfaces import IStore
 from lp.services.webapp.publisher import LaunchpadView
-from lp.soyuz.model.binarypackagebuild import BinaryPackageBuild
+from lp.soyuz.interfaces.binarypackagebuild import IBinaryPackageBuildSet
 
 
 class ChipColor(str, Enum):
@@ -54,9 +54,7 @@ STATUS_CHIP_COLORS = {
 }
 
 
-class VanillaDistroSeriesView(
-    LaunchpadView, MilestoneOverlayMixin, DerivedDistroSeriesMixin
-):
+class VanillaDistroSeriesView(LaunchpadView, MilestoneOverlayMixin):
     """View for the vanilla distroseries page."""
 
     def initialize(self):
@@ -116,40 +114,16 @@ class VanillaDistroSeriesView(
 
     @property
     def packages_summary_24h(self):
-        """Return the packages summary for the last 24 hours.
-
-        XXX: Ideally this query logic would live in
-        `IBinaryPackageBuildSet` (e.g. `getBuildsForDistro`) with a
-        search-params object similar to `BugTaskSearchParams`, rather
-        than in the view. That refactoring is out of scope for now.
-        """
-        store = IStore(BinaryPackageBuild)
+        """Return the packages summary for the last 24 hours."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        base_clauses = [
-            BinaryPackageBuild.distro_series == self.context,
-            BinaryPackageBuild.is_distro_archive,
-            BinaryPackageBuild.date_finished >= cutoff,
-        ]
+        counts = getUtility(IBinaryPackageBuildSet).getCountsForDistro(
+            self.context, date_finished_since=cutoff
+        )
 
-        total_built = store.find(
-            BinaryPackageBuild,
-            *base_clauses,
-        ).count()
-        successful_builds = store.find(
-            BinaryPackageBuild,
-            *base_clauses,
-            BinaryPackageBuild.status == BuildStatus.FULLYBUILT,
-        ).count()
-        failed_to_build = store.find(
-            BinaryPackageBuild,
-            *base_clauses,
-            BinaryPackageBuild.status == BuildStatus.FAILEDTOBUILD,
-        ).count()
-        failed_to_upload = store.find(
-            BinaryPackageBuild,
-            *base_clauses,
-            BinaryPackageBuild.status == BuildStatus.FAILEDTOUPLOAD,
-        ).count()
+        successful_builds = counts.get(BuildStatus.FULLYBUILT, 0)
+        failed_to_build = counts.get(BuildStatus.FAILEDTOBUILD, 0)
+        failed_to_upload = counts.get(BuildStatus.FAILEDTOUPLOAD, 0)
+        total_built = sum(counts.values())
 
         return {
             "built_packages_percentage": (
@@ -178,4 +152,7 @@ class VanillaDistroSeriesView(
         if not upcoming:
             return None
 
-        return min(upcoming, key=milestone_sort_key)
+        return min(
+            upcoming,
+            key=lambda milestone: (milestone.dateexpected, milestone.name),
+        )
