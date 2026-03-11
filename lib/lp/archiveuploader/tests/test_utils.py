@@ -467,6 +467,58 @@ class TestSafeExtractTar(TestCase):
             os.path.realpath(os.path.join(dest, "metadata.yaml")),
         )
 
+    def test_symlink_traversal_rejected_by_per_member_verification(self):
+        """A symlink-based escape is rejected by per-member checks.
+
+        This constructs a crafted archive where an early member affects path
+        resolution (via a symlink) and a later member would otherwise land
+        outside the extraction root. safe_extract_tar verifies each member
+        immediately before extraction using realpath(), so the escaping
+        member is rejected with SafeTarExtractError rather than relying on
+        kernel permissions.
+        """
+        dest = self.makeTemporaryDirectory()
+        with tempfile.NamedTemporaryFile(suffix=".tar", delete=False) as f:
+            with tarfile.open(f.name, "w") as tar:
+                sym = tarfile.TarInfo("a")
+                sym.type = tarfile.SYMTYPE
+                sym.linkname = "."
+                tar.addfile(sym)
+                evil = tarfile.TarInfo("a/a/a/a/../../../../etc/cron.d/evil")
+                evil.size = 4
+                tar.addfile(evil, io.BytesIO(b"evil"))
+        with tarfile.open(f.name, "r") as tar:
+            self.assertRaises(SafeTarExtractError, safe_extract_tar, tar, dest)
+
+    def test_symlink_traversal_rejected_writable_sibling(self):
+        """Escape into a writable sibling directory is rejected.
+
+        The archive is crafted so that, without per-member checks, a later
+        member would end up in a sibling directory alongside the extraction
+        root. We verify each member with realpath() before extracting, so
+        attempts to write outside the root raise SafeTarExtractError and do
+        not depend on filesystem permissions.
+        """
+        base = self.makeTemporaryDirectory()
+        dest = os.path.join(base, "dest")
+        outside = os.path.join(base, "outside")
+        os.mkdir(dest)
+        os.mkdir(outside)
+
+        with tempfile.NamedTemporaryFile(suffix=".tar", delete=False) as f:
+            with tarfile.open(f.name, "w") as tar:
+                sym = tarfile.TarInfo("a")
+                sym.type = tarfile.SYMTYPE
+                sym.linkname = "."
+                tar.addfile(sym)
+                evil = tarfile.TarInfo("a/a/a/a/../../outside/evil")
+                payload = b"evil"
+                evil.size = len(payload)
+                tar.addfile(evil, io.BytesIO(payload))
+
+        with tarfile.open(f.name, "r") as tar:
+            self.assertRaises(SafeTarExtractError, safe_extract_tar, tar, dest)
+
 
 class TestSafeExtractZip(TestCase):
     """Tests for safe_extract_zip (ZIP path traversal mitigation)."""
