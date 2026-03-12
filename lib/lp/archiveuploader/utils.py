@@ -29,7 +29,6 @@ __all__ = [
     "SafeTarExtractError",
     "safe_extract_tar",
     "safe_extract_zip",
-    "safe_tar_members",
     "UploadError",
     "UploadWarning",
 ]
@@ -110,72 +109,87 @@ def _resolve_extract_path(name, dest_path, error_name=None):
     return candidate
 
 
-def safe_tar_members(tar, dest_path):
-    """Yield tar members that are safe to extract.
+def _verify_tar_member(member, dest_path):
+    """Verify a single tar member before extraction.
 
-    Use with extractall(..., members=safe_tar_members(tar, dest_path)).
-    Rejects absolute paths, path traversal, device files; allows symlinks
-    and hardlinks only when the link target stays inside dest_path.
-    Sanitizes mode and ownership (PEP 706).
+    Mirrors the logic in CustomUpload._verifyMember: allow only regular
+    files, directories, and symlinks; ensure the member path and any
+    symlink target resolve under dest_path (using realpath so existing
+    symlinks on disk are honoured and the TOCTOU gap is closed).
+    Then sanitise mode/ownership (PEP 706) for the actual extraction.
     """
     dest_path = os.path.realpath(dest_path)
-    for member in tar.getmembers():
-        _resolve_extract_path(member.name, dest_path, error_name=member.name)
-        # Reject device / special files.
-        if member.isblk() or member.ischr() or member.isfifo():
+    dest_with_sep = dest_path + os.sep
+
+    # Same as CustomUpload: allow only regular file, symlink, or directory.
+    if not (member.isreg() or member.issym() or member.isdir()):
+        raise SafeTarExtractError(
+            "Tar member %r is not a regular file, directory, or symlink"
+            % (member.name,)
+        )
+
+    # Where will this member be written? realpath() uses current filesystem
+    # state so any symlinks already extracted are followed (TOCTOU fix).
+    member_path = os.path.join(dest_path, member.name)
+    member_realpath = os.path.realpath(member_path)
+    if member_realpath != dest_path and not member_realpath.startswith(
+        dest_with_sep
+    ):
+        raise SafeTarExtractError(
+            "%r would be extracted outside the destination" % (member.name,)
+        )
+
+    # Symlinks: same as CustomUpload — resolve target relative to link’s
+    # directory and ensure it stays under dest_path.
+    if member.issym():
+        rel_link_file_location = os.path.dirname(member.name)
+        abs_link_file_location = os.path.join(
+            dest_path, rel_link_file_location
+        )
+        target_path = os.path.join(abs_link_file_location, member.linkname)
+        target_realpath = os.path.realpath(target_path)
+        if target_realpath != dest_path and not target_realpath.startswith(
+            dest_with_sep
+        ):
             raise SafeTarExtractError(
-                "Tar member %r is a special file" % (member.name,)
+                "Tar member %r would link outside the destination"
+                % (member.name,)
             )
-        # Sanitize mode and ownership; ensure files/dirs are always readable.
-        if member.isdir():
-            member.mode = 0o755
-        else:
-            # Regular files, symlinks, hardlinks, etc.
-            member.mode = 0o644
-        member.uid = member.gid = 0
-        member.uname = member.gname = ""
-        # Symlinks/hardlinks: reject if link target would escape dest.
-        if member.issym() or member.islnk():
-            name = member.name.lstrip("/").lstrip(os.sep)
-            if member.linkname.startswith(("/", os.sep)) or os.path.isabs(
-                member.linkname
-            ):
-                raise SafeTarExtractError(
-                    "Tar member %r is a link to an absolute path"
-                    % (member.name,)
-                )
-            link_base = (
-                os.path.join(dest_path, os.path.dirname(name))
-                if os.path.dirname(name)
-                else dest_path
-            )
-            link_target = os.path.normpath(
-                os.path.join(link_base, member.linkname)
-            )
-            link_target = os.path.abspath(link_target)
-            if os.path.commonpath([link_target, dest_path]) != dest_path:
-                raise SafeTarExtractError(
-                    "Tar member %r would link outside the destination"
-                    % (member.name,)
-                )
-        yield member
+
+    # Sanitise mode/ownership for extraction (PEP 706); not in CustomUpload.
+    if member.isdir():
+        member.mode = 0o755
+    else:
+        member.mode = 0o644
+    member.uid = member.gid = 0
+    member.uname = member.gname = ""
 
 
 def safe_extract_tar(tar, dest_path):
     """Extract a tar file to dest_path with path-traversal and link safety.
 
     Uses the stdlib filter when available (Python 3.12+ / backports);
-    otherwise uses extractall(..., members=safe_tar_members(...)) so
-    extraction stays one call at the call site (PEP 706 / CVE-2007-4559).
+    otherwise verifies and extracts one member at a time with realpath
+    checks so symlinks already on disk cannot cause later members to
+    escape (TOCTOU). Applies PEP 706 mode/ownership sanitization.
     """
     dest_path = os.path.realpath(dest_path)
     os.makedirs(dest_path, mode=0o700, exist_ok=True)
     if _tarfile_supports_filter():
+        # Python 3.12+ "data" filter already rejects symlinks and device
+        # files and applies PEP 706 semantics. We still rely on the kernel
+        # to enforce permissions, but there is no additional application-
+        # level TOCTOU here.
         tar.extractall(path=dest_path, filter="data")
-    else:
-        tar.extractall(
-            path=dest_path, members=safe_tar_members(tar, dest_path)
-        )
+        return
+
+    # Older Pythons: verify and extract one member at a time, recalculating
+    # realpaths so that previously-extracted symlinks cannot later be used
+    # to escape dest_path.
+    tar.ignore_zeros = True
+    for member in tar:
+        _verify_tar_member(member, dest_path)
+        tar.extract(member, dest_path)
 
 
 # Maximum bytes to extract from a single zip member.

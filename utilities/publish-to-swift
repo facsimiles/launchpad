@@ -91,7 +91,8 @@ def prune_old_files_from_swift(options, container_name, object_dir, suffix):
         try:
             response = requests.get(
                 "https://git.launchpad.net/launchpad-mojo-specs/plain/"
-                "lp/bundle.yaml"
+                "lp/bundle.yaml",
+                timeout=30,
             )
             response.raise_for_status()
         except requests.RequestException:
@@ -111,7 +112,7 @@ def prune_old_files_from_swift(options, container_name, object_dir, suffix):
         if deployed_revision.endswith("-db"):
             deployed_revision = deployed_revision[: -len("-db")]
     else:
-        response = requests.head("https://launchpad.net/")
+        response = requests.head("https://launchpad.net/", timeout=30)
         response.raise_for_status()
         deployed_revision = response.headers["X-VCS-Revision"]
 
