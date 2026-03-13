@@ -3283,7 +3283,8 @@ class LaunchpadObjectFactory(ObjectFactory):
             parent=parent,
             datecreated=datecreated,
         )
-        MessageChunk(message=message, sequence=1, content=content)
+        if content is not None:
+            MessageChunk(message=message, sequence=1, content=content)
         return message
 
     def makeLanguage(
