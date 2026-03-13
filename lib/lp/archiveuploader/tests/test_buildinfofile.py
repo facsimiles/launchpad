@@ -3,6 +3,8 @@
 
 """Build information file tests."""
 
+import os
+
 from debian.deb822 import Changes
 
 from lp.archiveuploader.buildinfofile import BuildInfoFile
@@ -127,3 +129,36 @@ class TestBuildInfoFile(PackageUploadFileTestCase):
             self.createChangesFile("foo_0.1-1_i386.changes", changes),
         )
         self.assertRaises(UploadError, buildinfofile.checkBuild, build)
+
+    def test_corrupted_buildinfo_files_are_rejected(self):
+        # Ensure that we preemptively check and verify checksums before
+        # parsing Buildinfo files, as corrupted files can lead to segfaults.
+
+        # Create a corrupted Buildinfo file
+        binary_content = os.urandom(1000)
+        path, actual_md5, _, size = self.writeUploadFile(
+            "foo_0.1-1_i386.buildinfo", binary_content
+        )
+
+        changes = self.getBaseChanges()
+
+        # The Changes file specifies a different MD5 hash than the actual file
+        expected_md5 = "correct-md5"
+
+        self.assertRaisesWithContent(
+            UploadError,
+            "File foo_0.1-1_i386.buildinfo mentioned in the changes has a "
+            "MD5 mismatch. "
+            f"{actual_md5} != {expected_md5}",
+            BuildInfoFile,
+            path,
+            {"MD5": expected_md5, "SHA1": "correct-sha1"},
+            size,
+            "main/net",
+            "extra",
+            "dulwich",
+            "0.42",
+            self.createChangesFile("foo_0.1-1_i386.changes", changes),
+            self.policy,
+            self.logger,
+        )

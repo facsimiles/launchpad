@@ -444,6 +444,39 @@ class DSCFileTests(PackageUploadFileTestCase):
         )
         self.assertRaises(UploadError, uploadfile.checkBuild, build)
 
+    def test_corrupted_dsc_files_are_rejected(self):
+        # Ensure that we preemptively check and verify checksums before
+        # parsing DSC files, as corrupted files can lead to segfaults.
+
+        # Create a corrupted DSC file
+        binary_content = os.urandom(1000)
+        path, actual_md5, _, size = self.writeUploadFile(
+            "corrupt_1.0-1.dsc", binary_content
+        )
+
+        changes = self.getBaseChanges()
+
+        # The Changes file specifies a different MD5 hash than the actual file
+        expected_md5 = "correct-md5"
+
+        self.assertRaisesWithContent(
+            UploadError,
+            "File corrupt_1.0-1.dsc mentioned in the changes has a "
+            "MD5 mismatch. "
+            f"{actual_md5} != {expected_md5}",
+            DSCFile,
+            path,
+            {"MD5": expected_md5, "SHA1": "correct-sha1"},
+            size,
+            "main/net",
+            "extra",
+            "corrupt",
+            "1.0-1",
+            self.createChangesFile("corrupt_1.0-1.changes", changes),
+            self.policy,
+            self.logger,
+        )
+
 
 class DebBinaryUploadFileTests(PackageUploadFileTestCase):
     """Tests for DebBinaryUploadFile."""

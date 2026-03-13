@@ -41,6 +41,11 @@ class BuildInfoFile(PackageUploadFile, SignableTagFile):
             policy,
             logger,
         )
+        # Verify checksums before parsing to work around an apt_pkg bug where
+        # corrupted files cause segfaults during stanza parsing, blocking the
+        # upload queue. Ideally apt_pkg would raise proper exceptions, but
+        # until fixed upstream, we check integrity early.
+        self.checkSizeAndCheckSum()
         self.parse(verify_signature=not policy.unsigned_buildinfo_ok)
         arch_match = re_isbuildinfo.match(self.filename)
         self.filename_archtag = arch_match.group(3)
