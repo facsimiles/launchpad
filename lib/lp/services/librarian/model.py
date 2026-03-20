@@ -67,7 +67,7 @@ class LibraryFileContent(StormBase):
     sha1 = Unicode(allow_none=False)
     md5 = Unicode(allow_none=False)
 
-    def __init__(self, filesize, md5, sha1, sha256, id=None):
+    def __init__(self, filesize, md5, sha1, sha256, sha512, id=None):
         super().__init__()
         if id is not None:
             self.id = id
