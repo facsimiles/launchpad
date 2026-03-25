@@ -63,9 +63,9 @@ STATUS_CHIP_COLORS = {
 SUCCESS_ICON = "p-icon--success-grey"
 ERROR_ICON = "p-icon--error-grey is-negative"
 WARNING_ICON = "p-icon--warning-grey is-caution"
-LOADING_ICON = "p-icon--spinner"
+LOADING_ICON = "p-icon--spinner u-animation--spin"
 PENDING_ICON = "p-icon--loading-step"
-SKIP_ICON = "p-icon--skip"
+SKIP_ICON = "p-icon--skip is-muted"
 
 BUILD_STATUS_ICONS = {
     BuildStatus.FULLYBUILT: SUCCESS_ICON,

@@ -8,6 +8,7 @@ from lp.registry.browser.vanilla_distroseries import (
     BUILD_STATUS_ICONS,
     ERROR_ICON,
     LOADING_ICON,
+    PENDING_ICON,
     SKIP_ICON,
     SUCCESS_ICON,
 )
@@ -136,6 +137,24 @@ class TestVanillaDistroSeriesPackagesList(TestCaseWithFactory):
         self.assertIn(LOADING_ICON, html)
         self.assertIn("Currently building", html)
 
+    def test_packages_list_data_build_pending_icon(self):
+        """Queued builds show the pending icon."""
+        distroseries = self._makeDistroSeries()
+        spph = self._makeSpph(distroseries)
+        das = self.factory.makeDistroArchSeries(
+            distroseries=distroseries, architecturetag="amd64"
+        )
+        self.factory.makeBinaryPackageBuild(
+            source_package_release=spph.sourcepackagerelease,
+            distroarchseries=das,
+            archive=spph.archive,
+            status=BuildStatus.NEEDSBUILD,
+        )
+        view = self._getView(distroseries)
+        html = view.packages_list_data
+        self.assertIn(PENDING_ICON, html)
+        self.assertIn("Needs building", html)
+
     def test_packages_list_data_build_superseded_icon(self):
         """Superseded builds show the skip icon."""
         distroseries = self._makeDistroSeries()
@@ -202,6 +221,28 @@ class TestVanillaDistroSeriesPackagesList(TestCaseWithFactory):
         self.assertIn('role="tooltip"', html)
         self.assertIn('id="build-tooltip-0"', html)
         self.assertIn("Successfully built", html)
+
+    def test_packages_list_data_unknown_status_uses_pending_icon(self):
+        """Unknown statuses fall back to the pending icon."""
+        distroseries = self._makeDistroSeries()
+        spph = self._makeSpph(distroseries)
+        das = self.factory.makeDistroArchSeries(
+            distroseries=distroseries, architecturetag="amd64"
+        )
+        self.factory.makeBinaryPackageBuild(
+            source_package_release=spph.sourcepackagerelease,
+            distroarchseries=das,
+            archive=spph.archive,
+            status=BuildStatus.NEEDSBUILD,
+        )
+        original = BUILD_STATUS_ICONS.pop(BuildStatus.NEEDSBUILD)
+        try:
+            view = self._getView(distroseries)
+            html = view.packages_list_data
+        finally:
+            BUILD_STATUS_ICONS[BuildStatus.NEEDSBUILD] = original
+        self.assertIn(PENDING_ICON, html)
+        self.assertIn("Needs building", html)
 
     def test_packages_list_data_build_tooltip_unique_ids(self):
         """Each build tooltip has a unique ID."""

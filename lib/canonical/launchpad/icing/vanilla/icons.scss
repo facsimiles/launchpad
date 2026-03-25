@@ -44,6 +44,10 @@
   &.is-caution {
     background-color: var(--color-icon-caution);
   }
+
+  &.is-muted {
+    background-color: var(--color-icon-muted);
+  }
 }
 
 .p-icon--edit {
