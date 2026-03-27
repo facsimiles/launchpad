@@ -654,6 +654,13 @@
         provides="lp.services.webapp.interfaces.IBreadcrumb"
         factory="lp.registry.browser.externalpackageseries.ExternalPackageSeriesBreadcrumb"/>
 
+    <!-- ArchiveSourcePackage -->
+    <class
+        class="lp.registry.model.archivesourcepackage.ArchiveSourcePackage">
+        <allow
+            interface="lp.registry.interfaces.archivesourcepackage.IArchiveSourcePackageView"/>
+    </class>
+
     <!-- CommercialSubscription -->
 
     <class
@@ -1544,6 +1551,7 @@
             permission="launchpad.LimitedView"
             attributes="
                 bugtargetdisplayname
+                bug_target_parent
                 getBugTaskWeightFunction
                 pillar
                 searchTasks"/>
@@ -1804,6 +1812,7 @@
              attributes="
                  bug_reported_acknowledgement
                  bug_reporting_guidelines
+                 bug_target_parent
                  content_templates
                  bugtargetname
                  createBug
