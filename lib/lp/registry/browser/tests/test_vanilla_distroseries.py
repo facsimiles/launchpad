@@ -8,6 +8,7 @@ from lp.registry.browser.vanilla_distroseries import (
     BUILD_STATUS_ICONS,
     ERROR_ICON,
     LOADING_ICON,
+    HELP_ICON,
     PENDING_ICON,
     SKIP_ICON,
     SUCCESS_ICON,
@@ -222,7 +223,7 @@ class TestVanillaDistroSeriesPackagesList(TestCaseWithFactory):
         self.assertIn('id="build-tooltip-0"', html)
         self.assertIn("Successfully built", html)
 
-    def test_packages_list_data_unknown_status_uses_pending_icon(self):
+    def test_packages_list_data_unknown_status_uses_help_icon(self):
         """Unknown statuses fall back to the pending icon."""
         distroseries = self._makeDistroSeries()
         spph = self._makeSpph(distroseries)
@@ -241,7 +242,7 @@ class TestVanillaDistroSeriesPackagesList(TestCaseWithFactory):
             html = view.packages_list_data
         finally:
             BUILD_STATUS_ICONS[BuildStatus.NEEDSBUILD] = original
-        self.assertIn(PENDING_ICON, html)
+        self.assertIn(HELP_ICON, html)
         self.assertIn("Needs building", html)
 
     def test_packages_list_data_build_tooltip_unique_ids(self):

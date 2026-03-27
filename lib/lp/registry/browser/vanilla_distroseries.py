@@ -66,6 +66,7 @@ WARNING_ICON = "p-icon--warning-grey is-caution"
 LOADING_ICON = "p-icon--spinner u-animation--spin"
 PENDING_ICON = "p-icon--loading-step"
 SKIP_ICON = "p-icon--skip is-muted"
+HELP_ICON = "p-icon--help"
 
 BUILD_STATUS_ICONS = {
     BuildStatus.FULLYBUILT: SUCCESS_ICON,
@@ -330,7 +331,7 @@ class VanillaDistroSeriesView(LaunchpadView, MilestoneOverlayMixin):
                 tooltip_id = "build-tooltip-%d" % tooltip_idx
                 tooltip_idx += 1
                 icon_class = BUILD_STATUS_ICONS.get(
-                    build["build_status"], PENDING_ICON
+                    build["build_status"], HELP_ICON
                 )
                 status_label = build["build_status"].title
                 build_chips.append(
