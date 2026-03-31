@@ -29,6 +29,10 @@ class FakeArtifactoryFixture(Fixture):
             self.base_url,
             self.repository_name,
         )
+        self.metadata_url = "%s/api/metadata/%s" % (
+            self.base_url,
+            self.repository_name,
+        )
         self.search_url = "%s/api/search/aql" % self.base_url
         self._fs = {}
         self.add_dir("/")
@@ -47,6 +51,12 @@ class FakeArtifactoryFixture(Fixture):
                 url=repo_url_regex,
                 callback=self._handle_download,
             )
+        )
+        metadata_url_regex = re.compile(
+            r"^%s/.*" % re.escape(self.metadata_url)
+        )
+        self.requests_mock.add_callback(
+            "PATCH", metadata_url_regex, callback=self._handle_update_properties
         )
         self.requests_mock.add_callback(
             "GET", api_url_regex, callback=self._handle_stat
@@ -69,7 +79,7 @@ class FakeArtifactoryFixture(Fixture):
 
     def add_dir(self, path):
         now = datetime.now(timezone.utc).isoformat()
-        self._fs[path] = {"created": now, "lastModified": now}
+        self._fs[path] = {"created": now, "lastModified": now, "lastUpdated": now}
 
     def add_file(self, path, contents, size, properties):
         now = datetime.now(timezone.utc).isoformat()
@@ -77,6 +87,7 @@ class FakeArtifactoryFixture(Fixture):
         self._fs[path] = {
             "created": now,
             "lastModified": now,
+            "lastUpdated": now,
             "size": str(size),
             "checksums": {"sha1": hashlib.sha1(body).hexdigest()},
             "body": body,
@@ -193,6 +204,23 @@ class FakeArtifactoryFixture(Fixture):
             return 204, {}, ""
         else:
             return 404, {}, "Unable to find item"
+
+    def _handle_update_properties(self, request):
+        """Handle a request to update properties on an existing file."""
+        parsed_url = urlparse(request.url[len(self.metadata_url) :])
+        path = unquote(parsed_url.path)
+        if path not in self._fs:
+            return 404, {}, "Unable to find item"
+        body = json.loads(request.body)
+        props = body.get("props", {})
+        for key, value in props.items():
+            if value is None:
+                self._fs[path]["properties"].pop(key, None)
+            else:
+                self._fs[path]["properties"][key] = (
+                    value if isinstance(value, list) else [value]
+                )
+        return 204, {}, ""
 
     def _handle_delete_properties(self, request):
         """Handle a request to delete properties from an existing file."""
