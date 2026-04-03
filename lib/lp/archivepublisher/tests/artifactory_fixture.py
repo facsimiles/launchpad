@@ -55,6 +55,9 @@ class FakeArtifactoryFixture(Fixture):
         metadata_url_regex = re.compile(
             r"^%s/.*" % re.escape(self.metadata_url)
         )
+        search_url_regex = re.compile(
+            r"^%s$" % re.escape(self.search_url)
+        )
         self.requests_mock.add_callback(
             "PATCH", metadata_url_regex, callback=self._handle_update_properties
         )
@@ -68,7 +71,7 @@ class FakeArtifactoryFixture(Fixture):
             "PUT", api_url_regex, callback=self._handle_set_properties
         )
         self.requests_mock.add_callback(
-            "POST", self.search_url, callback=self._handle_aql
+            "POST", search_url_regex, callback=self._handle_aql
         )
         self.requests_mock.add_callback(
             "DELETE", repo_url_regex, callback=self._handle_delete
@@ -317,7 +320,7 @@ class FakeArtifactoryFixture(Fixture):
             if "size" in self._fs[path]
         ]
         results = [item for item in items if self._matches_aql(item, criteria)]
-        limit = min(limit, len(results) - offset)
+        limit = min(limit, max(0, len(results) - offset))
         results = results[offset : offset + limit]
         return 200, {}, json.dumps({"results": results})
 
